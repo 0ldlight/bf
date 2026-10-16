@@ -140,6 +140,11 @@ Pricing and entitlement values are configurable business parameters owned by the
    Public releases require owner approval; UAT deployment alone does not publish a release.
 5. 部署失败保留证据；恢复上一镜像前先判断数据库版本兼容性，禁止盲目自动降级 schema。
    Preserve failure evidence and check schema compatibility before application rollback.
+6. 文档统一使用已确认的 Fern，复用现有组织或站点，发布域名为 docs.binflow.org；文档变更需要预览、链接/配置检查和可追踪的发布记录，具体发布接入在 P0 核实。
+   Use the confirmed Fern platform and existing organization/site at docs.binflow.org; validate previews, links/configuration and traceable publication during P0.
+
+文档范围覆盖产品、API、运维和研发规划/规范/ADR，延续中英双语。公开内容与私有环境/研究资料须分别审阅访问范围；私有内容不能因迁移文档而进入公开站点。版本控制的 Fern 文档源是迁移后的维护入口，仓库 README 和必要的 Agent 接续入口保留链接，避免双份正文。
+Documentation includes product, API, operations, engineering plans/conventions/ADRs and both languages. Review public/private access separately. Maintain versioned Fern sources after migration and retain repository/agent entry-point links without duplicate content.
 
 具体 CI Secret 和测试服务接入在启动预检中核实；不自动覆盖现有全局配置。
 Verify actual CI connections and secrets during bootstrap without overwriting shared global settings.
@@ -206,7 +211,7 @@ Verify the Codex adapter and pause durably on unavailable capacity; do not silen
 
 | 阶段 / Phase | 交付与出口 / Deliverable and exit |
 |---|---|
-| P0 基线与研发体系 / Foundation | 环境预检、双语规范、功能矩阵 v1、研究索引、CI smoke、Linear 流程、可跨 Mac 接续的一条 Agent 任务 / reproducible foundation and one complete agent workflow |
+| P0 基线与研发体系 / Foundation | 环境预检、双语规范、功能矩阵 v1、研究索引、CI smoke、Linear 流程、Fern 文档迁移与 docs.binflow.org 接入、可跨 Mac 接续的一条 Agent 任务 / reproducible foundation, Fern documentation/domain integration and one complete agent workflow |
 | P1 最小贯通 / Vertical slice | 登录、权限、Generic local 仓库、上传下载、校验和、元数据、双语主题、K8s与UAT；用户审阅 / end-to-end verified slice |
 | P2 通用仓库能力 / Repository foundation | local/remote/virtual、缓存、属性、搜索/AQL、构建信息、清理、API 契约 / shared repository and API capabilities |
 | P3 包生态 / Ecosystems | 按依赖推进 Maven、npm、Docker/OCI、PyPI、Go、Helm 及目标版本剩余类型；逐个客户端验收 / all scoped ecosystem adapters and client tests |
@@ -237,6 +242,8 @@ Connection actions:
   Restore the existing Linear connection before synchronization.
 - CI/GHCR 权限、UAT 80/443、试用剩余时间/功能可用性及目标平台矩阵在 P0 核实。
   Verify CI credentials, ingress, baseline entitlement and version matrices during P0.
+- 定位所有者现有 Fern 组织/站点及文档源仓库，确认访问控制、DNS 管理方式和发布凭据后迁移；Fern 选型与 docs.binflow.org 域名已确认，无需重复审批选型。
+  Locate the existing Fern organization/site/source repository and verify access controls, DNS management and publishing credentials; platform/domain selection is already confirmed.
 - 任一外部服务到期或不可用，明确阻塞具体功能，不能把缺失证据登记为通过。
   Record evidence gaps as scoped blockers, not passed parity.
 
@@ -251,6 +258,8 @@ Connection actions:
 - Accessibility: https://playwright.dev/docs/accessibility-testing
 - Codex SDK: https://learn.chatgpt.com/docs/codex-sdk
 - Claude noninteractive execution: https://code.claude.com/docs/en/headless
+- Fern custom domains: https://buildwithfern.com/learn/dashboard/configuration/custom-domains
+- Fern project structure: https://buildwithfern.com/learn/docs/getting-started/project-structure
 
 在线文档可能覆盖比目标更新的版本；目标支持结论必须回到 7.161.26 证据。
 Live documentation may describe newer versions; freeze baseline conclusions against 7.161.26 evidence.

@@ -48,6 +48,21 @@
 - 已允许安装必要 CLI、依赖、skills 和插件；具体采用项仍需控制范围、来源和版本。
   Necessary development tools and integrations may be installed; selection and versions remain controlled.
 
+## 文档平台 / Documentation platform
+
+- BinFlow 的全部项目文档统一使用 Fern 维护，文档站域名为 docs.binflow.org。
+  Maintain all BinFlow project documentation with Fern at docs.binflow.org.
+- 范围包括产品指南、安装部署、运维、API 参考、兼容矩阵、研发规范、架构决定与项目规划；延续中文和英文要求。
+  Cover product guides, installation, operations, API reference, compatibility matrices, engineering conventions, architecture decisions and planning in Chinese and English.
+- 复用所有者现有 Fern 组织或站点，不重复创建；具体组织、站点及文档源码仓库定位待提供。
+  Reuse the owner's existing Fern organization/site; its identity and source repository remain to be supplied.
+- 文档源码与配置纳入版本控制并经过审阅；迁移完成后保留必要的仓库入口与链接，避免手工维护重复正文。
+  Version and review documentation sources/configuration; retain repository entry points and links without duplicate manual copies after migration.
+- 公开站点仅发布可公开内容；私有环境记录、凭据和受控研究资料继续遵守隔离要求，私有文档的 Fern 管理与访问控制在接入时核实。
+  Publish only releasable content; preserve private environment, credential and research boundaries, and verify private-document access controls during integration.
+- Fern 接入、现有文档迁移、预览与检查、域名/DNS/TLS 和发布流程列入 P0；当前尚未迁移或上线。
+  Include Fern integration, migration, previews/checks, domain/DNS/TLS and publishing in P0; migration and launch have not occurred.
+
 ## 商业授权与研究资料 / Licensing and research materials
 
 - BinFlow 需自主实现试用、许可证签发、到期管理、功能授权与离线授权能力，参考 Artifactory 的产品设计。

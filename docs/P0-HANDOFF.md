@@ -15,6 +15,9 @@ PROJECT-BRIEF.md holds confirmed requirements; STARTUP-PROPOSAL.md holds propose
 架构、main PR 合并和版本发布仍由用户决定；不要把“提交规划”登记为所有 ADR 已获批准。
 Architecture, main merges and releases remain owner decisions; committing planning documents does not approve every ADR.
 
+后续新增的已确认要求：全部 BinFlow 项目文档使用 Fern，域名 docs.binflow.org；复用所有者现有组织或站点，具体链接待提供。P0 包含文档迁移、双语、访问范围、预览检查及域名/发布接入；当前尚未上线。私有环境、凭据与研究资料不得直接发布到公开文档站。
+Subsequent confirmed requirement: use Fern for all project documentation at docs.binflow.org and reuse the owner's existing organization/site (link pending). P0 includes migration, both languages, access review, previews/checks and domain/publishing integration. No site launch has occurred; preserve private-material boundaries.
+
 继续时不重启需求访谈；仅针对具体未决事项或新发现提出问题。可先推进 P0 的只读预检、基线调查和任务细化。
 Do not restart requirements discovery. Ask only about concrete unresolved decisions or new findings; begin with P0 preflight and baseline investigation.
 
@@ -89,13 +92,15 @@ No compatibility or performance suites have run; planned roles and capabilities 
    Verify the target package and build a private versioned research inventory.
 5. 建立研发规范、领域接口、可重复检查入口与必要环境配置；依架构批准情况逐项实施。
    Establish conventions, contracts and reproducible checks according to approved decisions.
+   文档使用 Fern 统一维护，迁移可公开的现有项目文档并接入 docs.binflow.org；核实私有文档访问控制、预览、链接/配置检查及发布证据。
+   Maintain documentation in Fern, migrate releasable project documents and connect docs.binflow.org; verify private-document access, previews/checks and publication evidence.
 6. 跑通一条 Claude 任务：独立 worktree、GLM-5.3、明确输入、验证、报告、提交与 PR。
    Execute one end-to-end worker task with reproducible evidence and owner-reviewed PR.
 7. 验证当前主机到新主机的任务恢复记录和执行槽控制，再扩展并发与后台调度。
    Validate durable handover and slot accounting before scaling execution.
 
-P0 出口按启动提案：基线、矩阵 v1、研究索引、CI smoke、Linear 流程和可接续的一条 Agent 任务；P0 完成不等于产品已可用。
-P0 exits with reproducible foundations, not a finished product.
+P0 出口按启动提案：基线、矩阵 v1、研究索引、CI smoke、Linear 流程、Fern 文档迁移与域名接入和可接续的一条 Agent 任务；P0 完成不等于产品已可用。
+P0 exits with reproducible foundations including Fern documentation/domain integration, not a finished product.
 
 所有 Claude 角色及重试共用最多 3 个执行槽。当前主机本次没有启动项目 Worker，不要在两台主机重复派发同一任务。
 All Claude roles/retries share three execution slots. This handover started no project workers; avoid duplicate task dispatch.
@@ -105,3 +110,7 @@ All Claude roles/retries share three execution slots. This handover started no p
 > 请读取 README.md、docs/PROJECT-BRIEF.md、docs/STARTUP-PROPOSAL.md、docs/P0-HANDOFF.md，接续 BinFlow 的 P0。已确认需求无需重新访谈。Codex 主导，Claude Code 使用 GLM-5.3 执行任务，最多 3 并发；任务和审批使用现有 Linear binflow 项目。先检查本机凭据与环境、恢复 Linear，再处理具体待决策 ADR。架构、main 合并和版本发布由我决定。私有资料与凭据不进入公开仓库。
 >
 > Read the four planning documents and continue P0 without restarting requirements discovery. Codex leads; Claude Code uses GLM-5.3 with three shared slots. Use the existing Linear project, verify host-local access, and obtain owner decisions for unresolved ADRs. Keep research material and credentials private.
+>
+> 全部项目文档使用 Fern，域名 docs.binflow.org；复用所有者现有组织或站点，文档迁移与域名接入属于 P0。先定位现有站点与源仓库，并核实公开/私有访问范围。
+>
+> Maintain all project documentation with Fern at docs.binflow.org using the owner's existing organization/site. Include migration and domain integration in P0, first locating the existing site/source repository and verifying public/private access.
