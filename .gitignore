@@ -1,0 +1,25 @@
+# Local configuration and credentials
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+**/*.local.md
+**/*.local.json
+*.key
+*.p12
+*.pfx
+/.binflow/
+/.claude/settings.local.json
+
+# Private reference material and generated evidence
+/research/private/
+/artifacts/private/
+/downloads/
+/decompiled/
+
+# Local caches and outputs
+.DS_Store
+node_modules/
+coverage/
+test-results/
+playwright-report/
