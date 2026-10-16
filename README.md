@@ -6,8 +6,10 @@ A Go and TypeScript artifact repository targeting Artifactory 7.161.26 Enterpris
 当前为需求与架构规划阶段；产品代码、基础服务和 Agent 调度器尚未实现。
 Currently in requirements and architecture planning; product code, infrastructure and agent scheduling are not yet implemented.
 
-全部项目文档已确定统一使用 Fern，文档站域名为 docs.binflow.org；现有文档迁移及站点接入列入 P0，目前尚未上线。迁移前仍使用下方仓库文档入口。
-All project documentation will be maintained with Fern at docs.binflow.org. Migration and site integration are P0 work and have not launched; use the repository entry points below until migration completes.
+全部项目文档已确定统一使用 Fern，文档站域名为 docs.binflow.org；现有文档迁移及站点接入列入 P0，迁移与发布验收尚未完成。迁移前仍使用下方仓库文档入口。
+All project documentation will be maintained with Fern at docs.binflow.org. Migration and site integration are P0 work; migration and publication verification remain incomplete. Use the repository entry points below until migration completes.
+
+文档源码 / Documentation source: [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs).
 
 ## 接续入口 / Continue here
 

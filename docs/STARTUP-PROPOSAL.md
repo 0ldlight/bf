@@ -242,8 +242,10 @@ Connection actions:
   Restore the existing Linear connection before synchronization.
 - CI/GHCR 权限、UAT 80/443、试用剩余时间/功能可用性及目标平台矩阵在 P0 核实。
   Verify CI credentials, ingress, baseline entitlement and version matrices during P0.
-- 定位所有者现有 Fern 组织/站点及文档源仓库，确认访问控制、DNS 管理方式和发布凭据后迁移；Fern 选型与 docs.binflow.org 域名已确认，无需重复审批选型。
-  Locate the existing Fern organization/site/source repository and verify access controls, DNS management and publishing credentials; platform/domain selection is already confirmed.
+- 现有 Fern 文档源为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，站点 `binflow-507875.docs.buildwithfern.com` 的配置已包含 `custom-domain: docs.binflow.org`。确认访问控制、DNS 管理方式和发布凭据后迁移；Fern 选型与域名已确认。
+  Reuse the existing documentation repository/site, which already configures the custom domain; verify access controls, DNS management and publishing credentials before migration.
+- 文档仓库已有 GitHub Actions 检查、PR 预览和 main 发布工作流；2026-10-16 最新配置检查成功，发布因缺少 FERN_TOKEN 失败，仓库未配置该 Secret。优先修复现有文档流水线，不重复创建 CircleCI 文档发布流程。
+  Existing Actions workflows cover checks, PR previews and main publication. Latest check passed; publishing failed for missing FERN_TOKEN, confirmed absent from repository Secrets. Repair the existing docs workflow rather than duplicate it in CircleCI.
 - 任一外部服务到期或不可用，明确阻塞具体功能，不能把缺失证据登记为通过。
   Record evidence gaps as scoped blockers, not passed parity.
 

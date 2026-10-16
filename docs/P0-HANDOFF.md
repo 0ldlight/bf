@@ -15,8 +15,11 @@ PROJECT-BRIEF.md holds confirmed requirements; STARTUP-PROPOSAL.md holds propose
 架构、main PR 合并和版本发布仍由用户决定；不要把“提交规划”登记为所有 ADR 已获批准。
 Architecture, main merges and releases remain owner decisions; committing planning documents does not approve every ADR.
 
-后续新增的已确认要求：全部 BinFlow 项目文档使用 Fern，域名 docs.binflow.org；复用所有者现有组织或站点，具体链接待提供。P0 包含文档迁移、双语、访问范围、预览检查及域名/发布接入；当前尚未上线。私有环境、凭据与研究资料不得直接发布到公开文档站。
-Subsequent confirmed requirement: use Fern for all project documentation at docs.binflow.org and reuse the owner's existing organization/site (link pending). P0 includes migration, both languages, access review, previews/checks and domain/publishing integration. No site launch has occurred; preserve private-material boundaries.
+后续新增的已确认要求：全部 BinFlow 项目文档使用 Fern，域名 docs.binflow.org；复用 [现有文档源仓库](https://github.com/0ldlight/binflow-docs) 与 [Fern 站点](https://dashboard.buildwithfern.com/binflow-136557/docs/binflow-507875.docs.buildwithfern.com/)。P0 包含文档迁移、双语、访问范围、预览检查及域名/发布接入；当前未完成 BinFlow 内容迁移。私有环境、凭据与研究资料不得直接发布到公开文档站。
+Subsequent confirmed requirement: use Fern for all project documentation at docs.binflow.org and reuse the existing repository/site linked above. P0 includes migration, both languages, access review, previews/checks and domain/publishing integration. BinFlow content migration remains incomplete; preserve private-material boundaries.
+
+文档站配置已包含目标域名；仓库仍是入门示例，已有检查/预览/发布工作流。最新发布因缺少 FERN_TOKEN 失败，域名和 HTTPS 还需在成功发布后核实。不要把配置存在或 fern-check 成功当成已上线。
+The site already configures the domain but contains starter examples. Existing publishing failed for missing FERN_TOKEN; validate domain/HTTPS after successful publication. Configuration and a passing check do not establish a live site.
 
 继续时不重启需求访谈；仅针对具体未决事项或新发现提出问题。可先推进 P0 的只读预检、基线调查和任务细化。
 Do not restart requirements discovery. Ask only about concrete unresolved decisions or new findings; begin with P0 preflight and baseline investigation.
