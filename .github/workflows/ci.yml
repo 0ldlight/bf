@@ -1,6 +1,6 @@
 # BIN-124 shared CI smoke / 共享 CI 冒烟检查.
-# Validation only: no deployment, no artifact publishing (pending owner
-# decision); UAT deploys stay on CircleCI per owner.
+# Validation only: no deployment and no artifact publishing here — Jenkins
+# builds artifacts (see Jenkinsfile) and CircleCI only deploys UAT, per owner.
 name: CI
 
 on:
