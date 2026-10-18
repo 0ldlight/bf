@@ -18,8 +18,8 @@ Architecture, main merges and releases remain owner decisions; committing planni
 后续新增的已确认要求：全部 BinFlow 项目文档使用 Fern，域名 docs.binflow.org；复用 [现有文档源仓库](https://github.com/0ldlight/binflow-docs) 与 [Fern Dashboard](https://dashboard.buildwithfern.com)。2026-10-18 核实组织为 `binflow`、默认站点为 `binflow.docs.buildwithfern.com`，取代先前带数字后缀的标识。P0 包含文档迁移、双语、访问范围、预览检查及域名/发布接入；当前未完成 BinFlow 内容迁移。私有环境、凭据与研究资料不得直接发布到公开文档站。
 Subsequent confirmed requirement: use Fern for all project documentation at docs.binflow.org and reuse the existing repository/site linked above. P0 includes migration, both languages, access review, previews/checks and domain/publishing integration. BinFlow content migration remains incomplete; preserve private-material boundaries.
 
-文档站配置已包含目标域名；仓库仍是入门示例，已有检查/预览/发布工作流。最新发布因缺少 FERN_TOKEN 失败，域名和 HTTPS 还需在成功发布后核实。不要把配置存在或 fern-check 成功当成已上线。
-The site already configures the domain but contains starter examples. Existing publishing failed for missing FERN_TOKEN; validate domain/HTTPS after successful publication. Configuration and a passing check do not establish a live site.
+文档站配置已包含目标域名；仓库仍是入门示例，已有检查/预览/发布工作流。2026-10-18 已配置 FERN_TOKEN Secret，现有 main 提交 `c69ee35` 的[发布重跑成功](https://github.com/0ldlight/binflow-docs/actions/runs/39141090564/attempts/2)，Fern 部署记录为 LIVE。本机访问默认站点与自定义域名仍为 403；内容迁移、域名和 HTTPS 验收继续追踪。
+The site configures the domain but still contains starter examples. CI authentication/publication passed on 2026-10-18 and Fern records the deployment LIVE. Local HTTP checks still return 403; content migration and browser/domain/HTTPS acceptance remain open.
 
 2026-10-18：通过 fern-api CLI 登录并验证当前 `binflow` 组织的 Fern MCP 连接；API 返回默认站点 LIVE，关联上述文档仓库。Codex MCP 已按当前组织配置，凭据仅在本机配置中；这不替代文档仓库 GitHub Actions 的 FERN_TOKEN，自定义域名仍待验收。
 2026-10-18: authenticated CLI/MCP access verified for the current organization and default LIVE site linked to the docs repository. Codex MCP credentials remain host-local; CI authentication and custom-domain acceptance are separate checks.

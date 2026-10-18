@@ -244,8 +244,8 @@ Connection actions:
   Verify CI credentials, ingress, baseline entitlement and version matrices during P0.
 - 现有 Fern 文档源为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，当前组织 `binflow`、默认站点 `binflow.docs.buildwithfern.com`，配置已包含 `custom-domain: docs.binflow.org`。2026-10-18 经认证 API 返回默认站点 LIVE；自定义域名与内容迁移仍需验收。
   Reuse the verified current organization/default site and existing custom-domain configuration. Authenticated API reports the default site LIVE; custom-domain and content-migration acceptance remain open.
-- 文档仓库已有 GitHub Actions 检查、PR 预览和 main 发布工作流；2026-10-16 最新配置检查成功，发布因缺少 FERN_TOKEN 失败，仓库未配置该 Secret。优先修复现有文档流水线，不重复创建 CircleCI 文档发布流程。
-  Existing Actions workflows cover checks, PR previews and main publication. Latest check passed; publishing failed for missing FERN_TOKEN, confirmed absent from repository Secrets. Repair the existing docs workflow rather than duplicate it in CircleCI.
+- 文档仓库已有 GitHub Actions 检查、PR 预览和 main 发布工作流；2026-10-18 已配置 FERN_TOKEN Secret，现有 main 提交 `c69ee35` 的[发布重跑成功](https://github.com/0ldlight/binflow-docs/actions/runs/39141090564/attempts/2)。文档内容迁移与自定义域名验收仍未完成；复用现有文档流水线，不重复创建 CircleCI 文档发布流程。
+  Existing Actions workflows cover checks, PR previews and main publication. CI authentication and the linked publication rerun passed on 2026-10-18. Content migration/custom-domain acceptance remain open; reuse the existing workflow.
 - 任一外部服务到期或不可用，明确阻塞具体功能，不能把缺失证据登记为通过。
   Record evidence gaps as scoped blockers, not passed parity.
 
