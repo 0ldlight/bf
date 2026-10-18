@@ -54,10 +54,10 @@
   Maintain all BinFlow project documentation with Fern at docs.binflow.org.
 - 范围包括产品指南、安装部署、运维、API 参考、兼容矩阵、研发规范、架构决定与项目规划；延续中文和英文要求。
   Cover product guides, installation, operations, API reference, compatibility matrices, engineering conventions, architecture decisions and planning in Chinese and English.
-- 复用所有者现有 Fern 组织或站点，不重复创建；文档源码仓库为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，站点标识为 `binflow-507875.docs.buildwithfern.com`。
-  Reuse the owner's existing Fern organization/site and the documentation source repository above; the site identifier is binflow-507875.docs.buildwithfern.com.
-- 现有站点管理入口：[Fern Dashboard](https://dashboard.buildwithfern.com/binflow-136557/docs/binflow-507875.docs.buildwithfern.com/)。管理入口、CLI 配置与站点标识分别核实，不根据相似名称重建组织或修改标识。
-  Use the existing Dashboard; verify management, CLI and site identities separately rather than recreating organizations or changing identifiers by inference.
+- 复用所有者现有 Fern 组织或站点，不重复创建；文档源码仓库为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)。2026-10-18 核实当前组织为 `binflow`，默认站点为 `binflow.docs.buildwithfern.com`。
+  Reuse the existing documentation repository/site. Repository configuration and authenticated Fern queries verified the current organization/site above on 2026-10-18.
+- 管理入口：[Fern Dashboard](https://dashboard.buildwithfern.com)。先前带 `binflow-136557` / `binflow-507875` 的标识是历史记录；按实际 API 和仓库配置定位组织，不重建同名站点。
+  Use the Dashboard and verified organization/site identities; earlier suffixed identifiers are historical and do not justify recreating the site.
 - 文档源码与配置纳入版本控制并经过审阅；迁移完成后保留必要的仓库入口与链接，避免手工维护重复正文。
   Version and review documentation sources/configuration; retain repository entry points and links without duplicate manual copies after migration.
 - 公开站点仅发布可公开内容；私有环境记录、凭据和受控研究资料继续遵守隔离要求，私有文档的 Fern 管理与访问控制在接入时核实。
