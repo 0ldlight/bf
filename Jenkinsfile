@@ -8,6 +8,8 @@ pipeline {
     agent {
         kubernetes {
             cloud 'kubernetes'
+            // Reuse the configured JDK 25 agent / 复用已配置的 JDK 25 Agent。
+            inheritFrom 'default'
             defaultContainer 'go'
             yaml '''
 apiVersion: v1
