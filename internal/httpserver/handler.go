@@ -4,9 +4,12 @@ package httpserver
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/go-chi/chi/v5"
 )
+
+const healthBody = "ok\n"
 
 // NewHandler returns the root handler for BinFlow's internal HTTP surface.
 // NewHandler 返回 BinFlow 内部 HTTP 服务的根处理器。
@@ -16,8 +19,8 @@ import (
 // to chi's default 404 (http.NotFound).
 func NewHandler() http.Handler {
 	r := chi.NewRouter()
-	r.Get("/healthz", getHealthz)
-	r.Head("/healthz", headHealthz)
+	r.Get("/healthz", healthz)
+	r.Head("/healthz", healthz)
 	r.MethodNotAllowed(methodNotAllowed)
 	return r
 }
@@ -33,12 +36,13 @@ func methodNotAllowed(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusMethodNotAllowed)
 }
 
-func getHealthz(w http.ResponseWriter, _ *http.Request) {
+func healthz(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	w.Write([]byte("ok\n"))
-}
-
-func headHealthz(w http.ResponseWriter, _ *http.Request) {
-	// Write only the status so the response carries no body for HEAD.
+	w.Header().Set("Content-Length", strconv.Itoa(len(healthBody)))
 	w.WriteHeader(http.StatusOK)
+	// HEAD keeps GET's representation headers without writing its body.
+	// HEAD 保留 GET 的表示头，但不写入正文。
+	if r.Method == http.MethodGet {
+		w.Write([]byte(healthBody))
+	}
 }

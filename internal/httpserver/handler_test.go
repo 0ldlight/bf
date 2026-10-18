@@ -36,6 +36,12 @@ func TestHealthzHEADReturns200WithEmptyBody(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("HEAD /healthz status = %d, want %d", rec.Code, http.StatusOK)
 	}
+	if got := rec.Header().Get("Content-Type"); got != "text/plain; charset=utf-8" {
+		t.Fatalf("HEAD /healthz Content-Type = %q, want text/plain; charset=utf-8", got)
+	}
+	if got := rec.Header().Get("Content-Length"); got != "3" {
+		t.Fatalf("HEAD /healthz Content-Length = %q, want 3", got)
+	}
 	// The handler itself must write no body for HEAD, independent of the
 	// body stripping a real net/http server performs for HEAD responses.
 	if rec.Body.Len() != 0 {
