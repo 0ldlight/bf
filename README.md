@@ -1,27 +1,16 @@
 # BinFlow
 
-Go 与 TypeScript 制品库项目，对齐 Artifactory 7.161.26 Enterprise+ 及其必需的平台服务。
-A Go and TypeScript artifact repository targeting Artifactory 7.161.26 Enterprise+ and its required platform services.
+Go 与 TypeScript 制品库项目，目标为 Artifactory 7.161.26 Enterprise+ 及其必需的平台能力。当前处于 P0；内部健康切片不代表产品兼容完成。
+A Go/TypeScript artifact repository targeting Artifactory 7.161.26 Enterprise+ and required platform behavior. P0 is underway; the internal health slice does not establish product parity.
 
-当前为需求与架构规划阶段；产品代码、基础服务和 Agent 调度器尚未实现。
-Currently in requirements and architecture planning; product code, infrastructure and agent scheduling are not yet implemented.
+全部项目文档在 [Fern 文档站](https://docs.binflow.org)维护；[文档源码](https://github.com/0ldlight/binflow-docs)保存可审阅版本。迁移分支合并并发布前，新内容以文档 PR 为准。
+Maintain all documentation in Fern. Review documentation PRs until the migration is merged and published.
 
-全部项目文档已确定统一使用 Fern，文档站域名为 docs.binflow.org；现有文档迁移及站点接入列入 P0，迁移与发布验收尚未完成。迁移前仍使用下方仓库文档入口。
-All project documentation will be maintained with Fern at docs.binflow.org. Migration and site integration are P0 work; migration and publication verification remain incomplete. Use the repository entry points below until migration completes.
+- [需求 / Requirements](https://docs.binflow.org/project/requirements)
+- [P0 计划 / Foundation](https://docs.binflow.org/engineering/p0-plan)
+- [接续研发 / Continuation](https://docs.binflow.org/engineering/continuation)
+- [能力矩阵 / Matrix](https://docs.binflow.org/research/capability-matrix)
+- [Linear 项目 / Tasks and approvals](https://linear.app/binfloow/project/binflow-2ad2bc04f63e)
 
-文档源码 / Documentation source: [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs).
-
-## 接续入口 / Continue here
-
-1. [已确认需求 / Confirmed requirements](docs/PROJECT-BRIEF.md)
-2. [启动提案 / Startup proposal](docs/STARTUP-PROPOSAL.md)
-3. [另一台 Mac 的 P0 交接 / P0 handover to the next Mac](docs/P0-HANDOFF.md)
-
-任务与审批使用现有 Linear binflow 项目；main 分支合并、架构决定和版本发布由项目所有者负责。
-Use the existing Linear binflow project; the owner controls architecture decisions, main merges and releases.
-
-当前保存分支为 codex/planning-handoff。该仓库在本次交接前没有任何远端提交。
-The handover branch is codex/planning-handoff; the remote had no commits before this handover.
-
-代码许可证与商业条款仍处于提案阶段，尚未发布 LICENSE。
-Source licensing and commercial terms remain proposals; no LICENSE has been published.
+所有者负责架构决定、主分支合并与正式发布。代码许可仍待审阅；本提交不发布 LICENSE。
+The owner controls architecture, main-branch merges and releases. Source licensing remains under review.
