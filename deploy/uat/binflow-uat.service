@@ -5,7 +5,7 @@
 # this unit only defines how the process runs.
 [Unit]
 Description=BinFlow UAT service
-Documentation=https://docs.binflow.org/engineering/continuation
+Documentation=https://github.com/0ldlight/bf/blob/37cc1120090aad6e5002fd221784d835379d9de2/docs/P0-HANDOFF.md
 After=network-online.target
 Wants=network-online.target
 # Refuse to start without a switched release instead of exec-failing.
