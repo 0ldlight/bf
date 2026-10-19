@@ -47,6 +47,9 @@ MAX_REQUEST_BYTES = 1024
 MAX_ARCHIVE_BYTES = 32 * 1024 * 1024      # compressed artifact at upload
 MAX_STAGING_BYTES = 256 * 1024 * 1024     # total staging directory
 MAX_STAGING_ARTIFACTS = 16
+# Finite entry cap: each interrupted upload strands at most one .incoming
+# orphan (older orphans are never auto-deleted), so bound the backlog.
+MAX_STAGING_ENTRIES = 64
 MAX_UNPACKED_BYTES = 64 * 1024 * 1024     # compressed and uncompressed bound
 
 RESTART_TIMEOUT = 30.0
@@ -145,10 +148,6 @@ def upload_action(staging, stdin, stdout):
     tmp = os.path.join(staging, ".incoming.%d.%d" % (os.getpid(), time.time_ns()))
     stored = False
     try:
-        digest = _stream_to(stdin, tmp)
-        if digest != sha:
-            # This upload must match the request; identical retries included.
-            raise ReleaseError("sha256 mismatch")
         try:
             st = os.lstat(final)
         except FileNotFoundError:
@@ -156,10 +155,26 @@ def upload_action(staging, stdin, stdout):
         if st is not None:
             if not stat.S_ISREG(st.st_mode):
                 raise ReleaseError("existing artifact is not a regular file")
+            # Retry of a completed artifact: verify by bounded streaming
+            # hash, storing nothing, so retries still work at a full quota.
+            digest = _stream_digest(stdin)
+            if digest != sha:
+                raise ReleaseError("sha256 mismatch")
             if _file_digest(final) != sha:
                 raise ReleaseError("commit already staged with a different artifact")
         else:
-            _check_quota(staging, os.stat(tmp).st_size)
+            # Refuse before allocating anything when staging is already full;
+            # every regular file counts, interrupted .incoming orphans
+            # included. Earlier invocations' orphans are never auto-deleted.
+            used, entries = _scan_staging(staging)
+            if entries + 1 > MAX_STAGING_ENTRIES:
+                raise ReleaseError("staging entry count quota exceeded")
+            if used >= MAX_STAGING_BYTES:
+                raise ReleaseError("staging size quota exceeded")
+            digest = _stream_to(stdin, tmp, used)
+            if digest != sha:
+                raise ReleaseError("sha256 mismatch")
+            _check_quota(staging)
             os.rename(tmp, final)
             _fsync_fd(lock.fd)
             stored = True
@@ -170,8 +185,12 @@ def upload_action(staging, stdin, stdout):
         lock.close()
 
 
-def _stream_to(stdin, tmp):
-    """Bounded write to tmp while hashing; returns the streamed digest."""
+def _stream_to(stdin, tmp, baseline):
+    """Bounded write to tmp while hashing; returns the streamed digest.
+
+    The staging-wide byte budget (existing regular bytes plus this temp) is
+    enforced chunk by chunk under the caller's directory lock.
+    """
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o640)
     hasher = hashlib.sha256()
     total = 0
@@ -184,6 +203,8 @@ def _stream_to(stdin, tmp):
             total += len(chunk)
             if total > MAX_ARCHIVE_BYTES:
                 raise ReleaseError("artifact exceeds 32MiB compressed size")
+            if baseline + total > MAX_STAGING_BYTES:
+                raise ReleaseError("staging size quota exceeded")
             hasher.update(chunk)
             view = memoryview(chunk)
             while view:
@@ -194,9 +215,44 @@ def _stream_to(stdin, tmp):
     return hasher.hexdigest()
 
 
-def _check_quota(staging, incoming_size):
+def _stream_digest(stdin):
+    """Hash a bounded retry payload without storing anything."""
+    hasher = hashlib.sha256()
     total = 0
-    count = 0
+    while True:
+        chunk = stdin.read(1 << 20)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > MAX_ARCHIVE_BYTES:
+            raise ReleaseError("artifact exceeds 32MiB compressed size")
+        hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def _scan_staging(staging):
+    """Sum bytes of every regular staging file and count entries.
+
+    Interrupted .incoming orphans count toward the byte budget; unexpected
+    non-regular entries are rejected instead of followed or skipped.
+    """
+    used = 0
+    entries = 0
+    for entry in os.scandir(staging):
+        try:
+            st = entry.stat(follow_symlinks=False)
+        except FileNotFoundError:
+            continue
+        if not stat.S_ISREG(st.st_mode):
+            raise ReleaseError("staging contains an unexpected non-regular entry")
+        used += st.st_size
+        entries += 1
+    return used, entries
+
+
+def _check_quota(staging):
+    """Completed-artifact count cap; bytes are enforced while streaming."""
+    completed = 0
     for entry in os.scandir(staging):
         if not ARTIFACT_RE.fullmatch(entry.name):
             continue
@@ -204,14 +260,10 @@ def _check_quota(staging, incoming_size):
             st = entry.stat(follow_symlinks=False)
         except FileNotFoundError:
             continue
-        if not stat.S_ISREG(st.st_mode):
-            continue
-        total += st.st_size
-        count += 1
-    if count + 1 > MAX_STAGING_ARTIFACTS:
+        if stat.S_ISREG(st.st_mode):
+            completed += 1
+    if completed + 1 > MAX_STAGING_ARTIFACTS:
         raise ReleaseError("staging artifact count quota exceeded")
-    if total + incoming_size > MAX_STAGING_BYTES:
-        raise ReleaseError("staging size quota exceeded")
 
 
 def _file_digest(path):
