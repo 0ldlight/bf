@@ -35,6 +35,13 @@ spec:
         }
     }
 
+    environment {
+        // Cluster-local reachability; signed checksum verification stays on.
+        // 适配集群网络，保留 Go 签名校验。
+        GOPROXY = 'https://goproxy.cn,direct'
+        GOSUMDB = 'sum.golang.org'
+    }
+
     options {
         timeout(time: 15, unit: 'MINUTES')
         disableConcurrentBuilds()
