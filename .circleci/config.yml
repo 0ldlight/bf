@@ -1,0 +1,114 @@
+# BIN-125 CircleCI UAT activation / CircleCI UAT 激活.
+# Deployment-only: no build, no packaging, no Kubernetes and no dependency
+# installation here. Jenkins builds and uploads the archive (see Jenkinsfile);
+# this job only validates the requested commit/digest pair and sends the
+# single JSON activation line through the deploy identity's forced command.
+# Regular pushes keep deploy-uat at its default false, so nothing runs
+# automatically; parameters are set only by an explicit approved run, and
+# full trigger wiring follows account-capability verification.
+# 仅部署:Jenkins 构建上传,CircleCI 只做校验与激活;默认参数不触发任何任务。
+version: 2.1
+
+parameters:
+  deploy-uat:
+    type: boolean
+    default: false
+  commit:
+    type: string
+    default: ""
+  artifact-sha256:
+    type: string
+    default: ""
+
+jobs:
+  activate-uat:
+    docker:
+      # Codex pins a verified digest before actual use / 实际使用前由 Codex 固定校验摘要.
+      - image: cimg/base:current
+    environment:
+      # Pipeline parameters reach the shell only through the job
+      # environment; they are never interpolated into shell source text.
+      # 管道参数仅经环境变量进入脚本,绝不拼入 shell 源码。
+      BINFLOW_DEPLOY_COMMIT: << pipeline.parameters.commit >>
+      BINFLOW_DEPLOY_SHA256: << pipeline.parameters.artifact-sha256 >>
+    steps:
+      - run:
+          name: Validate input and activate UAT release
+          shell: /bin/sh
+          # No set -x, no echo of key or known_hosts values.
+          command: |
+            set -eu
+
+            fail() {
+              echo "activate-uat: $*" >&2
+              exit 1
+            }
+
+            commit="${BINFLOW_DEPLOY_COMMIT-}"
+            sha256="${BINFLOW_DEPLOY_SHA256-}"
+
+            # Strict validation: exact lowercase hex lengths, nothing else.
+            if [ "${#commit}" -ne 40 ]; then
+              fail "commit must be exactly 40 lowercase hex characters"
+            fi
+            case "$commit" in
+              *[!0-9a-f]*) fail "commit contains non-hex characters" ;;
+            esac
+            if [ "${#sha256}" -ne 64 ]; then
+              fail "artifact-sha256 must be exactly 64 lowercase hex characters"
+            fi
+            case "$sha256" in
+              *[!0-9a-f]*) fail "artifact-sha256 contains non-hex characters" ;;
+            esac
+
+            : "${BINFLOW_UAT_DEPLOY_KEY:?BINFLOW_UAT_DEPLOY_KEY is not set}"
+            : "${BINFLOW_UAT_KNOWN_HOSTS:?BINFLOW_UAT_KNOWN_HOSTS is not set}"
+
+            # Values are validated lowercase hex, so no JSON escaping applies.
+            header="{\"commit\":\"$commit\",\"sha256\":\"$sha256\"}"
+
+            umask 077
+            tmp="$(mktemp -d "${TMPDIR:-/tmp}/binflow-uat-activate.XXXXXX")"
+            cleanup() { rm -rf "$tmp"; }
+            trap cleanup EXIT INT TERM
+
+            # Key material exists only under the private temp directory,
+            # owned by this job and removed by the trap above.
+            printf '%s\n' "$BINFLOW_UAT_DEPLOY_KEY" > "$tmp/deploy_key"
+            printf '%s\n' "$BINFLOW_UAT_KNOWN_HOSTS" > "$tmp/known_hosts"
+            printf '%s\n' "$header" > "$tmp/header.json"
+
+            # The remote account is a forced command
+            # (sudo -n python3 -I /usr/local/lib/binflow/uat-release.py activate)
+            # that ignores any requested shell; stdin carries the single JSON
+            # line only.
+            ssh \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o IdentitiesOnly=yes \
+              -o IdentityFile="$tmp/deploy_key" \
+              -o UserKnownHostsFile="$tmp/known_hosts" \
+              -o ConnectTimeout=10 \
+              -o ConnectionAttempts=1 \
+              binflow-deploy@uat.binflow.org \
+              < "$tmp/header.json"
+
+            # Public HTTPS verification after the helper reports success. A
+            # failure is reported as-is: the helper already handled local
+            # start/health/recovery, and this check does not roll back.
+            # 助手负责本地启动与恢复;此处仅如实报告公网检查结果。
+            body="$(curl -fsS --max-time 20 https://uat.binflow.org/healthz)" \
+              || fail "helper activated the release but the public HTTPS health check failed; manual attention required"
+            if [ "$body" != "ok" ]; then
+              fail "unexpected /healthz body: expected 'ok', got '$body'"
+            fi
+            echo "activate-uat: https://uat.binflow.org/healthz returned ok"
+
+workflows:
+  uat-deployment:
+    # Runs only for an explicitly requested activation; default pushes and
+    # PR activity never start this workflow.
+    when:
+      equal: [true, << pipeline.parameters.deploy-uat >>]
+    jobs:
+      - activate-uat

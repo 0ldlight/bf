@@ -1,0 +1,9 @@
+# BIN-125 UAT Caddyfile / UAT Caddy 配置.
+# Fixed public UAT endpoint. TLS is automatic (ACME) for the site address.
+# No landing page is defined: the service behind /healthz is the product
+# surface, so every path proxies the application unchanged and no
+# infrastructure details are exposed to visitors.
+# 固定公网入口,自动 HTTPS;不新增落地页,所有路径原样反代应用。
+uat.binflow.org {
+	reverse_proxy 127.0.0.1:18080
+}
