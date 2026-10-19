@@ -40,6 +40,13 @@ spec:
         // 适配集群网络，保留 Go 签名校验。
         GOPROXY = 'https://goproxy.cn,direct'
         GOSUMDB = 'sum.golang.org'
+        // The agent checks out as uid 1000; the package-installing Go
+        // container runs as root. Trust only this disposable job workspace,
+        // through process configuration, while retaining Go VCS stamping.
+        // 仅信任本次临时工作目录，保留 Git 所有权保护与 Go 版本元数据。
+        GIT_CONFIG_COUNT = '1'
+        GIT_CONFIG_KEY_0 = 'safe.directory'
+        GIT_CONFIG_VALUE_0 = "${WORKSPACE}"
     }
 
     options {
