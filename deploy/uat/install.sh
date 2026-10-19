@@ -98,6 +98,14 @@ user_exists() {
 for _path in "$BASE" "$RELEASES" "$STAGING_ROOT" "$STAGING" "$LIBDIR" "$MARKER" "$UNIT" "$SUDOERS" "$CADDY_CONF"; do
     [ ! -L "$_path" ] || fail "linked managed path refused: $_path"
 done
+for _u in binflow-upload binflow-deploy; do
+    for _path in "/home/$_u" "/home/$_u/.ssh" "/home/$_u/.ssh/authorized_keys"; do
+        [ ! -L "$_path" ] || fail "linked identity path refused: $_path"
+        if [ ! -e "$MARKER" ] && [ -e "$_path" ]; then
+            fail "identity path exists without ownership marker: $_path"
+        fi
+    done
+done
 if [ -e "$MARKER" ]; then
     [ -f "$MARKER" ] && [ "$(stat -c %u "$MARKER")" = 0 ] && [ "$(stat -c %a "$MARKER")" = 600 ] \
         || fail "untrusted project marker"
@@ -161,6 +169,12 @@ ensure_user() {
     _shell=$3
     _comment=$4
     if user_exists "$_name"; then
+        _entry=$(getent passwd "$_name") || fail "cannot inspect existing user $_name"
+        [ "$(printf '%s' "$_entry" | cut -d: -f3)" -ne 0 ] \
+            && [ "$(printf '%s' "$_entry" | cut -d: -f5)" = "$_comment" ] \
+            && [ "$(printf '%s' "$_entry" | cut -d: -f6)" = "$_home" ] \
+            && [ "$(printf '%s' "$_entry" | cut -d: -f7)" = "$_shell" ] \
+            || fail "existing user $_name does not match the project identity"
         return 0
     fi
     useradd --system --home-dir "$_home" --shell "$_shell" -p '*' -c "$_comment" "$_name"
