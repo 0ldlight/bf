@@ -32,6 +32,23 @@ jobs:
       BINFLOW_DEPLOY_COMMIT: << pipeline.parameters.commit >>
       BINFLOW_DEPLOY_SHA256: << pipeline.parameters.artifact-sha256 >>
     steps:
+      # Native Additional SSH Keys injection for the approved deploy
+      # identity. This step accepts literal fingerprints only — CircleCI
+      # does not expand environment variables here, so neither pipeline
+      # parameters nor project variables can influence which key is added.
+      # 本步骤仅接受字面量指纹,不支持环境变量插值。
+      # Both fingerprints below are public identifiers of the approved key,
+      # not secrets. CircleCI writes the private file to
+      # ~/.ssh/id_rsa_<MD5 without colons>:
+      #   SHA256: SHA256:M1YXCU6I8jZikeW6l855ZQNmJgMf8PWOUS5uyEJ0zUs
+      #   MD5:    35:e5:f4:49:5a:f9:c4:5c:eb:74:65:fc:da:a7:91:e1
+      #   file:   ~/.ssh/id_rsa_35e5f4495af9c45ceb7465fcdaa791e1
+      # BINFLOW_UAT_SSH_KEY_FINGERPRINT (project environment) carries the
+      # same SHA256 value; the run step verifies the injected file against
+      # it before any SSH use.
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:M1YXCU6I8jZikeW6l855ZQNmJgMf8PWOUS5uyEJ0zUs"
       - run:
           name: Validate input and activate UAT release
           shell: /bin/sh
@@ -61,8 +78,26 @@ jobs:
               *[!0-9a-f]*) fail "artifact-sha256 contains non-hex characters" ;;
             esac
 
-            : "${BINFLOW_UAT_DEPLOY_KEY_B64:?BINFLOW_UAT_DEPLOY_KEY_B64 is not set}"
-            : "${BINFLOW_UAT_KNOWN_HOSTS:?BINFLOW_UAT_KNOWN_HOSTS is not set}"
+            expected_fingerprint="${BINFLOW_UAT_SSH_KEY_FINGERPRINT:?BINFLOW_UAT_SSH_KEY_FINGERPRINT is not set}"
+            known_hosts="${BINFLOW_UAT_KNOWN_HOSTS:?BINFLOW_UAT_KNOWN_HOSTS is not set}"
+
+            # add_ssh_keys injects the approved identity at the fixed path
+            # derived from its public MD5 fingerprint; private key material
+            # never passes through the environment or this script.
+            identity="${HOME:?}/.ssh/id_rsa_35e5f4495af9c45ceb7465fcdaa791e1"
+            if [ ! -f "$identity" ]; then
+              fail "injected SSH identity is missing: $identity"
+            fi
+            # Verify the injected file is exactly the approved identity
+            # before use. ssh-keygen -l prints public fingerprint data only;
+            # the key itself is never read into a variable or logged.
+            injected_fingerprint="$(ssh-keygen -l -E sha256 -f "$identity" </dev/null 2>/dev/null | cut -d' ' -f2)"
+            if [ -z "$injected_fingerprint" ]; then
+              fail "cannot read the injected identity fingerprint"
+            fi
+            if [ "$injected_fingerprint" != "$expected_fingerprint" ]; then
+              fail "injected identity fingerprint does not match BINFLOW_UAT_SSH_KEY_FINGERPRINT"
+            fi
 
             # Values are validated lowercase hex, so no JSON escaping applies.
             header="{\"commit\":\"$commit\",\"sha256\":\"$sha256\"}"
@@ -72,22 +107,26 @@ jobs:
             cleanup() { rm -rf "$tmp"; }
             trap cleanup EXIT INT TERM
 
-            # Key material exists only under the private temp directory,
-            # owned by this job and removed by the trap above.
-            printf '%s' "$BINFLOW_UAT_DEPLOY_KEY_B64" | base64 --decode > "$tmp/deploy_key"
-            printf '%s\n' "$BINFLOW_UAT_KNOWN_HOSTS" > "$tmp/known_hosts"
+            # The temp directory carries the host key file, the activation
+            # header and health output only — never private key material.
+            # 临时目录仅存放主机密钥、激活头与健康输出,绝不存放私钥。
+            printf '%s\n' "$known_hosts" > "$tmp/known_hosts"
             printf '%s\n' "$header" > "$tmp/header.json"
 
             # The remote account is a forced command
             # (sudo -n python3 -I /usr/local/lib/binflow/uat-release.py activate)
             # that ignores any requested shell; stdin carries the single JSON
-            # line only.
-            ssh \
+            # line only. -F /dev/null plus IdentitiesOnly and the exact
+            # IdentityFile keep older project keys or ~/.ssh/config from
+            # altering selection; publickey-only leaves no password or root
+            # fallback. 固定身份与配置,无密码或 root 回退。
+            ssh -F /dev/null \
               -o BatchMode=yes \
               -o StrictHostKeyChecking=yes \
               -o IdentitiesOnly=yes \
-              -o IdentityFile="$tmp/deploy_key" \
+              -o IdentityFile="$identity" \
               -o UserKnownHostsFile="$tmp/known_hosts" \
+              -o PreferredAuthentications=publickey \
               -o ConnectTimeout=10 \
               -o ConnectionAttempts=1 \
               binflow-deploy@uat.binflow.org \
