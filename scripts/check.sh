@@ -31,6 +31,9 @@ go vet ./...
 echo '== go test -race =='
 go test -race ./...
 
+echo '== UAT artifact and recovery tests =='
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s deploy/uat -p 'test_*.py'
+
 tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/binflow-check.XXXXXX")
 cleanup() { rm -rf "$tmp_dir"; }
 trap cleanup EXIT INT TERM
