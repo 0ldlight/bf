@@ -402,6 +402,19 @@ class UploadTests(UatCase):
         with open(os.path.join(self.staging, "binflow-%s.tar.gz" % COMMIT_A), "rb") as fh:
             self.assertEqual(fh.read(), blob)
 
+    def test_full_artifact_count_refuses_before_reading_payload(self):
+        blob_a, sha_a = make_artifact(COMMIT_A)
+        self.assertEqual(call_upload(self.staging, request(COMMIT_A, sha_a) + blob_a)[0], 0)
+        blob_b, sha_b = make_artifact(COMMIT_B)
+        line = request(COMMIT_B, sha_b)
+        stream = CountingStream(line + blob_b)
+        with mock.patch.object(release, "MAX_STAGING_ARTIFACTS", 1):
+            code, result = call_upload_stream(self.staging, stream)
+        self.assertEqual(code, 1)
+        self.assertIn("quota", result["error"])
+        self.assertEqual(stream.consumed, len(line))
+        self.assertEqual(os.listdir(self.staging), ["binflow-%s.tar.gz" % COMMIT_A])
+
     def test_rejects_unexpected_nonregular_staging_entries(self):
         blob, sha = make_artifact(COMMIT_A)
         for kind in ("symlink", "fifo", "dir"):

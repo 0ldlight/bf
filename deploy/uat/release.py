@@ -171,10 +171,10 @@ def upload_action(staging, stdin, stdout):
                 raise ReleaseError("staging entry count quota exceeded")
             if used >= MAX_STAGING_BYTES:
                 raise ReleaseError("staging size quota exceeded")
+            _check_quota(staging)
             digest = _stream_to(stdin, tmp, used)
             if digest != sha:
                 raise ReleaseError("sha256 mismatch")
-            _check_quota(staging)
             os.rename(tmp, final)
             _fsync_fd(lock.fd)
             stored = True
@@ -238,30 +238,32 @@ def _scan_staging(staging):
     """
     used = 0
     entries = 0
-    for entry in os.scandir(staging):
-        try:
-            st = entry.stat(follow_symlinks=False)
-        except FileNotFoundError:
-            continue
-        if not stat.S_ISREG(st.st_mode):
-            raise ReleaseError("staging contains an unexpected non-regular entry")
-        used += st.st_size
-        entries += 1
+    with os.scandir(staging) as items:
+        for entry in items:
+            try:
+                st = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(st.st_mode):
+                raise ReleaseError("staging contains an unexpected non-regular entry")
+            used += st.st_size
+            entries += 1
     return used, entries
 
 
 def _check_quota(staging):
     """Completed-artifact count cap; bytes are enforced while streaming."""
     completed = 0
-    for entry in os.scandir(staging):
-        if not ARTIFACT_RE.fullmatch(entry.name):
-            continue
-        try:
-            st = entry.stat(follow_symlinks=False)
-        except FileNotFoundError:
-            continue
-        if stat.S_ISREG(st.st_mode):
-            completed += 1
+    with os.scandir(staging) as items:
+        for entry in items:
+            if not ARTIFACT_RE.fullmatch(entry.name):
+                continue
+            try:
+                st = entry.stat(follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if stat.S_ISREG(st.st_mode):
+                completed += 1
     if completed + 1 > MAX_STAGING_ARTIFACTS:
         raise ReleaseError("staging artifact count quota exceeded")
 
