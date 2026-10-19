@@ -35,6 +35,23 @@ CircleCI requires literal fingerprints in `add_ssh_keys`. Load the selected key,
 上传网关限制单个压缩包为 32 MiB、暂存总量为 256 MiB、完整制品为 16 个、目录项为 64 个。中断上传遗留的临时文件计入总量；网关只清理本次调用创建的临时文件，不自动删除旧残留。达到上限时，由操作者核对项目归属后处理残留并重试；同一制品的有效重试不再分配临时包。
 The upload gateway caps compressed artifacts at 32 MiB, total staging at 256 MiB, completed artifacts at 16 and directory entries at 64. Interrupted temporary files consume the budget. The gateway removes only temporary files created by its current invocation; operators investigate ownership before removing earlier residue. Identical valid retries stream-verify without storing another temporary archive.
 
+## 操作入口与失败处理 / Operation and failure handling
+
+CircleCI 使用现有项目内的 `binflow-uat` 定义，配置与检出来源为 `0ldlight/bf`，路径 `.circleci/config.yml`。配置格式必须为原生 CircleCI；创建时不勾选 **GitHub Actions workflow file**。GitHub App 是仓库连接方式，不是配置格式；格式错误会把本文件转换为 GHA 任务并拒绝原生参数。
+Use the native CircleCI definition and leave the GitHub Actions workflow checkbox clear. The GitHub App connection and configuration format are separate settings.
+
+1. Jenkins 的 `binflow/p0-uat-delivery` 从已审阅的固定提交执行共享检查、构建和归档。显式设置 `DEPLOY_UAT=true` 才上传 staging，默认关闭。专用上传 Key 与 known_hosts 保存在 BinFlow 文件夹作用域，凭据 ID 为 `binflow-uat-upload` 和 `binflow-uat-known-hosts`。
+   Build/archive at a reviewed fixed commit; staging upload requires explicit selection and folder-scoped credentials.
+2. 独立核对归档 sidecar、提交、六字段 manifest、ELF/二进制摘要与 Go VCS 信息，确认暂存字节与归档一致。不得用本机构建或 CircleCI 重新打包替代 Jenkins 制品。
+   Verify the exact archived/staged bytes and provenance; consume the immutable Jenkins artifact.
+3. 在 CircleCI 受控运行中指定 `deploy-uat=true`、完整40位 `commit` 和64位 `artifact-sha256`。配置分支与待部署制品提交分别记录；参数中不放凭据。当前采用手工受控触发，自动触发器不属于已验证能力。
+   Supply validated commit/digest parameters and record config/artifact identities separately. Controlled manual triggering is verified separately from future automatic wiring.
+4. 公网健康检查必须验证正常证书、HTTP 200 和精确 `ok\n`。若助手已激活成功而公网检查失败，保留失败结果并调查入口；不得据此宣称公网通过或伪称已回滚。当前版本及启动失败恢复结果可由主机上的受保护 `state.json` 与 `audit.log` 核实。
+   Require trusted HTTPS and the exact health response. Distinguish successful activation from public ingress failure and verify actual recovery state.
+
+恢复演练只在已验证的原版本存在时进行：针对指定候选版本临时注入启动失败，核对助手报告、current、原版本二进制摘要、进程身份和健康；完成后移除并核实临时配置。假服务测试、真实启动失败恢复和公网验收分别留证。具体运行状态与阻塞由 [BIN-125](https://linear.app/binfloow/issue/BIN-125) 维护。
+A controlled recovery exercise targets only the candidate, verifies the restored release and removes temporary fault configuration. Keep unit-test, real recovery and public-ingress evidence distinct; Linear owns current state.
+
 ## 验收边界 / Acceptance boundary
 
 先在临时目录测试摘要不符、非法包路径、重复版本和健康失败的拒绝/恢复，再执行一次受控 UAT 部署，确认 HTTPS、进程身份、版本摘要和恢复路径。只对 P0 内部健康入口验收，不宣称产品功能或生产可用。
