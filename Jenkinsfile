@@ -17,8 +17,10 @@ kind: Pod
 spec:
   automountServiceAccountToken: false
   containers:
+  - name: jnlp
+    image: docker.m.daocloud.io/jenkins/inbound-agent@sha256:1ee9f71dad02da6598672fd31e9823ec01c0da1976125eb612a5593131096d9f
   - name: go
-    image: golang:1.27.1-bookworm
+    image: docker.m.daocloud.io/library/golang@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66
     command: ['sleep']
     args: ['infinity']
     tty: true
