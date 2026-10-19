@@ -68,10 +68,24 @@ validate_public_key() {
             fail "$_label: unsupported public key type: $_keytype"
             ;;
     esac
+    ssh-keygen -lf "$_file" >/dev/null || fail "$_label: invalid public key"
 }
 
 validate_public_key "$UPLOAD_KEY_FILE" "upload key"
 validate_public_key "$DEPLOY_KEY_FILE" "deploy key"
+
+# Keep exactly the key type and blob. Comments must never introduce a
+# separate, unrestricted authorized_keys line / 注释不能生成不受限授权行。
+UPLOAD_KEY=$(awk '!/^#/ && NF {print $1 " " $2}' "$UPLOAD_KEY_FILE")
+DEPLOY_KEY=$(awk '!/^#/ && NF {print $1 " " $2}' "$DEPLOY_KEY_FILE")
+
+# Verify every required source component before any package/host mutation.
+# 主机变更前先核实全部安装输入。
+script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || fail "cannot resolve script directory"
+helper_src="$script_dir/release.py"
+for _f in "$helper_src" "$script_dir/binflow-uat.service" "$script_dir/Caddyfile"; do
+    [ -f "$_f" ] && [ ! -L "$_f" ] || fail "missing or linked install component: $_f"
+done
 
 user_exists() {
     id "$1" >/dev/null 2>&1
@@ -81,7 +95,18 @@ user_exists() {
 # Without the ownership marker, any existing user, directory, unit, sudoers
 # file or Caddy config could belong to an unrelated deployment; the only
 # safe action is to refuse and let the operator investigate.
-if [ ! -e "$MARKER" ]; then
+for _path in "$BASE" "$RELEASES" "$STAGING_ROOT" "$STAGING" "$LIBDIR" "$MARKER" "$UNIT" "$SUDOERS" "$CADDY_CONF"; do
+    [ ! -L "$_path" ] || fail "linked managed path refused: $_path"
+done
+if [ -e "$MARKER" ]; then
+    [ -f "$MARKER" ] && [ "$(stat -c %u "$MARKER")" = 0 ] && [ "$(stat -c %a "$MARKER")" = 600 ] \
+        || fail "untrusted project marker"
+    [ "$(head -n 1 "$MARKER")" = 'binflow-uat install (BIN-125)' ] || fail "unexpected project marker"
+    for _path in "$BASE" "$RELEASES" "$STAGING_ROOT" "$LIBDIR"; do
+        [ -d "$_path" ] && [ "$(stat -c %u "$_path")" = 0 ] && [ "$(stat -c %a "$_path")" = 755 ] \
+            || fail "untrusted managed directory: $_path"
+    done
+else
     for _u in $USERS; do
         if user_exists "$_u"; then
             fail "user $_u exists without the ownership marker $MARKER; refusing"
@@ -115,21 +140,11 @@ if [ -n "$need" ]; then
     DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends $need
 fi
 
-python3_bin=$(command -v python3) || fail "python3 missing after package step"
-sudo_bin=$(command -v sudo) || fail "sudo missing after package step"
-caddy_bin=$(command -v caddy) || fail "caddy missing after package step"
-
-# --- Components beside this script / 脚本同目录组件 ---
-script_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd) || fail "cannot resolve script directory"
-if [ -f "$script_dir/uat-release.py" ]; then
-    helper_src=$script_dir/uat-release.py
-elif [ -f "$script_dir/release.py" ]; then
-    helper_src=$script_dir/release.py
-else
-    fail "uat-release.py not found beside install.sh (supplied at integration)"
-fi
-for _f in "$script_dir/binflow-uat.service" "$script_dir/Caddyfile"; do
-    [ -f "$_f" ] || fail "missing component beside install.sh: $_f"
+python3_bin=/usr/bin/python3
+sudo_bin=/usr/bin/sudo
+caddy_bin=/usr/bin/caddy
+for _f in "$python3_bin" "$sudo_bin" "$caddy_bin"; do
+    [ -x "$_f" ] || fail "required executable missing: $_f"
 done
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/binflow-uat-install.XXXXXX")
@@ -174,16 +189,18 @@ install -o root -g root -m 0755 "$helper_src" "$HELPER"
 # them; no sshd_config or global auth settings are touched.
 for _u in binflow-upload binflow-deploy; do
     install -d -o root -g root -m 0755 "/home/$_u"
-    install -d -o root -g root -m 0700 "/home/$_u/.ssh"
+    install -d -o root -g root -m 0755 "/home/$_u/.ssh"
 done
 
 upload_command="$python3_bin -I $HELPER upload"
 deploy_command="$sudo_bin -n $python3_bin -I $HELPER activate"
 
-{ printf 'restrict,command="%s" ' "$upload_command"; cat "$UPLOAD_KEY_FILE"; printf '\n'; } > "$tmp/upload.authorized_keys"
-{ printf 'restrict,command="%s" ' "$deploy_command"; cat "$DEPLOY_KEY_FILE"; printf '\n'; } > "$tmp/deploy.authorized_keys"
-install -o root -g root -m 0600 "$tmp/upload.authorized_keys" /home/binflow-upload/.ssh/authorized_keys
-install -o root -g root -m 0600 "$tmp/deploy.authorized_keys" /home/binflow-deploy/.ssh/authorized_keys
+printf 'restrict,command="%s" %s\n' "$upload_command" "$UPLOAD_KEY" > "$tmp/upload.authorized_keys"
+printf 'restrict,command="%s" %s\n' "$deploy_command" "$DEPLOY_KEY" > "$tmp/deploy.authorized_keys"
+# Public keys are readable by their account, while only root can change
+# the forced command / 公钥可读，只有 root 能修改强制命令。
+install -o root -g root -m 0644 "$tmp/upload.authorized_keys" /home/binflow-upload/.ssh/authorized_keys
+install -o root -g root -m 0644 "$tmp/deploy.authorized_keys" /home/binflow-deploy/.ssh/authorized_keys
 
 # --- Sudoers: one exact command / 单一固定命令提权 ---
 {
