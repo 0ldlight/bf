@@ -13,8 +13,10 @@ caller-controlled path, URL or command ever reaches this process:
             artifact, installs an immutable release under /opt/binflow and
             atomically switches the relative `current` symlink with a fixed
             systemctl restart plus bounded loopback health verification and
-            rollback. The released binary is never executed here; the
-            non-root systemd unit runs it / 二进制绝不以 root 运行.
+            rollback. The released binary is never executed here; it is
+            installed root-owned and public-executable (0755) so the non-root
+            systemd runtime user can execute but never write it / 二进制绝不以
+            root 运行，运行用户只读可执行.
 
 Internal functions accept paths and a service adapter so tests can use
 temporary directories and a fake service.
@@ -52,11 +54,16 @@ HEALTH_TIMEOUT = 5.0
 HEALTH_DEADLINE = 30.0
 HEALTH_BODY = b"ok\n"
 
-COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
-SHA_RE = re.compile(r"^[0-9a-f]{64}$")
+# All patterns are matched with .fullmatch: a $ anchor would silently accept
+# a trailing newline coming from JSON string values or symlink targets.
+COMMIT_RE = re.compile(r"[0-9a-f]{40}")
+SHA_RE = re.compile(r"[0-9a-f]{64}")
 ARTIFACT_FMT = "binflow-%s.tar.gz"
-ARTIFACT_RE = re.compile(r"^binflow-[0-9a-f]{40}\.tar\.gz$")
-CURRENT_RE = re.compile(r"^releases/([0-9a-f]{40})$")
+ARTIFACT_RE = re.compile(r"binflow-[0-9a-f]{40}\.tar\.gz")
+CURRENT_RE = re.compile(r"releases/([0-9a-f]{40})")
+# Immutable release layout: activating-identity-owned, binary public-executable
+# (0755) so the non-root runtime user can execute but never write anything.
+RELEASE_FILE_MODES = {"binflow": 0o755, "manifest.txt": 0o640, "RELEASE.json": 0o640}
 MANIFEST_KEYS = ("module", "commit", "go", "platform", "cgo", "sha256")
 MODULE = "github.com/0ldlight/bf"
 ELF_MAGIC = bytes((0x7F, 0x45, 0x4C, 0x46))
@@ -87,9 +94,9 @@ def read_request(stream):
     if not isinstance(req, dict) or set(req) != {"commit", "sha256"}:
         raise ReleaseError("request must contain exactly commit and sha256")
     commit, sha = req["commit"], req["sha256"]
-    if not isinstance(commit, str) or not COMMIT_RE.match(commit):
+    if not isinstance(commit, str) or not COMMIT_RE.fullmatch(commit):
         raise ReleaseError("commit must be 40 lowercase hex characters")
-    if not isinstance(sha, str) or not SHA_RE.match(sha):
+    if not isinstance(sha, str) or not SHA_RE.fullmatch(sha):
         raise ReleaseError("sha256 must be 64 lowercase hex characters")
     return commit, sha
 
@@ -139,6 +146,9 @@ def upload_action(staging, stdin, stdout):
     stored = False
     try:
         digest = _stream_to(stdin, tmp)
+        if digest != sha:
+            # This upload must match the request; identical retries included.
+            raise ReleaseError("sha256 mismatch")
         try:
             st = os.lstat(final)
         except FileNotFoundError:
@@ -149,8 +159,6 @@ def upload_action(staging, stdin, stdout):
             if _file_digest(final) != sha:
                 raise ReleaseError("commit already staged with a different artifact")
         else:
-            if digest != sha:
-                raise ReleaseError("sha256 mismatch")
             _check_quota(staging, os.stat(tmp).st_size)
             os.rename(tmp, final)
             _fsync_fd(lock.fd)
@@ -190,7 +198,7 @@ def _check_quota(staging, incoming_size):
     total = 0
     count = 0
     for entry in os.scandir(staging):
-        if not ARTIFACT_RE.match(entry.name):
+        if not ARTIFACT_RE.fullmatch(entry.name):
             continue
         try:
             st = entry.stat(follow_symlinks=False)
@@ -219,14 +227,17 @@ def snapshot_staged(staging, commit):
     lock = DirLock(staging, "staging")
     try:
         return _read_bounded(os.path.join(staging, ARTIFACT_FMT % commit),
-                             MAX_UNPACKED_BYTES, "staged artifact")
+                             MAX_ARCHIVE_BYTES, "staged artifact",
+                             "32MiB compressed size bound")
     finally:
         lock.close()
 
 
-def _read_bounded(path, limit, label):
+def _read_bounded(path, limit, label, bound_desc="size bound"):
+    # O_NONBLOCK so an attacker-planted FIFO cannot block the open; the
+    # regular-file requirement below is enforced before any read happens.
     try:
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     except OSError:
         raise ReleaseError("%s unavailable" % label)
     try:
@@ -239,7 +250,7 @@ def _read_bounded(path, limit, label):
                 break
             buf += chunk
         if len(buf) > limit:
-            raise ReleaseError("%s exceeds the size bound" % label)
+            raise ReleaseError("%s exceeds the %s" % (label, bound_desc))
         return bytes(buf)
     finally:
         os.close(fd)
@@ -247,11 +258,20 @@ def _read_bounded(path, limit, label):
 
 def validate_archive(data, commit):
     """Full artifact validation; returns (binary, manifest_bytes, fields)."""
-    if len(data) > MAX_UNPACKED_BYTES:
-        raise ReleaseError("archive exceeds the compressed size bound")
+    if len(data) > MAX_ARCHIVE_BYTES:
+        raise ReleaseError("archive exceeds the 32MiB compressed size bound")
     tar_bytes = _gunzip_bounded(data)
     binary, man_bytes = _tar_members(tar_bytes)
     man = _parse_manifest(man_bytes)
+    _check_manifest_fields(man, commit)
+    if hashlib.sha256(binary).hexdigest() != man["sha256"]:
+        raise ReleaseError("manifest sha256 does not match the binary")
+    _check_elf(binary)
+    return binary, man_bytes, man
+
+
+def _check_manifest_fields(man, commit):
+    """Field-level manifest contract shared by staging and release checks."""
     if man["module"] != MODULE:
         raise ReleaseError("manifest module mismatch")
     if man["commit"] != commit:
@@ -262,12 +282,8 @@ def validate_archive(data, commit):
         raise ReleaseError("manifest cgo mismatch")
     if not man["go"] or len(man["go"]) > 64 or any(c.isspace() for c in man["go"]):
         raise ReleaseError("manifest go toolchain value invalid")
-    if not SHA_RE.match(man["sha256"]):
+    if not SHA_RE.fullmatch(man["sha256"]):
         raise ReleaseError("manifest sha256 field invalid")
-    if hashlib.sha256(binary).hexdigest() != man["sha256"]:
-        raise ReleaseError("manifest sha256 does not match the binary")
-    _check_elf(binary)
-    return binary, man_bytes, man
 
 
 def _gunzip_bounded(data):
@@ -307,7 +323,7 @@ def _parse_manifest(raw):
         raise ReleaseError("manifest line format invalid")
     fields = {}
     for line in text.split("\n")[:-1]:
-        match = re.match(r"^([a-z][a-z0-9]*): (.+)$", line)
+        match = re.fullmatch(r"([a-z][a-z0-9]*): (.+)", line)
         if not match:
             raise ReleaseError("manifest line format invalid")
         key, value = match.group(1), match.group(2)
@@ -465,17 +481,74 @@ def _current_commit(prod_root, releases):
         return None
     if not stat.S_ISLNK(st.st_mode):
         raise ReleaseError("current exists but is not a symlink")
-    match = CURRENT_RE.match(os.readlink(cur))
+    match = CURRENT_RE.fullmatch(os.readlink(cur))
     if not match:
         raise ReleaseError("current points outside the managed releases tree")
     target = os.path.join(releases, match.group(1))
+    # A previous release is rollback evidence only after full validation;
+    # a mere directory is not evidence. This runs before any service action.
     try:
-        st = os.lstat(target)
-    except OSError:
-        raise ReleaseError("current target release is missing")
-    if not stat.S_ISDIR(st.st_mode):
-        raise ReleaseError("current target release is not a directory")
+        _verify_release(target, match.group(1))
+    except ReleaseError:
+        raise ReleaseError("current target release is not a valid release")
     return match.group(1)
+
+
+def _verify_release(rel, commit, expect_digest=None):
+    """Fully validate an existing release before it is trusted.
+
+    Exactly the three known entries, regular non-link files with immutable
+    modes, owned by the activating identity (tests run as the creating user;
+    production activation is root), a consistent RELEASE.json (commit plus
+    archive digest), and a manifest whose sha256 matches the ELF64/amd64
+    binary. Foreign or corrupt state is rejected, never repaired.
+    """
+    try:
+        st = os.lstat(rel)
+    except OSError:
+        raise ReleaseError("release directory unreadable")
+    if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
+        raise ReleaseError("existing release path is not a directory")
+    if stat.S_IMODE(st.st_mode) != 0o755 or st.st_uid != os.geteuid():
+        raise ReleaseError("existing release state is invalid")
+    try:
+        names = sorted(os.listdir(rel))
+    except OSError:
+        raise ReleaseError("existing release state is invalid")
+    if names != sorted(RELEASE_FILE_MODES):
+        raise ReleaseError("existing release state is invalid")
+    for name, mode in RELEASE_FILE_MODES.items():
+        st = os.lstat(os.path.join(rel, name))
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISREG(st.st_mode):
+            raise ReleaseError("existing release state is invalid")
+        if stat.S_IMODE(st.st_mode) != mode or st.st_uid != os.geteuid():
+            raise ReleaseError("existing release state is invalid")
+    try:
+        rec = json.loads(_read_bounded(os.path.join(rel, "RELEASE.json"),
+                                       4096, "release record"))
+        binary = _read_bounded(os.path.join(rel, "binflow"),
+                               MAX_UNPACKED_BYTES, "release binary")
+        man_bytes = _read_bounded(os.path.join(rel, "manifest.txt"),
+                                  65536, "release manifest")
+    except (ReleaseError, ValueError):
+        raise ReleaseError("existing release state is invalid")
+    if (not isinstance(rec, dict)
+            or set(rec) != {"commit", "archive_sha256", "created"}
+            or rec["commit"] != commit
+            or not isinstance(rec["archive_sha256"], str)
+            or not SHA_RE.fullmatch(rec["archive_sha256"])
+            or not isinstance(rec["created"], str) or not rec["created"]):
+        raise ReleaseError("existing release state is invalid")
+    try:
+        man = _parse_manifest(man_bytes)
+        _check_manifest_fields(man, commit)
+        if hashlib.sha256(binary).hexdigest() != man["sha256"]:
+            raise ReleaseError("binary digest mismatch")
+        _check_elf(binary)
+    except ReleaseError:
+        raise ReleaseError("existing release state is invalid")
+    if expect_digest is not None and rec["archive_sha256"] != expect_digest:
+        raise ReleaseError("commit already released with a different artifact")
 
 
 def _install_release(releases, commit, digest, binary, man_bytes):
@@ -486,24 +559,22 @@ def _install_release(releases, commit, digest, binary, man_bytes):
     except FileNotFoundError:
         st = None
     if st is not None:
-        if not stat.S_ISDIR(st.st_mode):
+        if stat.S_ISLNK(st.st_mode) or not stat.S_ISDIR(st.st_mode):
             raise ReleaseError("existing release path is not a directory")
-        try:
-            rec = json.loads(_read_bounded(os.path.join(rel, "RELEASE.json"),
-                                           4096, "release record"))
-        except (ReleaseError, ValueError):
-            raise ReleaseError("existing release record is unreadable")
-        if rec.get("archive_sha256") != digest:
-            raise ReleaseError("commit already released with a different artifact")
+        _verify_release(rel, commit, expect_digest=digest)
         return
     try:
         os.mkdir(rel, 0o755)
-        _write_file(os.path.join(rel, "binflow"), binary, 0o750)
-        _write_file(os.path.join(rel, "manifest.txt"), man_bytes, 0o640)
+        os.chmod(rel, 0o755)  # explicit mode: survive a restrictive umask
+        _write_file(os.path.join(rel, "binflow"), binary,
+                    RELEASE_FILE_MODES["binflow"])
+        _write_file(os.path.join(rel, "manifest.txt"), man_bytes,
+                    RELEASE_FILE_MODES["manifest.txt"])
         record = {"commit": commit, "archive_sha256": digest,
                   "created": _now()}
         _write_file(os.path.join(rel, "RELEASE.json"),
-                    (json.dumps(record, sort_keys=True) + "\n").encode(), 0o640)
+                    (json.dumps(record, sort_keys=True) + "\n").encode(),
+                    RELEASE_FILE_MODES["RELEASE.json"])
         _fsync_dir(rel)
     except OSError:
         for name in ("RELEASE.json", "manifest.txt", "binflow"):

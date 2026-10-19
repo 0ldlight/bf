@@ -82,6 +82,11 @@ def build_archive(members):
     return buf.getvalue()
 
 
+def append_file(path, data):
+    with open(path, "ab") as fh:
+        fh.write(data)
+
+
 def make_artifact(commit, binary=None, manifest=None):
     binary = elf_binary() if binary is None else binary
     if manifest is None:
@@ -293,6 +298,29 @@ class UploadTests(UatCase):
         self.assertEqual(code, 1)
         self.assertEqual(res["status"], "error")
         self.assertEqual(os.listdir(real), [])
+
+    def test_rejects_escaped_newline_in_request_values(self):
+        blob, sha = make_artifact(COMMIT_A)
+        for key in ("commit", "sha256"):
+            with self.subTest(key=key):
+                values = {"commit": COMMIT_A, "sha256": sha}
+                values[key] += "\n"
+                raw = (json.dumps(values) + "\n").encode()
+                code, res = call_upload(self.staging, raw + blob)
+                self.assertEqual(code, 1)
+                self.assertIn("must be", res["error"])
+                self.assertEqual(os.listdir(self.staging), [])
+
+    def test_identical_retry_requires_matching_payload_digest(self):
+        blob, sha = make_artifact(COMMIT_A)
+        self.assertEqual(call_upload(self.staging, request(COMMIT_A, sha) + blob)[0], 0)
+        corrupted = blob[:-1] + bytes([blob[-1] ^ 0xFF])
+        code, res = call_upload(self.staging, request(COMMIT_A, sha) + corrupted)
+        self.assertEqual(code, 1)
+        self.assertIn("sha256", res["error"])
+        with open(os.path.join(self.staging, "binflow-%s.tar.gz" % COMMIT_A), "rb") as fh:
+            self.assertEqual(fh.read(), blob)
+        self.assertEqual(os.listdir(self.staging), ["binflow-%s.tar.gz" % COMMIT_A])
 
 
 class ActivateTests(UatCase):
@@ -603,6 +631,169 @@ class ActivateTests(UatCase):
             os.close(fd)
         self.assertEqual(call_activate(self.prod, self.staging, FakeService(),
                                        request(COMMIT_A, sha))[0], 0)
+
+    def test_snapshot_rejects_fifo_without_blocking(self):
+        os.mkfifo(os.path.join(self.staging, release.ARTIFACT_FMT % COMMIT_A))
+        driver = (
+            "import sys\n"
+            "sys.path.insert(0, %r)\n"
+            "import release\n"
+            "try:\n"
+            "    release.snapshot_staged(%r, %r)\n"
+            "    print('accepted')\n"
+            "except release.ReleaseError as exc:\n"
+            "    print('rejected: ' + str(exc))\n"
+        ) % (HERE, self.staging, COMMIT_A)
+        proc = subprocess.run([sys.executable, "-c", driver],
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                              timeout=15)
+        out = proc.stdout.decode()
+        self.assertIn("rejected", out)
+        self.assertIn("regular file", out)
+
+    def test_staged_directory_rejected(self):
+        os.makedirs(os.path.join(self.staging, release.ARTIFACT_FMT % COMMIT_A))
+        code, res = call_activate(self.prod, self.staging, FakeService(),
+                                  request(COMMIT_A, "0" * 64))
+        self.assertEqual(code, 1)
+        self.assertIn("staged artifact", res["error"])
+
+    def test_compressed_artifact_bound_is_32mib(self):
+        blob, sha = make_artifact(COMMIT_A,
+                                  binary=elf_binary(os.urandom(33 * 1024 * 1024)))
+        self.assertGreater(len(blob), release.MAX_ARCHIVE_BYTES)
+        self.stage_raw(COMMIT_A, blob)
+        code, res = call_activate(self.prod, self.staging, FakeService(),
+                                  request(COMMIT_A, sha))
+        self.assertEqual(code, 1)
+        self.assertIn("32MiB", res["error"])
+        self.assertFalse(os.path.lexists(os.path.join(self.prod, "current")))
+        self.assertEqual(os.listdir(os.path.join(self.prod, "releases")), [])
+
+    def test_current_symlink_with_trailing_newline_rejected(self):
+        blob, sha = make_artifact(COMMIT_A)
+        self.stage_raw(COMMIT_A, blob)
+        self.assertEqual(call_activate(self.prod, self.staging, FakeService(),
+                                       request(COMMIT_A, sha))[0], 0)
+        current = os.path.join(self.prod, "current")
+        os.unlink(current)
+        os.symlink("releases/%s\n" % COMMIT_A, current)
+        service = FakeService()
+        code, res = call_activate(self.prod, self.staging, service,
+                                  request(COMMIT_A, sha))
+        self.assertEqual(code, 1)
+        self.assertIn("current", res["error"])
+        self.assertEqual(service.restarts, 0)
+
+    def test_rejects_tampered_existing_release_without_service_mutation(self):
+        def fresh(tag):
+            prod = os.path.join(self.base, "prod-" + tag)
+            staging = os.path.join(self.base, "staging-" + tag)
+            os.makedirs(os.path.join(prod, "releases"))
+            os.makedirs(staging)
+            return prod, staging
+
+        def rewrite_digest(rel):
+            path = os.path.join(rel, "RELEASE.json")
+            with open(path) as fh:
+                rec = json.load(fh)
+            rec["archive_sha256"] = "0" * 64
+            with open(path, "w") as fh:
+                json.dump(rec, fh)
+
+        corruptions = {
+            "binary-mode-widened": lambda rel: os.chmod(os.path.join(rel, "binflow"), 0o777),
+            "manifest-appended": lambda rel: append_file(os.path.join(rel, "manifest.txt"), b"x"),
+            "extra-entry": lambda rel: append_file(os.path.join(rel, "rogue"), b"x"),
+            "record-digest-rewritten": rewrite_digest,
+            "binary-appended": lambda rel: append_file(os.path.join(rel, "binflow"), b"x"),
+            "record-replaced-by-symlink": lambda rel: (
+                os.unlink(os.path.join(rel, "RELEASE.json")),
+                os.symlink("/etc/hosts", os.path.join(rel, "RELEASE.json")),
+            ),
+            "release-dir-mode-widened": lambda rel: os.chmod(rel, 0o777),
+        }
+        for name, corrupt in corruptions.items():
+            with self.subTest(corruption=name):
+                prod, staging = fresh(name)
+                blob, sha = make_artifact(COMMIT_A)
+                with open(os.path.join(staging, release.ARTIFACT_FMT % COMMIT_A), "wb") as fh:
+                    fh.write(blob)
+                self.assertEqual(call_activate(prod, staging, FakeService(),
+                                               request(COMMIT_A, sha))[0], 0)
+                corrupt(os.path.join(prod, "releases", COMMIT_A))
+                service = FakeService()
+                code, res = call_activate(prod, staging, service,
+                                          request(COMMIT_A, sha))
+                self.assertEqual(code, 1)
+                self.assertIn("release", res["error"])
+                self.assertEqual(service.restarts, 0)
+                self.assertEqual(os.readlink(os.path.join(prod, "current")),
+                                 "releases/%s" % COMMIT_A)
+
+    def test_rollback_requires_valid_previous_release(self):
+        blob_a, sha_a = make_artifact(COMMIT_A)
+        self.stage_raw(COMMIT_A, blob_a)
+        self.assertEqual(call_activate(self.prod, self.staging, FakeService(),
+                                       request(COMMIT_A, sha_a))[0], 0)
+        append_file(os.path.join(self.release_dir(COMMIT_A), "rogue"), b"x")
+        blob_b, sha_b = make_artifact(COMMIT_B)
+        self.stage_raw(COMMIT_B, blob_b)
+        service = FakeService()
+        code, res = call_activate(self.prod, self.staging, service,
+                                  request(COMMIT_B, sha_b))
+        self.assertEqual(code, 1)
+        self.assertIn("release", res["error"])
+        self.assertEqual(service.restarts, 0)
+        self.assertFalse(os.path.exists(self.release_dir(COMMIT_B)))
+
+    def test_mere_directory_is_not_rollback_evidence(self):
+        os.symlink("releases/%s" % COMMIT_A, os.path.join(self.prod, "current"))
+        os.makedirs(self.release_dir(COMMIT_A))
+        blob_b, sha_b = make_artifact(COMMIT_B)
+        self.stage_raw(COMMIT_B, blob_b)
+        service = FakeService()
+        code, res = call_activate(self.prod, self.staging, service,
+                                  request(COMMIT_B, sha_b))
+        self.assertEqual(code, 1)
+        self.assertIn("release", res["error"])
+        self.assertEqual(service.restarts, 0)
+        self.assertFalse(os.path.exists(self.release_dir(COMMIT_B)))
+
+    def test_release_is_public_executable_and_owned_by_activator(self):
+        blob, sha = make_artifact(COMMIT_A)
+        self.stage_raw(COMMIT_A, blob)
+        self.assertEqual(call_activate(self.prod, self.staging, FakeService(),
+                                       request(COMMIT_A, sha))[0], 0)
+        rel = self.release_dir(COMMIT_A)
+        self.assertEqual(stat.S_IMODE(os.lstat(rel).st_mode), 0o755)
+        self.assertEqual(os.lstat(rel).st_uid, os.geteuid())
+        binary = os.path.join(rel, "binflow")
+        self.assertEqual(stat.S_IMODE(os.lstat(binary).st_mode), 0o755)
+        self.assertEqual(os.lstat(binary).st_uid, os.geteuid())
+        # Portable proxy for a distinct unprivileged identity traversing and
+        # executing: the "other" bits carry read+execute, nobody can write.
+        self.assertEqual(stat.S_IMODE(os.lstat(binary).st_mode) & 0o005, 0o005)
+        for name in ("binflow", "manifest.txt", "RELEASE.json"):
+            path = os.path.join(rel, name)
+            self.assertEqual(os.lstat(path).st_uid, os.geteuid())
+            self.assertEqual(stat.S_IMODE(os.lstat(path).st_mode) & 0o022, 0)
+        self.assertEqual(stat.S_IMODE(os.lstat(rel).st_mode) & 0o022, 0)
+
+    def test_release_modes_ignore_restrictive_umask(self):
+        blob, sha = make_artifact(COMMIT_A)
+        self.stage_raw(COMMIT_A, blob)
+        previous = os.umask(0o077)
+        try:
+            code, _ = call_activate(self.prod, self.staging, FakeService(),
+                                    request(COMMIT_A, sha))
+        finally:
+            os.umask(previous)
+        self.assertEqual(code, 0)
+        rel = self.release_dir(COMMIT_A)
+        self.assertEqual(stat.S_IMODE(os.lstat(rel).st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(os.lstat(os.path.join(rel, "binflow")).st_mode), 0o755)
+        self.assertEqual(stat.S_IMODE(os.lstat(os.path.join(rel, "manifest.txt")).st_mode), 0o640)
 
 
 class ContractTests(unittest.TestCase):
