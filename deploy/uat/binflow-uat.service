@@ -1,0 +1,47 @@
+# BIN-125 UAT systemd unit / UAT systemd 服务单元.
+# Non-root service for the UAT host. The deploy helper
+# (/usr/local/lib/binflow/uat-release.py activate) owns validation, the
+# /opt/binflow/current switch, systemctl restart and bounded health checks;
+# this unit only defines how the process runs.
+[Unit]
+Description=BinFlow UAT service
+Documentation=https://docs.binflow.org/engineering/continuation
+After=network-online.target
+Wants=network-online.target
+# Refuse to start without a switched release instead of exec-failing.
+AssertPathExists=/opt/binflow/current/binflow
+
+[Service]
+Type=simple
+User=binflow
+Group=binflow
+Environment=BINFLOW_LISTEN_ADDR=127.0.0.1:18080
+ExecStart=/opt/binflow/current/binflow
+# The release tree is read-only to the service; the process writes nothing.
+NoNewPrivileges=true
+ProtectSystem=strict
+# Strict already makes / read-only; the path entry documents the release
+# tree explicitly for readers of this unit.
+ReadOnlyPaths=/opt/binflow
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+ProtectProc=invisible
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
