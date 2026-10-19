@@ -125,6 +125,34 @@ def call_activate(prod, staging, service, raw, deadline=0.3):
     return code, json.loads(out.getvalue())
 
 
+class CountingStream:
+    """Wraps upload input; records how many bytes the action consumed."""
+
+    def __init__(self, data):
+        self._buf = io.BytesIO(data)
+        self.consumed = 0
+
+    def readline(self, size=-1):
+        data = self._buf.readline(size)
+        self.consumed += len(data)
+        return data
+
+    def read(self, size=-1):
+        data = self._buf.read(size)
+        self.consumed += len(data)
+        return data
+
+
+def call_upload_stream(staging, stream):
+    out = io.BytesIO()
+    code = 1
+    try:
+        code = release.upload_action(staging, stream, out)
+    except release.ReleaseError as exc:
+        out.write((json.dumps({"status": "error", "error": str(exc)}) + "\n").encode())
+    return code, json.loads(out.getvalue())
+
+
 class FakeService:
     """Test adapter: counts calls and scripts failures; never touches a host."""
 
@@ -321,6 +349,90 @@ class UploadTests(UatCase):
         with open(os.path.join(self.staging, "binflow-%s.tar.gz" % COMMIT_A), "rb") as fh:
             self.assertEqual(fh.read(), blob)
         self.assertEqual(os.listdir(self.staging), ["binflow-%s.tar.gz" % COMMIT_A])
+
+    def test_orphan_incoming_bytes_consume_quota(self):
+        orphan = os.path.join(self.staging, ".incoming.999.1")
+        with open(orphan, "wb") as fh:
+            fh.write(b"\x00" * 12288)
+        blob, sha = make_artifact(COMMIT_A, binary=elf_binary(os.urandom(6144)))
+        with mock.patch.object(release, "MAX_STAGING_BYTES", 16384):
+            code, res = call_upload(self.staging, request(COMMIT_A, sha) + blob)
+            self.assertEqual(code, 1)
+            self.assertIn("quota", res["error"])
+            self.assertEqual(os.listdir(self.staging), [".incoming.999.1"])
+            self.assertEqual(os.path.getsize(orphan), 12288)
+            # an artifact small enough to fit beside the orphan still lands
+            small, small_sha = make_artifact(COMMIT_B)
+            code, res = call_upload(self.staging, request(COMMIT_B, small_sha) + small)
+            self.assertEqual(code, 0)
+        self.assertEqual(sorted(os.listdir(self.staging)),
+                         [".incoming.999.1", "binflow-%s.tar.gz" % COMMIT_B])
+
+    def test_full_staging_refuses_before_allocating_payload(self):
+        blob_a, sha_a = make_artifact(COMMIT_A)
+        self.assertEqual(call_upload(self.staging, request(COMMIT_A, sha_a) + blob_a)[0], 0)
+        with open(os.path.join(self.staging, ".incoming.999.2"), "wb") as fh:
+            fh.write(b"\x00" * 8192)
+        used = sum(os.stat(os.path.join(self.staging, name)).st_size
+                   for name in os.listdir(self.staging))
+        blob_b, sha_b = make_artifact(COMMIT_B)
+        line = request(COMMIT_B, sha_b)
+        with mock.patch.object(release, "MAX_STAGING_BYTES", used):
+            stream = CountingStream(line + blob_b)
+            code, res = call_upload_stream(self.staging, stream)
+        self.assertEqual(code, 1)
+        self.assertIn("quota", res["error"])
+        self.assertEqual(stream.consumed, len(line))  # nothing beyond the request pulled
+        self.assertEqual(sorted(os.listdir(self.staging)),
+                         [".incoming.999.2", "binflow-%s.tar.gz" % COMMIT_A])
+
+    def test_identical_retry_succeeds_when_quota_is_full(self):
+        blob, sha = make_artifact(COMMIT_A)
+        self.assertEqual(call_upload(self.staging, request(COMMIT_A, sha) + blob)[0], 0)
+        with open(os.path.join(self.staging, ".incoming.999.3"), "wb") as fh:
+            fh.write(b"\x00" * 8192)
+        used = sum(os.stat(os.path.join(self.staging, name)).st_size
+                   for name in os.listdir(self.staging))
+        with mock.patch.object(release, "MAX_STAGING_BYTES", used):
+            code, res = call_upload(self.staging, request(COMMIT_A, sha) + blob)
+        self.assertEqual(code, 0)
+        self.assertFalse(res["stored"])
+        self.assertEqual(sorted(os.listdir(self.staging)),
+                         [".incoming.999.3", "binflow-%s.tar.gz" % COMMIT_A])
+        with open(os.path.join(self.staging, "binflow-%s.tar.gz" % COMMIT_A), "rb") as fh:
+            self.assertEqual(fh.read(), blob)
+
+    def test_rejects_unexpected_nonregular_staging_entries(self):
+        blob, sha = make_artifact(COMMIT_A)
+        for kind in ("symlink", "fifo", "dir"):
+            with self.subTest(kind=kind):
+                staging = os.path.join(self.base, "staging-" + kind)
+                os.makedirs(staging)
+                weird = os.path.join(staging, "weird")
+                if kind == "symlink":
+                    os.symlink("/etc/hosts", weird)
+                elif kind == "fifo":
+                    os.mkfifo(weird)
+                else:
+                    os.makedirs(weird)
+                code, res = call_upload(staging, request(COMMIT_A, sha) + blob)
+                self.assertEqual(code, 1)
+                self.assertIn("non-regular", res["error"])
+                self.assertTrue(os.path.lexists(weird))
+                self.assertEqual(os.listdir(staging), ["weird"])
+
+    def test_staging_entry_cap_bounds_orphan_accumulation(self):
+        with mock.patch.object(release, "MAX_STAGING_ENTRIES", 3):
+            for commit in (COMMIT_A, COMMIT_B):
+                blob, sha = make_artifact(commit)
+                self.assertEqual(call_upload(self.staging, request(commit, sha) + blob)[0], 0)
+            with open(os.path.join(self.staging, ".incoming.999.4"), "wb") as fh:
+                fh.write(b"\x00" * 16)
+            blob, sha = make_artifact(COMMIT_C)
+            code, res = call_upload(self.staging, request(COMMIT_C, sha) + blob)
+            self.assertEqual(code, 1)
+            self.assertIn("quota", res["error"])
+        self.assertEqual(len(os.listdir(self.staging)), 3)
 
 
 class ActivateTests(UatCase):
@@ -802,6 +914,7 @@ class ContractTests(unittest.TestCase):
         self.assertEqual(release.MAX_ARCHIVE_BYTES, 32 * 1024 * 1024)
         self.assertEqual(release.MAX_STAGING_BYTES, 256 * 1024 * 1024)
         self.assertEqual(release.MAX_STAGING_ARTIFACTS, 16)
+        self.assertEqual(release.MAX_STAGING_ENTRIES, 64)
         self.assertEqual(release.MAX_UNPACKED_BYTES, 64 * 1024 * 1024)
         self.assertEqual(release.STAGING_DIR, "/var/lib/binflow/staging")
         self.assertEqual(release.PROD_ROOT, "/opt/binflow")
