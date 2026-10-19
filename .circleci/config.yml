@@ -1,8 +1,9 @@
 # BIN-125 CircleCI UAT activation / CircleCI UAT 激活.
 # Deployment-only: no build, no packaging, no Kubernetes and no dependency
 # installation here. Jenkins builds and uploads the archive (see Jenkinsfile);
-# this job only validates the requested commit/digest pair and sends the
-# single JSON activation line through the deploy identity's forced command.
+# this job only validates the requested commit/digest pair and the public
+# ingress address, then sends the single JSON activation line through the
+# deploy identity's forced command.
 # Regular pushes keep deploy-uat at its default false, so nothing runs
 # automatically; parameters are set only by an explicit approved run, and
 # full trigger wiring follows account-capability verification.
@@ -78,6 +79,30 @@ jobs:
               *[!0-9a-f]*) fail "artifact-sha256 contains non-hex characters" ;;
             esac
 
+            # Public ingress address: trusted project env, one IPv4 literal
+            # only, validated in plain shell before any SSH use (rejects
+            # missing, hostnames, IPv6, paths/CIDR, whitespace, shell
+            # metacharacters, newlines, leading zeros, wrong octet counts
+            # and empty/doubled dot fields). 公网入口仅接受规范 IPv4 字面量。
+            address="${BINFLOW_UAT_ADDRESS-}"
+            case "$address" in
+              "") fail "BINFLOW_UAT_ADDRESS is not set" ;;
+              .* | *. | *..*) fail "BINFLOW_UAT_ADDRESS must have four non-empty octets: $address" ;;
+              *[!0-9.]*) fail "BINFLOW_UAT_ADDRESS must be an IPv4 dotted-quad literal: $address" ;;
+            esac
+            oldIFS=$IFS
+            IFS=.
+            # shellcheck disable=SC2086
+            set -- $address
+            IFS=$oldIFS
+            [ "$#" -eq 4 ] || fail "BINFLOW_UAT_ADDRESS must have exactly four octets: $address"
+            for _octet in "$@"; do
+              case "$_octet" in
+                "" | 0[0-9]* | ????*) fail "BINFLOW_UAT_ADDRESS octet must be 0..255 without leading zeros: $address" ;;
+              esac
+              [ "$_octet" -le 255 ] || fail "BINFLOW_UAT_ADDRESS octet must be 0..255: $address"
+            done
+
             expected_fingerprint="${BINFLOW_UAT_SSH_KEY_FINGERPRINT:?BINFLOW_UAT_SSH_KEY_FINGERPRINT is not set}"
             known_hosts="${BINFLOW_UAT_KNOWN_HOSTS:?BINFLOW_UAT_KNOWN_HOSTS is not set}"
 
@@ -132,17 +157,18 @@ jobs:
               binflow-deploy@uat.binflow.org \
               < "$tmp/header.json"
 
-            # Public HTTPS verification after the helper reports success. A
-            # failure is reported as-is: the helper already handled local
-            # start/health/recovery, and this check does not roll back.
-            # 助手负责本地启动与恢复;此处仅如实报告公网检查结果。
-            status="$(curl -fsS --max-time 20 --output "$tmp/health" --write-out '%{http_code}' https://uat.binflow.org/healthz)" \
+            # Direct public acceptance after the helper reports success:
+            # --noproxy '*' bypasses any proxy environment; certificate
+            # validation and the exact 200 + ok\n contract are unchanged.
+            # 公网验收直连批准 IPv4,禁用代理,证书校验不变。
+            health_url="https://$address/healthz"
+            status="$(curl -fsS --noproxy '*' --max-time 20 --output "$tmp/health" --write-out '%{http_code}' "$health_url")" \
               || fail "helper activated the release but the public HTTPS health check failed; manual attention required"
             printf 'ok\n' > "$tmp/expected-health"
             if [ "$status" != 200 ] || ! cmp -s "$tmp/expected-health" "$tmp/health"; then
               fail "unexpected public health status or body"
             fi
-            echo "activate-uat: https://uat.binflow.org/healthz returned ok"
+            echo "activate-uat: $health_url returned ok"
 
 workflows:
   uat-deployment:

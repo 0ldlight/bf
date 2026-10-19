@@ -1,9 +1,21 @@
 # BIN-125 UAT Caddyfile / UAT Caddy 配置.
-# Fixed public UAT endpoint. TLS is automatic (ACME) for the site address.
-# No landing page is defined: the service behind /healthz is the product
-# surface, so every path proxies the application unchanged and no
-# infrastructure details are exposed to visitors.
-# 固定公网入口,自动 HTTPS;不新增落地页,所有路径原样反代应用。
-uat.binflow.org {
+# Public UAT ingress on the owner-approved public IPv4 from the
+# BINFLOW_UAT_ADDRESS environment; install.sh renders the validated literal
+# (the repository keeps only the placeholder). Certificates: Let's Encrypt
+# ACME shortlived profile for IP addresses, renewed automatically by the
+# enabled Caddy service from persistent state; no internal/self-signed
+# issuer. default_sni serves NAT/no-SNI clients. No landing page: every path
+# proxies the application unchanged.
+# 公网入口使用占位符 IPv4;shortlived 证书由已启用的 Caddy 自动续期。
+{
+	default_sni {$BINFLOW_UAT_ADDRESS}
+}
+
+{$BINFLOW_UAT_ADDRESS} {
+	tls {
+		issuer acme https://acme-v02.api.letsencrypt.org/directory {
+			profile shortlived
+		}
+	}
 	reverse_proxy 127.0.0.1:18080
 }

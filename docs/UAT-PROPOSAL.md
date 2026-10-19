@@ -1,7 +1,7 @@
 # P0 UAT 部署方案 / UAT design
 
-状态：所有者于 2026-10-19 批准本 P0 方案。按以下范围实施；批准不代表部署或恢复验收已完成。
-Status: the owner approved this P0 design on 2026-10-19. Implementation and deployment/recovery acceptance still require evidence.
+状态：所有者于 2026-10-19 批准本 P0 方案；2026-10-20 决定公网入口改用经批准的公网 IPv4（仅经安装参数与受信 CI 变量提供，不入仓库），SSH 控制通道仍为 `uat.binflow.org`。批准不代表部署或恢复验收已完成。
+Status: approved 2026-10-19; on 2026-10-20 the owner moved the public ingress to an approved public IPv4 (installer argument / trusted CI variable only, never in the repository) while SSH control keeps `uat.binflow.org`. Acceptance still requires evidence.
 
 ## 已批准方案 / Approved design
 
@@ -11,8 +11,8 @@ Status: the owner approved this P0 design on 2026-10-19. Implementation and depl
    A dedicated uploader stages immutable inputs over SSH; separate scoped identities and controlled CI credentials avoid reusing the owner's root key.
 3. CircleCI 接收提交/制品摘要，校验包、清单、路径和二进制摘要，锁定部署过程，建立新的版本目录，切换 current，重启并检查健康。它不编译、打包或访问私有 K8s。
    CircleCI validates immutable inputs, serializes activation, switches the current release and checks health without building or accessing private Kubernetes.
-4. P0 用 systemd 运行非 root 的 Go 进程，仅监听 loopback；Caddy 作为 80/443 HTTPS 入口，自动管理 `uat.binflow.org` 证书。没有产品数据库或演示数据占位实现。
-   Run the non-root health process under systemd on loopback, with Caddy terminating HTTPS for the UAT domain. This phase needs no product database.
+4. P0 用 systemd 运行非 root 的 Go 进程，仅监听 loopback；Caddy 在 80/443 终止 HTTPS，服务经批准的公网 IPv4（安装脚本第三个必选参数 / CI 变量 `BINFLOW_UAT_ADDRESS`，源码只留占位符）。证书为 Let's Encrypt ACME `shortlived` profile，由已启用的 Caddy 从持久状态自动续期，不用 internal/自签；主机 Caddy 须 >= 2.11.7 官方版（root 编排者供应），安装脚本数值门槛拒绝旧版或无法解析版本且不自动升级。SSH 控制通道仍为 `uat.binflow.org`。无产品数据库或演示数据占位实现。
+   Run the non-root process under systemd on loopback; Caddy terminates HTTPS for the owner-approved public IPv4 (required third installer argument / CI variable `BINFLOW_UAT_ADDRESS`; source keeps a placeholder). Certificates use the Let's Encrypt ACME `shortlived` profile, renewed automatically by the enabled Caddy from persistent state (no internal/self-signed); host Caddy must be >= 2.11.7 official (provisioned separately), enforced by a numeric gate that refuses older or unparseable versions and never upgrades. SSH control keeps `uat.binflow.org`. No product database or demo placeholders in this phase.
 5. 部署前记录上一个有效版本；新版本启动/健康失败时恢复该版本并保留失败证据。首次安装失败不能伪称“回滚成功”。后续引入数据库前另行审阅结构兼容及恢复策略。
    Record the previous release and restore it after a failed activation. A failed first installation has no previous release to roll back to. Database rollout requires a separate compatibility decision.
 
@@ -28,6 +28,9 @@ Use separate SSH keys and root-owned forced-command rules, with no interactive s
 
 CircleCI 将部署私钥保存在项目的 **SSH Keys**，Hostname 限定为 `uat.binflow.org`。`BINFLOW_UAT_SSH_KEY_FINGERPRINT` 环境变量只保存该 Key 的 SHA-256 指纹；`BINFLOW_UAT_KNOWN_HOSTS` 保存经受信连接核实的服务器公钥。源码、环境变量和日志均不保存部署私钥或 root 密码。
 Store the private deployment key in project **SSH Keys**, scoped to `uat.binflow.org`. `BINFLOW_UAT_SSH_KEY_FINGERPRINT` holds its SHA-256 fingerprint, while `BINFLOW_UAT_KNOWN_HOSTS` pins the independently verified server public key. Keep the deployment private key and root password out of source, environment variables and logs.
+
+`BINFLOW_UAT_ADDRESS` 为受信项目环境变量，仅存一个规范公网 IPv4 字面量；任务在任何 SSH 前用纯 shell 校验（拒缺失、主机名、IPv6、路径、空白、元字符、换行、前导零、空/重复点段），公网验收直连 `https://$BINFLOW_UAT_ADDRESS/healthz`（`--noproxy '*'`，证书与精确 `ok\n` 不变）。公网入口与 SSH 控制通道相互独立。
+`BINFLOW_UAT_ADDRESS` is a trusted project variable holding one canonical public IPv4 literal; validated in plain shell before any SSH use (missing, hostnames, IPv6, paths, whitespace, metacharacters, newlines, leading zeros and empty/doubled dot fields rejected), then acceptance goes direct to `https://$BINFLOW_UAT_ADDRESS/healthz` (`--noproxy '*'`, certificate and exact `ok\n` unchanged). Public ingress and SSH control stay separate transports.
 
 按 [CircleCI 官方约定](https://circleci.com/docs/guides/integration/add-ssh-key/)，`add_ssh_keys.fingerprints` 使用固定指纹，不支持环境变量展开。配置先精确加载所需 Key，再将该 Key 的实际指纹与环境变量核对；任一不符即失败。SSH 使用明确的身份文件与固定服务器公钥，避免选中项目内其他 Key。轮换 Key 时同步更新 SSH Keys、配置中的固定指纹与指纹环境变量。
 CircleCI requires literal fingerprints in `add_ssh_keys`. Load the selected key, verify its actual fingerprint against the environment variable and fail on mismatch. Use its explicit identity file and pinned server key. Rotate the stored key, configured fingerprint and fingerprint variable together.
@@ -46,8 +49,8 @@ Use the native CircleCI definition and leave the GitHub Actions workflow checkbo
    Verify the exact archived/staged bytes and provenance; consume the immutable Jenkins artifact.
 3. 在 CircleCI 受控运行中指定 `deploy-uat=true`、完整40位 `commit` 和64位 `artifact-sha256`。配置分支与待部署制品提交分别记录；参数中不放凭据。当前采用手工受控触发，自动触发器不属于已验证能力。
    Supply validated commit/digest parameters and record config/artifact identities separately. Controlled manual triggering is verified separately from future automatic wiring.
-4. 公网健康检查必须验证正常证书、HTTP 200 和精确 `ok\n`。若助手已激活成功而公网检查失败，保留失败结果并调查入口；不得据此宣称公网通过或伪称已回滚。当前版本及启动失败恢复结果可由主机上的受保护 `state.json` 与 `audit.log` 核实。
-   Require trusted HTTPS and the exact health response. Distinguish successful activation from public ingress failure and verify actual recovery state.
+4. 公网健康检查必须直连经批准的公网 IPv4（禁用代理环境），验证正常证书、HTTP 200 和精确 `ok\n`。若助手已激活成功而公网检查失败，保留失败结果并调查入口；不得据此宣称公网通过或伪称已回滚。当前版本及启动失败恢复结果可由主机上的受保护 `state.json` 与 `audit.log` 核实。
+   Require trusted HTTPS direct to the approved public IPv4 with proxying disabled, and the exact health response. Distinguish successful activation from public ingress failure and verify actual recovery state.
 
 恢复演练只在已验证的原版本存在时进行：针对指定候选版本临时注入启动失败，核对助手报告、current、原版本二进制摘要、进程身份和健康；完成后移除并核实临时配置。假服务测试、真实启动失败恢复和公网验收分别留证。具体运行状态与阻塞由 [BIN-125](https://linear.app/binfloow/issue/BIN-125) 维护。
 A controlled recovery exercise targets only the candidate, verifies the restored release and removes temporary fault configuration. Keep unit-test, real recovery and public-ingress evidence distinct; Linear owns current state.

@@ -8,12 +8,89 @@
 # after review.
 # 操作者以 root 运行;仅接收本地受信公钥文件,不做任何远程脚本执行。
 #
-# Usage / 用法: sudo ./install.sh <upload-public-key-file> <deploy-public-key-file>
+# Usage / 用法: sudo ./install.sh <upload-public-key-file> <deploy-public-key-file> <public-ipv4-address>
+# The third argument is the owner-approved public IPv4 ingress; validated
+# before any mutation and rendered into the Caddy config, never stored here.
+# 第三个参数为公网 IPv4 入口,先校验后渲染,不入仓库。
 set -eu
 
 fail() {
     echo "install: $*" >&2
     exit 1
+}
+
+# --- Public ingress address gate / 公网入口地址门槛 ---
+# Canonical public unicast IPv4 only, checked with /usr/bin/python3 before
+# any host mutation: rejects private, shared, loopback, link-local,
+# documentation, multicast, reserved and unspecified ranges. The value is
+# one argv element; no shell parsing of untrusted text.
+# 公网单播 IPv4,任何变更前校验。
+validate_uat_address() {
+    _addr=$1
+    [ -n "$_addr" ] || fail "uat-address must not be empty"
+    [ -x /usr/bin/python3 ] \
+        || fail "/usr/bin/python3 is required to validate the UAT address before any host change"
+    /usr/bin/python3 -c '
+import ipaddress, sys
+try:
+    ip = ipaddress.IPv4Address(sys.argv[1])
+except ValueError:
+    sys.exit(1)
+ok = ip.is_global and not (ip.is_multicast or ip.is_reserved or ip.is_unspecified)
+sys.exit(0 if ok else 1)
+' "$_addr" || fail "uat-address must be a canonical public unicast IPv4 dotted quad: $_addr"
+}
+
+# --- Caddy release version gate / Caddy 版本门槛 ---
+# Short-lived IP certificates need official Caddy >= 2.11.7 (distro 2.6.2 is
+# too old; the root orchestrator provisions the official build). No
+# repositories, downloads or upgrades here: the gate only refuses.
+CADDY_MINIMUM_VERSION=2.11.7
+
+caddy_version_ge() {
+    # Numeric dotted triple only; every field is validated as numeric
+    # before any comparison, so prerelease/unparseable strings are refused.
+    _reported=$1
+    case "$_reported" in
+        v*) _reported=${_reported#v} ;;
+    esac
+    awk -v ver="$_reported" -v min="$CADDY_MINIMUM_VERSION" 'BEGIN {
+        if (split(ver, v, ".") != 3 || split(min, m, ".") != 3) exit 1
+        for (i = 1; i <= 3; i++)
+            if (v[i] !~ /^[0-9]+$/ || m[i] !~ /^[0-9]+$/) exit 1
+        for (i = 1; i <= 3; i++) {
+            if (v[i] + 0 < m[i] + 0) exit 1
+            if (v[i] + 0 > m[i] + 0) exit 0
+        }
+        exit 0
+    }'
+}
+
+enforce_caddy_minimum() {
+    _bin=$1
+    _version="$("$_bin" version 2>/dev/null | head -n 1 | cut -d' ' -f1)"
+    [ -n "$_version" ] || fail "cannot read a Caddy version from $_bin"
+    if ! caddy_version_ge "$_version"; then
+        fail "Caddy >= $CADDY_MINIMUM_VERSION is required for short-lived IP certificates; $_bin reports \"$_version\". Install the verified official release first; this script does not add repositories or upgrade Caddy."
+    fi
+}
+
+# Exact placeholder replacement into the private temp file: the repository
+# keeps {$BINFLOW_UAT_ADDRESS}, the generated config the validated literal.
+render_caddy_config() {
+    _src=$1
+    _dst=$2
+    awk -v addr="$UAT_ADDRESS" -v ph='{$BINFLOW_UAT_ADDRESS}' '
+        {
+            line = $0
+            out = ""
+            while ((n = index(line, ph)) > 0) {
+                out = out substr(line, 1, n - 1) addr
+                line = substr(line, n + length(ph))
+            }
+            print out line
+        }
+    ' "$_src" > "$_dst"
 }
 
 BASE=/opt/binflow
@@ -41,10 +118,11 @@ fi
 [ "$(uname -m)" = "x86_64" ] || fail "amd64 (x86_64) only, found: $(uname -m)"
 [ -x /usr/sbin/sshd ] || fail "/usr/sbin/sshd not found; forced-command accounts need sshd"
 
-# --- Arguments: exactly two trusted local PUBLIC key files ---
-[ "$#" -eq 2 ] || fail "usage: $0 <upload-public-key-file> <deploy-public-key-file>"
+# --- Arguments: two trusted local PUBLIC key files plus the public IPv4 ---
+[ "$#" -eq 3 ] || fail "usage: $0 <upload-public-key-file> <deploy-public-key-file> <public-ipv4-address>"
 UPLOAD_KEY_FILE=$1
 DEPLOY_KEY_FILE=$2
+UAT_ADDRESS=$3
 
 validate_public_key() {
     _file=$1
@@ -73,6 +151,16 @@ validate_public_key() {
 
 validate_public_key "$UPLOAD_KEY_FILE" "upload key"
 validate_public_key "$DEPLOY_KEY_FILE" "deploy key"
+
+# Address gate: before any package, user, directory or configuration
+# mutation below this point. 公网地址先于一切主机变更校验。
+validate_uat_address "$UAT_ADDRESS"
+
+# Fail fast when an already-installed Caddy is too old, before any host
+# mutation. The authoritative gate after package installation follows below.
+if command -v caddy >/dev/null 2>&1; then
+    enforce_caddy_minimum "$(command -v caddy)"
+fi
 
 # Keep exactly the key type and blob. Comments must never introduce a
 # separate, unrestricted authorized_keys line / 注释不能生成不受限授权行。
@@ -155,9 +243,24 @@ for _f in "$python3_bin" "$sudo_bin" "$caddy_bin"; do
     [ -x "$_f" ] || fail "required executable missing: $_f"
 done
 
+# Authoritative Caddy version gate: after packages, before the users,
+# directories and configuration mutations below this point.
+enforce_caddy_minimum "$caddy_bin"
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/binflow-uat-install.XXXXXX")
 cleanup() { rm -rf "$tmp"; }
 trap cleanup EXIT INT TERM
+
+# --- Caddy: render and validate before any host mutation / 渲染校验先于一切变更 ---
+# An invalid template must never leave a partly updated deployment: users,
+# helper, unit and configs are only written after the rendered file passes
+# Caddy's own validation. 坏模板不得部分更新既有部署。
+render_caddy_config "$script_dir/Caddyfile" "$tmp/Caddyfile.rendered"
+if grep -q -F '{$' "$tmp/Caddyfile.rendered"; then
+    fail "rendered Caddyfile still contains an unresolved placeholder"
+fi
+"$caddy_bin" validate --config "$tmp/Caddyfile.rendered" --adapter caddyfile >/dev/null \
+    || fail "rendered Caddyfile failed validation"
 
 # --- Project users / 项目用户 ---
 # All three passwords are locked. binflow never logs in. The upload/deploy
@@ -231,11 +334,9 @@ install -o root -g root -m 0644 "$script_dir/binflow-uat.service" "$UNIT"
 systemctl daemon-reload
 systemctl enable binflow-uat.service
 
-# --- Caddy: validate, install config, keep stopped / 校验后安装并保持停止 ---
-"$caddy_bin" validate --config "$script_dir/Caddyfile" --adapter caddyfile >/dev/null \
-    || fail "Caddyfile failed validation"
+# --- Caddy: install the pre-validated config, keep stopped / 安装已校验配置并保持停止 ---
 install -d -o root -g root -m 0755 /etc/caddy
-install -o root -g root -m 0644 "$script_dir/Caddyfile" "$CADDY_CONF"
+install -o root -g root -m 0644 "$tmp/Caddyfile.rendered" "$CADDY_CONF"
 if [ -n "$fresh_caddy" ]; then
     # The fresh package auto-starts Caddy; stop it now so the service stays
     # down until the first controlled deployment starts the infrastructure.
@@ -244,6 +345,7 @@ if [ -n "$fresh_caddy" ]; then
 fi
 
 echo "install: binflow UAT host prepared / UAT 主机就绪"
+echo "install: public UAT ingress site address: $UAT_ADDRESS"
 echo "install: binflow-uat.service is enabled but NOT started (no release yet)"
 echo "install: caddy remains stopped until the first controlled deployment starts it"
 echo "install: helper installed at $HELPER"
