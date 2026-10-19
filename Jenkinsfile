@@ -91,6 +91,14 @@ case "$commit" in
         ;;
 esac
 out="$(mktemp -d "${WORKSPACE:?}/artifact.XXXXXX")"
+# mktemp -d creates a 0700 dir owned by root (this go container), while
+# archiveArtifacts runs in the jnlp container as uid 1000 and needs r-x on
+# the directory to traverse into it and read these public build artifacts.
+# 0755 adds world read/traverse only — no world write, nothing else changes.
+# mktemp -d 生成 root 属主的 0700 目录（go 容器），而 archiveArtifacts 在
+# jnlp 容器以 uid 1000 运行，需要目录的可读可进入权限才能遍历并读取这些
+# 公开构建制品。0755 仅放开全局读取与进入，不可写，其余均不变。
+chmod 0755 "$out"
 CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o "$out/binflow" ./cmd/binflow
 printf 'module: github.com/0ldlight/bf\\ncommit: %s\\ngo: %s\\nplatform: linux/amd64\\ncgo: disabled\\n' \
     "$commit" "$(go env GOVERSION)" > "$out/manifest.txt"
