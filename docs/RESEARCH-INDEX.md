@@ -56,8 +56,8 @@ The source-grounded filestore note distinguishes static findings, bounded runtim
 
 ## PostgreSQL 元数据登记 / PostgreSQL metadata registry
 
-2026-10-21 按目标 `binary-store-core` 4.372.5 字节码静态证据实现元数据登记分支（查找/插入冲突返回输入/SHA-256 回填），并以真实 PostgreSQL 17.10 运行验证；规范来源与证据边界见[PostgreSQL 登记记录](POSTGRES-REGISTRY.md)。目标原库的数据库失败路径未实测，静态证据不等价于目标运行时行为。
-The metadata-registration branches follow static bytecode evidence of the target's binary-store-core 4.372.5 and were verified against a real PostgreSQL 17.10 instance; the [PostgreSQL registry note](POSTGRES-REGISTRY.md) is the canonical source. The target's own database-failure paths remain untested at runtime; static evidence is not target runtime behavior.
+2026-10-21 按目标 `binary-store-core` 4.372.5 字节码静态证据实现元数据登记分支（查找/插入冲突返回输入/SHA-256 回填），并以真实 PostgreSQL 17.10 运行验证；规范来源与证据边界见[PostgreSQL 登记记录](POSTGRES-REGISTRY.md)。`binary-store-api` 4.372.5（SHA-256 `3606d807…`）的 `javap -v` 进一步显示 `TransactionHandler.invokeInNewTransaction` 的 `@Transactional(REQUIRES_NEW)` 声明在接口上且未指定隔离级别：它只佐证独立新事务，目标实际运行时隔离级别未经验证，本地 READ COMMITTED 是显式适配器策略。目标原库的数据库事务/失败路径未实测，静态证据不等价于目标运行时行为。
+The metadata-registration branches follow static bytecode evidence of the target's binary-store-core 4.372.5 and were verified against a real PostgreSQL 17.10 instance; the [PostgreSQL registry note](POSTGRES-REGISTRY.md) is the canonical source. `javap -v` of `binary-store-api` 4.372.5 (SHA-256 `3606d807…`) additionally shows `TransactionHandler.invokeInNewTransaction` declaring `@Transactional(REQUIRES_NEW)` on the interface without pinning an isolation level: it corroborates only an independent new transaction, the target's effective runtime isolation is unverified, and local READ COMMITTED is explicit adapter policy. The target's own database-transaction/failure paths remain untested at runtime; static evidence is not target runtime behavior.
 
 ## 证据规则 / Evidence rules
 

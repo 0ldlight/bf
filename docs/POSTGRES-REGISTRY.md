@@ -6,16 +6,20 @@ Adapter slice implemented and verified against a real PostgreSQL 17.10 instance;
 `internal/registry/postgres` 以标准库 `database/sql` 实现 `binary.Registry`（PostgreSQL 为开发默认；驱动由调用方提供，生产代码不绑定 pgx）。语义对齐目标 Artifactory 7.161.26（revision 86126900）`binary-store-core` 4.372.5 的 `insertRecordInDb`/`createDataRecord`/`BinariesDao.create` 静态字节码证据（私有 javap 记录，见[研究索引](RESEARCH-INDEX.md)）；本页是公开规范来源。
 `internal/registry/postgres` implements `binary.Registry` over the standard-library `database/sql` with PostgreSQL as the development default; the caller supplies the driver and production code does not bind to pgx. Semantics follow the static bytecode evidence of the target's `insertRecordInDb`/`createDataRecord`/`BinariesDao.create` (private javap notes; see the [research index](RESEARCH-INDEX.md)) — this page is the public canonical source.
 
-目标静态分支与本地实现的逐一对应：
-The target's static branches map one-to-one onto the local implementation:
+目标静态分支与本地实现的对应（以证据佐证的分支为限，不宣称超出佐证范围的一一等价）：
+The target's static branches correspond to the local implementation only as corroborated; no one-to-one equivalence is claimed beyond them:
 
-1. 以 SHA-1 查找记录（READ COMMITTED 单事务）。Find the record by SHA-1 inside one READ COMMITTED transaction.
+1. 以 SHA-1 查找记录（单事务；READ COMMITTED 是本地适配器的显式策略，见下）。Find the record by SHA-1 inside one transaction (READ COMMITTED is the local adapter's explicit policy, see below).
 2. 缺失 → `INSERT ... ON CONFLICT DO NOTHING`；即使并发冲突写入零行（目标丢弃 `create` 的布尔返回值），Commit 后仍原样返回**输入**元数据。没有无条件回读、冲突拒绝或自动重试——一致并发内容元数据才是实测运行范围。
    Absent → `INSERT ... ON CONFLICT DO NOTHING`; even when a lost concurrent conflict writes zero rows (the target discards the `create` boolean), the **incoming** metadata is returned verbatim after Commit. There is no unconditional readback, collision rejection or automatic retry — consistent concurrent content metadata is the tested runtime scope.
 3. 命中且存储 SHA-256 非空白 → 返回存储元数据，不覆盖 MD5/长度。
    Found with a nonblank stored SHA-256 → the stored metadata wins; MD5/length are never overwritten.
 4. 命中但存储 SHA-256 为 NULL 或 Java-blank → 仅回填 SHA-256、回读、Commit 后返回。
    Found with NULL or Java-blank stored SHA-256 → backfill SHA-256 only, reload, return after Commit.
+
+## 事务边界证据 / Transaction-boundary evidence
+`binary-store-api` 4.372.5（SHA-256 `3606d8072dcde1eb4174d92fbc7e5c4cb4eee59213de5aa4fb7f49cb19dd73b6`）的 `javap -v` 显示 `TransactionHandler.invokeInNewTransaction` 的 `@Transactional(REQUIRES_NEW)` 声明在**接口**上而非实现体，且该注解**未指定隔离级别**。因此 `REQUIRES_NEW` 只佐证“登记使用独立新事务”；目标的**实际运行时隔离级别未经验证**。本适配器显式选择 READ COMMITTED 是本地 PostgreSQL 适配器策略（PostgreSQL 默认隔离级别），不是经独立验证的目标运行时设置；目标数据库事务运行时行为仍未实测。
+`javap -v` of `binary-store-api` 4.372.5 (SHA-256 `3606d8072dcde1eb4174d92fbc7e5c4cb4eee59213de5aa4fb7f49cb19dd73b6`) shows that `TransactionHandler.invokeInNewTransaction` declares `@Transactional(REQUIRES_NEW)` on the **interface**, not the implementation body, and the annotation **does not pin an isolation level**. `REQUIRES_NEW` therefore corroborates only "registration runs in its own new transaction"; the target's **effective runtime isolation is unverified**. This adapter's explicit READ COMMITTED choice is local PostgreSQL adapter policy (the [PostgreSQL default](https://www.postgresql.org/docs/17/transaction-iso.html)), not an independently verified target setting, and the target's database-transaction runtime remains untested.
 
 ## 规范内部前置 vs 目标怪癖 / Canonical precondition vs target quirk
 目标 `BinaryEntityWithValidation` 构造器对非空白字段校验精确长度且构造器**忽略**格式校验布尔结果，因此目标并不完整拒绝畸形输入。本适配器对 `content.Calculate` 的内部输入采用更严格前置：SHA-1/SHA-256/MD5 必须是精确长度的小写 ASCII 十六进制（40/64/32）且 `Size>=0`，在任何数据库访问之前以 `ErrInvalidMetadata` 拒绝；错误文本永不回显值。这是显式本地前置，不是目标畸形输入/HTTP 行为对齐，也不做 normalize/trim。
@@ -48,3 +52,6 @@ No UAT database topology, HA/replication, migration framework, node table/GC/del
 - 写入顺序与登记失败语义 / Ordering and failure semantics: [BINARY-WRITE.md](BINARY-WRITE.md)
 - 内容模型 / Content identity: [CONTENT-METADATA.md](CONTENT-METADATA.md)
 - 目标存储证据 / Target storage evidence: [FILESTORE-CONTRACT.md](FILESTORE-CONTRACT.md)
+
+测试驱动固定为 [pgx v5.11.0](https://github.com/jackc/pgx/tree/v5.11.0)（[MIT](https://github.com/jackc/pgx/blob/v5.11.0/LICENSE)），只在嵌套测试模块中引入；生产驱动由调用方配置。
+The nested test module pins pgx v5.11.0 under MIT; production driver configuration remains caller-owned.

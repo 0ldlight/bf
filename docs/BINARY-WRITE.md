@@ -1,6 +1,6 @@
 # 二进制写入顺序 / Binary write ordering
-状态 / State: BIN-129 领域服务切片已实现并验证，PostgreSQL 元数据登记适配器已接入并以真实 17.10 验证；产品 HTTP 未接入。
-Domain-service slice implemented and verified, with the PostgreSQL metadata-registration adapter wired in and verified against a real 17.10 instance; product HTTP remains future work.
+状态 / State: BIN-129 领域服务切片已实现并验证，PostgreSQL 元数据登记适配器已实现并以真实 17.10 集成验证；产品运行入口与 HTTP 未接入。
+Domain-service slice implemented and verified, with the PostgreSQL metadata-registration adapter implemented and integration-tested against a real 17.10 instance; product runtime wiring and HTTP remain future work.
 
 ## 顺序与责任 / Ordering and ownership
 `internal/binary` 定义窄接口 `Provider.Put(ctx, io.Reader, filestore.Expected)` 与 `Registry.Register(ctx, content.Metadata)`，`Service.Add` 依次编排：
