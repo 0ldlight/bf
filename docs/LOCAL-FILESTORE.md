@@ -23,6 +23,9 @@ Expected contains optional declared length and caller-selected digests. Valid he
 新建目录与文件分别请求 0700/0600；现有调用方目录不被自动 chmod。root 是受信配置，服务身份独占管理；拒绝非规范键及预存的符号链接/特殊文件路径。正常对象流不代表原版异常文件行为已兼容。
 New directories/files request 0700/0600; existing caller directories are not chmodded. The configured root is trusted and service-owned. Canonical keys and regular-object checks constrain access; abnormal-file handling is an explicit safety policy.
 
+现有 root/fanout 对组或其他身份可写、以及 staging 对组或其他身份有访问权限时，作为不安全配置拒绝；这是本单机切片的安全约束，原版对异常权限的行为仍待核实。
+Group/other-writable root/fanout directories and nonprivate staging are refused as a local safety constraint; target abnormal-permission parity is unverified.
+
 目录范围限制采用 [Go os.Root](https://pkg.go.dev/os@go1.27.1#Root)，配合不跟随叶子链接、非阻塞打开及文件类型检查。os.Root 自身会跟随界内相对链接，也不禁止 bind mount 或设备文件；不能将它描述为完整文件系统沙箱。本轮不支持对抗有权改写 root 的其他进程或恶意挂载。
 Root confinement is supplemented by no-follow/nonblocking opens and type checks. Root alone follows in-tree relative symlinks and does not prohibit bind mounts/devices. Hostile writers to the service-owned root and malicious mounts are outside this slice's guarantee.
 
