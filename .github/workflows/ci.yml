@@ -1,0 +1,31 @@
+# BIN-124 shared CI smoke / 共享 CI 冒烟检查.
+# Validation only: no deployment and no artifact publishing here — Jenkins
+# builds artifacts (see Jenkinsfile) and CircleCI only deploys UAT, per owner.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/planning-handoff
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - name: Run shared check script
+        run: ./scripts/check.sh

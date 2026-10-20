@@ -1,7 +1,10 @@
-# BinFlow — 启动提案 / Startup Proposal
+# 启动提案与决定 / Startup proposal
 
 日期 / Date: 2026-10-16
-状态 / Status: 待架构审批；本文不是已实现能力说明。 Pending architecture approval; this is a proposal, not implemented behavior.
+状态 / Status: 2026-10-19 已批准 ADR-001/002/003 的技术方向；其他选项、商业许可与运行授权仍为提案。本文不是已实现能力说明。 The owner approved the three technical directions; other options and licensing rules remain proposals, not implemented behavior.
+
+2026-10-20 文档范围修订：Fern 仅用于 BinFlow 使用文档，工程正文维护在本仓库 `docs/`。
+Documentation scope: usage docs in Fern; engineering docs in source `docs/`.
 
 ## 1. 研发目标与完成定义 / Objective and definition of done
 
@@ -23,6 +26,8 @@ Track discovery, implementation and verified parity separately. Working demos al
 ## 2. 架构决定建议 / Proposed architectural decisions
 
 ### ADR-001 Go HTTP 与服务结构 / Go HTTP and service structure
+
+方向已于 2026-10-19 批准；具体能力仍须实现与验证。 Direction approved; capabilities still require implementation/evidence.
 
 选择 Go 标准库 net/http + chi，按领域组织模块，按负载与信任边界拆分运行单元。
 Use net/http + chi; organize by domain and separate runtime units where load or trust boundaries justify it.
@@ -46,6 +51,8 @@ Investigate required platform interfaces and trust boundaries before final proce
 
 ### ADR-002 存储与多数据库 / Storage and multiple databases
 
+方向已于 2026-10-19 批准；具体能力仍须实现与验证。 Direction approved; capabilities still require implementation/evidence.
+
 数据库访问使用 database/sql、明确的领域存储接口、数据库方言与迁移适配；驱动逐个验证。
 Use database/sql with explicit repository interfaces, dialects and migrations; validate drivers individually.
 
@@ -65,6 +72,8 @@ Separate blob storage from metadata; start with filesystem and object storage ad
 Validate checksums, deduplication, transfers, caching, consistency, GC and recovery.
 
 ### ADR-003 前端 / Frontend
+
+方向已于 2026-10-19 批准；具体能力仍须实现与验证。 Direction approved; capabilities still require implementation/evidence.
 
 React + TypeScript + Vite + shadcn/ui；路由、服务端状态和复杂列表分别评估 TanStack Router、Query、Table/Virtual。
 Use React/TypeScript/Vite/shadcn; evaluate focused TanStack libraries for routing, server state and large lists.
@@ -134,15 +143,17 @@ Pricing and entitlement values are configurable business parameters owned by the
    PRs use shared repository scripts for consistent quality gates.
 2. Jenkins：访问本地 K8s，承担集成、原版差异、多数据库与 HA/性能测试。
    Jenkins runs private-environment integration and compatibility validation.
-3. 所有者合并 main 后，CircleCI 构建对应提交的镜像、摘要与部署清单，自动部署 UAT 并执行 smoke。
-   After owner merge, CircleCI builds identifiable artifacts, deploys UAT and runs smoke tests.
+3. 所有者于 2026-10-19 确认：Jenkins 构建对应提交的制品、摘要与部署清单；CircleCI 只消费这些制品、部署 UAT 并执行 smoke，不重新构建。main 合并仍由所有者执行。
+   Owner decision: Jenkins produces traceable artifacts; CircleCI only deploys them to UAT and runs smoke. The owner controls merges.
 4. Git tag、对外 release、签名发行包及正式版本发布需要所有者批准；UAT 自动部署不自动创建 release。
    Public releases require owner approval; UAT deployment alone does not publish a release.
 5. 部署失败保留证据；恢复上一镜像前先判断数据库版本兼容性，禁止盲目自动降级 schema。
    Preserve failure evidence and check schema compatibility before application rollback.
+6. Fern 仅维护 BinFlow 使用文档，复用现有组织与 `docs.binflow.org`；工程资料维护在源码 `docs/`。文档变更需要检查、预览与可追踪的发布记录。
+   Use Fern only for usage docs and source `docs/` for engineering documents, with checks, previews and traceable publication.
 
-具体 CI Secret 和测试服务接入在启动预检中核实；不自动覆盖现有全局配置。
-Verify actual CI connections and secrets during bootstrap without overwriting shared global settings.
+产品指南、已验证的安装与管理员操作、已支持 API 和真实发布说明进入 Fern。需求、研发规划、规范、ADR、研究与交接留在源码。私有环境与研究原始资料不进入公开仓库或站点；每份正文只维护一处。
+Keep usage guides and supported reference in Fern; engineering contracts stay in source. Preserve private evidence boundaries and a single canonical copy per document.
 
 ## 4. Agent 团队与调度 / Agent team and scheduler
 
@@ -206,7 +217,7 @@ Verify the Codex adapter and pause durably on unavailable capacity; do not silen
 
 | 阶段 / Phase | 交付与出口 / Deliverable and exit |
 |---|---|
-| P0 基线与研发体系 / Foundation | 环境预检、双语规范、功能矩阵 v1、研究索引、CI smoke、Linear 流程、可跨 Mac 接续的一条 Agent 任务 / reproducible foundation and one complete agent workflow |
+| P0 基线与研发体系 / Foundation | 环境预检、双语规范、功能矩阵 v1、研究索引、CI smoke、Linear 流程、Fern 使用文档整理与 docs.binflow.org 接入、可跨 Mac 接续的一条 Agent 任务 / reproducible foundation, Fern usage-documentation/domain integration and one complete agent workflow |
 | P1 最小贯通 / Vertical slice | 登录、权限、Generic local 仓库、上传下载、校验和、元数据、双语主题、K8s与UAT；用户审阅 / end-to-end verified slice |
 | P2 通用仓库能力 / Repository foundation | local/remote/virtual、缓存、属性、搜索/AQL、构建信息、清理、API 契约 / shared repository and API capabilities |
 | P3 包生态 / Ecosystems | 按依赖推进 Maven、npm、Docker/OCI、PyPI、Go、Helm 及目标版本剩余类型；逐个客户端验收 / all scoped ecosystem adapters and client tests |
@@ -227,16 +238,20 @@ Estimate later phases from measured throughput and rework rather than theoretica
 
 需要所有者决定：
 Owner decisions requested:
-- ADR-001/002/003 的核心、数据库和前端架构方向 / architecture direction.
+- ADR-001/002/003 的核心、数据库和前端方向已于 2026-10-19 批准；未决细节另行审阅 / core/storage/frontend directions approved; remaining details reviewed separately.
 - AGPL 与商业双许可方向 / licensing direction.
-- 分阶段顺序、流水线职责、调度与迁移机制 / delivery and execution plan.
+- 分阶段顺序、调度与迁移细则；Jenkins 构建、CircleCI 仅部署 UAT 的职责已于 2026-10-19 确认 / remaining execution details; pipeline roles confirmed.
 
 接入事项：
 Connection actions:
-- Linear 当前返回 USER_NOT_LOGGED_IN；恢复连接后读取现有项目，不另建同名项目。
-  Restore the existing Linear connection before synchronization.
+- Linear 已恢复连接；继续使用现有 binflow 项目及 P0 里程碑，不新建同名项目。
+  Linear reconnected; reuse the existing project and P0 milestone.
 - CI/GHCR 权限、UAT 80/443、试用剩余时间/功能可用性及目标平台矩阵在 P0 核实。
   Verify CI credentials, ingress, baseline entitlement and version matrices during P0.
+- 现有 Fern 文档源为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，当前组织 `binflow`、默认站点 `binflow.docs.buildwithfern.com`，配置已包含 `custom-domain: docs.binflow.org`。2026-10-18 经认证 API 返回默认站点 LIVE；自定义域名与内容迁移仍需验收。
+  Reuse the verified current organization/default site and existing custom-domain configuration. Authenticated API reports the default site LIVE; custom-domain and content-migration acceptance remain open.
+- 文档仓库已有 GitHub Actions 检查、PR 预览和 main 发布工作流；2026-10-18 已配置 FERN_TOKEN Secret，现有 main 提交 `c69ee35` 的[发布重跑成功](https://github.com/0ldlight/binflow-docs/actions/runs/39141090564/attempts/2)。文档内容迁移与自定义域名验收仍未完成；复用现有文档流水线，不重复创建 CircleCI 文档发布流程。
+  Existing Actions workflows cover checks, PR previews and main publication. CI authentication and the linked publication rerun passed on 2026-10-18. Content migration/custom-domain acceptance remain open; reuse the existing workflow.
 - 任一外部服务到期或不可用，明确阻塞具体功能，不能把缺失证据登记为通过。
   Record evidence gaps as scoped blockers, not passed parity.
 
@@ -251,6 +266,8 @@ Connection actions:
 - Accessibility: https://playwright.dev/docs/accessibility-testing
 - Codex SDK: https://learn.chatgpt.com/docs/codex-sdk
 - Claude noninteractive execution: https://code.claude.com/docs/en/headless
+- Fern custom domains: https://buildwithfern.com/learn/dashboard/configuration/custom-domains
+- Fern project structure: https://buildwithfern.com/learn/docs/getting-started/project-structure
 
 在线文档可能覆盖比目标更新的版本；目标支持结论必须回到 7.161.26 证据。
 Live documentation may describe newer versions; freeze baseline conclusions against 7.161.26 evidence.

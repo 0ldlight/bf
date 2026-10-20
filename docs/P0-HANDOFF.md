@@ -1,107 +1,40 @@
-# P0 跨 Mac 交接 / Cross-Mac P0 Handover
+# 接续研发 / Continue the project
 
-日期 / Date: 2026-10-16 (Asia/Shanghai)
-分支 / Branch: codex/planning-handoff
-远端 / Remote: https://github.com/0ldlight/bf.git
+## 接续入口 / Start with the contract
 
-## 当前指令与状态 / Current instruction and status
+依次读取[已确认需求](PROJECT-BRIEF.md)、[架构决定](ARCHITECTURE.md)、[P0 计划](P0-PLAN.md)、[能力矩阵](CAPABILITY-MATRIX.md)与[研究索引](RESEARCH-INDEX.md)。已确认需求无需重新访谈。
+Read the requirements, decisions, P0 plan, matrix and research index without restarting discovery.
 
-用户要求提交现有规划内容，准备在另一台 Intel/AMD64 Mac 开始 P0。本机仅提交与交接，不执行 P0。
-The owner requested this planning snapshot for starting P0 on another Intel/AMD64 Mac. This turn performs handover only.
+源码仓库是 [0ldlight/bf](https://github.com/0ldlight/bf)，使用文档维护在 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，工程文档维护在本仓库 `docs/`。任务、依赖、审批与最新状态使用[现有 Linear 项目](https://linear.app/binfloow/project/binflow-2ad2bc04f63e)。
+Keep usage docs in the separate Fern repository and engineering docs in source `docs/`; use the existing Linear project as the task authority.
 
-已确认需求以 PROJECT-BRIEF.md 为准；架构和代码许可建议以 STARTUP-PROPOSAL.md 为准。
-PROJECT-BRIEF.md holds confirmed requirements; STARTUP-PROPOSAL.md holds proposed architecture and licensing.
+## 本机配置 / Host-local access
 
-架构、main PR 合并和版本发布仍由用户决定；不要把“提交规划”登记为所有 ADR 已获批准。
-Architecture, main merges and releases remain owner decisions; committing planning documents does not approve every ADR.
+各主机独立配置 GitHub、K8s、Claude/GLM-5.3、原版、Jenkins、CircleCI 与 UAT 访问。仅在被忽略的本机环境记录中保存地址与凭据文件引用，凭据本身不写入文档或公开任务。
+Provision access per host. Store private endpoints and credential-file references only in ignored environment notes; never put secrets in documentation/tasks.
 
-继续时不重启需求访谈；仅针对具体未决事项或新发现提出问题。可先推进 P0 的只读预检、基线调查和任务细化。
-Do not restart requirements discovery. Ask only about concrete unresolved decisions or new findings; begin with P0 preflight and baseline investigation.
+私有资料通过制品 ID 与摘要定位，不假定另一台 Mac 使用相同绝对路径。
+Locate research by artifact ID/digest rather than assuming identical host paths.
 
-## 在另一台 Mac 获取 / Obtain on the next Mac
+## Worker 生命周期 / Worker lifecycle
 
-全新目录 / Fresh checkout:
+每条任务声明独立 worktree/分支、文件责任、输入证据、验收、上下文范围和报告位置。所有 Claude 角色及重试共用最多 3 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
+Each task has an isolated worktree, ownership, evidence, acceptance and report contract. All roles/retries share three slots; no hidden workers.
 
-```sh
-git clone --branch codex/planning-handoff https://github.com/0ldlight/bf.git
-cd bf
-git status --short --branch
-```
+2026-10-19 所有者确认其他主机均已停止，当前 Mac 接管。之后每次迁移都应重新核对真实进程、任务状态和未完成请求；租约超时不代表进程或服务端请求已终止。
+The owner confirmed handover on 2026-10-19. Future migrations must verify actual processes and outstanding requests; lease expiry does not establish termination.
 
-已有 checkout / Existing checkout:
+任务恢复依据包括私有任务/槽位记录、Claude 会话标识、Git 提交与 PR；Worker 退出后仍需独立审查与验证，不能直接登记 Done。
+Resume through durable task/slot records, session IDs, commits and PRs. Process exit still requires independent review.
 
-```sh
-git fetch origin
-git switch --track origin/codex/planning-handoff
-```
+## 迁移主机前 / Before changing hosts
 
-若本地已有同名分支，切换到该分支并在检查工作区后执行 git pull --ff-only；保留未提交工作，禁止强制重置。
-If the local branch already exists, switch to it and pull with --ff-only after checking the working tree. Preserve local work.
+1. 停止认领新任务，核实在途请求与真实进程，保存工作区/提交与私有报告。
+   Stop claims, verify in-flight work and persist code/private reports.
+2. 在 Linear 更新准确状态与阻塞；未验证的能力不得登记为通过。
+   Record accurate state without promoting unverified work.
+3. 在新主机重新核实认证、路由与执行槽，再按合同恢复；保留旧会话作为可审计证据。
+   Recheck host access/slots before resuming and retain audit evidence.
 
-## 需要本机独立配置的内容 / Host-local prerequisites
-
-- gh 登录与仓库写权限 / GitHub CLI authentication and repository access.
-- Codex 登录、Claude Code 及智谱 GLM-5.3 凭据 / Codex and Claude Code authentication; GLM-5.3 credentials.
-- kubeconfig 及 context；用户确认新 Mac 已配好访问，仍需验证 / Kubernetes access, reported configured but requiring verification.
-- Artifactory、Jenkins、UAT 的访问方式 / Baseline, CI and UAT access.
-- 恢复 Linear 连接；读取现有 binflow 项目，禁止重复创建 / Reconnect Linear and locate the existing project.
-- 项目所需 skills/plugins 在新主机重新检查；不能假设与当前主机一致 / Recheck skills and plugins on the new host.
-
-当前电脑 docs/ENVIRONMENT.local.md 包含不带密码的环境地址与历史检查记录，可通过私有渠道复制到新 checkout；该文件被忽略，不随 Git 迁移。
-The current Mac has ignored docs/ENVIRONMENT.local.md with noncredential environment notes. Transfer it privately if needed; Git does not carry it.
-
-密码、API Key、签发私钥和完整 kubeconfig 不在交接提交中，需通过现有凭据配置或私有渠道单独提供。
-Passwords, API keys, signing private keys and complete kubeconfig are excluded and require separate local provisioning.
-
-旧反编译资料仍仅存在原主机，且对应旧版本；7.161.26 安装包尚未下载与反编译。不要把旧资料当成目标基线。
-Old decompilation remains on the original host and is not the target version. The target package has not been downloaded or decompiled.
-
-## 已完成验证 / Completed checks
-
-- 2026-10-16：Artifactory API 7.161.26，revision 86126900，Enterprise Plus Trial。
-  Baseline version matches; recheck expiry and required feature availability during P0.
-- UAT SSH 与 DNS 只读核实成功；Ubuntu 24.04、x86_64、4 CPUs、约 4 GiB RAM、40 GiB 根盘。
-  UAT read-only inspection succeeded; use it as a lightweight public demo.
-- 2026-10-09：K8s 4 个 amd64 节点，默认 Longhorn；这是历史快照，需刷新。
-  Historical Kubernetes inventory must be refreshed.
-- Claude Code 到 GLM-5.3 的单轮无工具调用成功；读写代码、测试和三并发未验证。
-  A minimal model probe passed; full worker execution and concurrency are unverified.
-- 2026-10-16：Linear 返回 USER_NOT_LOGGED_IN；没有同步任何任务或创建项目。
-  Linear was disconnected; no project/tasks were created.
-
-## 尚未执行 / Not yet performed
-
-没有产品代码、Go/前端工程、namespace、数据库、对象存储、CI 配置、TLS、P0 Worker 或后台调度器。
-No application scaffold, infrastructure provisioning, CI configuration, TLS, P0 worker or daemon has been implemented.
-
-没有执行数据库、客户端、部署或性能兼容测试；文档中的角色与能力均为计划。
-No compatibility or performance suites have run; planned roles and capabilities are not active services.
-
-## P0 建议执行顺序 / Suggested P0 sequence
-
-1. 读取需求与提案，记录具体架构决定；未批准的决定交给所有者审阅，已确认要求不重复询问。
-   Review requirements/proposals and record owner decisions without repeating confirmed questions.
-2. 检查新主机工具、架构、认证、内网路由、K8s 资源、原版试用状态与 CI 连接。
-   Preflight the new host, baseline entitlement and environment connectivity.
-3. 恢复 Linear，定位现有项目，建立 P0 子任务、依赖与验收条件。
-   Restore Linear and create scoped P0 tasks in the existing project.
-4. 下载并校验 7.161.26 包；私有存放，建立组件清单、版本冻结与研究索引。
-   Verify the target package and build a private versioned research inventory.
-5. 建立研发规范、领域接口、可重复检查入口与必要环境配置；依架构批准情况逐项实施。
-   Establish conventions, contracts and reproducible checks according to approved decisions.
-6. 跑通一条 Claude 任务：独立 worktree、GLM-5.3、明确输入、验证、报告、提交与 PR。
-   Execute one end-to-end worker task with reproducible evidence and owner-reviewed PR.
-7. 验证当前主机到新主机的任务恢复记录和执行槽控制，再扩展并发与后台调度。
-   Validate durable handover and slot accounting before scaling execution.
-
-P0 出口按启动提案：基线、矩阵 v1、研究索引、CI smoke、Linear 流程和可接续的一条 Agent 任务；P0 完成不等于产品已可用。
-P0 exits with reproducible foundations, not a finished product.
-
-所有 Claude 角色及重试共用最多 3 个执行槽。当前主机本次没有启动项目 Worker，不要在两台主机重复派发同一任务。
-All Claude roles/retries share three execution slots. This handover started no project workers; avoid duplicate task dispatch.
-
-## 给新会话的接续提示 / Prompt for the next session
-
-> 请读取 README.md、docs/PROJECT-BRIEF.md、docs/STARTUP-PROPOSAL.md、docs/P0-HANDOFF.md，接续 BinFlow 的 P0。已确认需求无需重新访谈。Codex 主导，Claude Code 使用 GLM-5.3 执行任务，最多 3 并发；任务和审批使用现有 Linear binflow 项目。先检查本机凭据与环境、恢复 Linear，再处理具体待决策 ADR。架构、main 合并和版本发布由我决定。私有资料与凭据不进入公开仓库。
->
-> Read the four planning documents and continue P0 without restarting requirements discovery. Codex leads; Claude Code uses GLM-5.3 with three shared slots. Use the existing Linear project, verify host-local access, and obtain owner decisions for unresolved ADRs. Keep research material and credentials private.
+本页是工程接续正文；旧交接快照保存在 Git 历史中。实际出口仍以[P0 计划](P0-PLAN.md)和 Linear 为准。
+This is the continuation contract; old handover snapshots remain in Git history and Linear retains current exit state.

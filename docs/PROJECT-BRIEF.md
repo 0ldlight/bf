@@ -1,7 +1,7 @@
-# BinFlow — 已确认需求 / Confirmed Requirements
+# 已确认需求 / Confirmed requirements
 
-更新 / Updated: 2026-10-16 (Asia/Shanghai)
-状态 / Status: 需求已收敛，启动架构待用户审阅；尚未进入实施。 Requirements consolidated; startup architecture awaits owner review; implementation has not started.
+更新 / Updated: 2026-10-20 (Asia/Shanghai)
+状态 / Status: P0 已启动；Go/存储/前端三项方向于 2026-10-19 获批准；商业许可与运行授权规则仍单独审阅。 P0 started; core/storage/frontend directions approved on 2026-10-19. Commercial/runtime licensing remains separately reviewed.
 
 ## 产品范围 / Product scope
 
@@ -48,6 +48,22 @@
 - 已允许安装必要 CLI、依赖、skills 和插件；具体采用项仍需控制范围、来源和版本。
   Necessary development tools and integrations may be installed; selection and versions remain controlled.
 
+## 文档平台 / Documentation platform
+
+2026-10-20 所有者明确范围：Fern 只存放 BinFlow 使用文档，替代此前“全部项目文档放入 Fern”的要求。
+On 2026-10-20 the owner limited Fern to BinFlow usage documentation, superseding the earlier all-documentation policy.
+
+- 产品使用、已验证版本的安装部署、管理员操作、已支持 API 参考及真实发布说明维护在 [docs.binflow.org](https://docs.binflow.org)，源码为 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)。延续中英双语要求；未实现能力不编写为可用指南。
+  Fern holds bilingual user/admin guides, supported API references and real release notes for verified behavior.
+- 需求、架构决定、研发规范、项目计划、研究索引与交接资料维护在本源码仓库 `docs/`；任务、依赖与审批继续使用现有 Linear 项目。
+  Keep requirements, architecture, engineering conventions, plans, research and handover in source `docs/`; Linear owns live tasks and approvals.
+- 复用现有 Fern 组织 `binflow`、站点 `binflow.docs.buildwithfern.com` 和 `docs.binflow.org`，不创建同名站点。文档变更经过版本控制、检查、预览与所有者合并发布。
+  Reuse the existing organization/site/domain with versioned, checked and reviewed changes and owner-controlled publication.
+- 私有环境记录、凭据、原版制品、反编译及原始采样保持私有，不导入 Fern 或公开工程文档。
+  Keep private environments, credentials, original artifacts, decompilation and raw captures out of public documentation.
+- P0 验收包括使用文档站的配置、预览、DNS/TLS 和实际发布；检查通过不代表合并、发布或产品功能验收完成。
+  P0 verifies site configuration, previews, DNS/TLS and publication separately from product acceptance.
+
 ## 商业授权与研究资料 / Licensing and research materials
 
 - BinFlow 需自主实现试用、许可证签发、到期管理、功能授权与离线授权能力，参考 Artifactory 的产品设计。
@@ -77,8 +93,8 @@
   Agents prepare branches/commits/pushes/PRs; owner merges.
 - 全部任务、里程碑、决策待办与阻塞在现有 Linear binflow 项目处理。
   Use the existing Linear binflow project for planning and approvals.
-- BOOST.md 已由用户明确撤销适用；不再构成前置条件。
-  Owner explicitly retired BOOST.md; it is no longer a prerequisite.
+- 工具与 Agent 执行遵循当前有效的用户指令、AGENTS 与主机规则；历史规划记录不覆盖较新的会话指令。
+  Follow current user/agent/host instructions; historical planning does not override newer session instructions.
 
 ## 环境核实与剩余条件 / Verification and remaining conditions
 
@@ -86,9 +102,9 @@
   Reverified baseline API; installed version matches target, license reports Enterprise Plus Trial.
 - UAT SSH 只读检查成功，DNS 指向用户提供的主机；详见本机环境记录。
   UAT read-only SSH inspection and DNS verification succeeded; details remain in local environment notes.
-- 2026-10-09 已验证 Claude Code 到 GLM-5.3 的一轮无工具调用；代码任务和并发尚未验证。
-  A one-turn no-tool GLM-5.3 probe passed earlier; coding workflows and concurrency remain unverified.
-- Linear 于 2026-10-16 返回 USER_NOT_LOGGED_IN；需重新连接后定位现有项目。
-  Linear currently requires reconnection before locating the existing project.
-- 启动实施前需要所有者审阅 STARTUP-PROPOSAL.md；具体性能指标以受控对照试验后确定。
-  Owner reviews STARTUP-PROPOSAL.md before implementation; quantitative targets follow controlled baseline measurements.
+- 2026-10-09 已验证 Claude Code 到 GLM-5.3 的一轮无工具调用；首条代码任务已执行并经独立复核；多 Worker 并发尚未验证。
+  A one-turn no-tool GLM-5.3 probe passed earlier; the first coding task has run and passed independent review; concurrent workers remain unverified.
+- Linear 已于 2026-10-19 恢复连接，P0 里程碑及 BIN-118 至 BIN-127 已建立。
+  Linear reconnected and the existing project now tracks the P0 milestone/tasks.
+- 三项技术方向已获批准；其余提案仍按专项审阅。具体性能指标以受控对照试验后确定。
+  Three directions are approved; other proposals retain their review boundaries. Quantitative targets follow controlled baseline measurements.
