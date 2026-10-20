@@ -1,6 +1,6 @@
 # 本地内容存储 / Local content storage
-状态 / State: BIN-129，已批准方向的实现与验证中。本文记录内部 provider 合同，产品 HTTP、数据库引用、GC 与 HA 另行接入。
-Approved direction under implementation and verification. This internal contract does not establish product HTTP, database-reference, GC or HA completion.
+状态 / State: BIN-129 的内部 Put/Open 切片已通过本轮验证，草稿 PR 待审。产品 HTTP、数据库引用、GC 与 HA 另行接入。
+The internal Put/Open slice passed this round of validation and awaits draft-PR review. Product HTTP, database references, GC and HA remain separate.
 
 ## 入口与责任 / Interface and ownership
 `internal/filestore.New(root)` 打开服务身份独占管理的目录，返回 Store；调用方停止使用后 Close。Put 接收 context、调用方拥有的 io.Reader 与 Expected，返回[内容元数据](CONTENT-METADATA.md)。Open 仅按规范 SHA-1 返回调用方负责关闭的读取器。
@@ -35,3 +35,6 @@ Check cancellation before/between reads and before publication; arbitrary blocki
 ## 验证边界 / Evidence boundary
 原版语义、包摘要与实例观察见[存储研究](FILESTORE-CONTRACT.md)，所有者批准范围见[切片方案](FILESTORE-SLICE-PROPOSAL.md)。本切片不声明 fsync、断电持久性、同 SHA-1 不同内容、已有损坏、孤儿回收、数据库事务或多节点兼容完成。
 The linked evidence and approved proposal define scope. Power loss, collisions, existing corruption, orphan GC, database transactions and multi-node compatibility remain unverified.
+
+本轮验证 / This round: scripts/check.sh 与 race 通过；独立进程矩阵 38 项通过，包含 8 个进程首次写入、进程重开、发布前不可见、摘要/长度拒绝、失败清理及异常路径。原版实例行为与本地实现测试分别保留证据；不把本地通过等同于完整目标兼容。
+Shared checks/race and 38 independent process cases passed, including eight-process first writes, reopening, visibility, validation, cleanup and abnormal paths. Target observations and implementation tests remain distinct evidence.

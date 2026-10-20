@@ -65,3 +65,5 @@ The source-grounded filestore note distinguishes static findings, bounded runtim
 
 [P0 计划](P0-PLAN.md)规定研究出口；后续完整依赖清单、前端/其他平台组件及行为采样仍需追加证据，当前索引不宣称逆向或兼容完成。
 Further dependency/frontend/platform analysis and behavioral sampling remain open; this inventory is not completed reverse engineering or parity.
+
+- [本地 provider / Local provider](LOCAL-FILESTORE.md)：内部 Put/Open 及故障/并发/路径验证；HTTP、数据库引用、GC 与 HA 仍待接入。
