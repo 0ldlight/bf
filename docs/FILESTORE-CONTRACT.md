@@ -28,6 +28,7 @@ REA inventory establishes archive identity/entries, not runtime semantics. Focus
 | 二进制模型保留 SHA-1、SHA-256、MD5、长度 / Multiple checksums plus length | `FilePersistenceHelper.saveStreamToTempFile`; `BinaryElement` | 不能仅凭模型断言全部上传校验规则 / Not a complete upload validation contract |
 | 临时文件写完并检查长度，再尝试原子移动 / Staging and length check precede atomic-move attempt | `FileBinaryProviderImpl.addStream`; `FilePersistenceHelper.saveStreamFileAndMove/persistFile` | 此辅助函数未证明 fsync、跨文件系统降级或断电保证 / No power-loss durability claim |
 | 已存在对象走复用/临时文件清理分支 / Existing-object and temporary-file cleanup branches | `FilePersistenceHelper.persistFile/saveStreamFileAndMove` | 存在性检查不等于重读校验；原子移动不能自动证明所有并发平台语义 / No universal collision or integrity guarantee |
+| 普通上传流计算多摘要；关闭后校验传入的期望值 / Normal upload stream computes digests and validates expected values on close | `BinaryProviderManagerImpl.createBinaryStream`; `PostProcessChecksumBinaryStream.close/validate` | 存在预计算分支；HTTP 映射和仓库校验策略需分别核对 / Precomputed streams and repository policies remain separate |
 | 先调用内容 provider，再以新事务登记二进制记录 / Provider call precedes a new binary-record transaction | `BinaryServiceImpl.addBinary(BinaryStream)/transactionalInsertRecordInDb` | 未证明所有仓库节点和物理文件在同一事务 / No global atomicity claim |
 | 记录按 SHA-1 查找和复用，另存 SHA-256；PostgreSQL 插入处理冲突 / SHA-1 record lookup with separate SHA-256 and PostgreSQL conflict handling | `BinariesDbServiceImpl.insertRecordInDb`; `BinariesDao.create` | 仍需验证竞争时的完整结果和错误类别 / Concurrent outcomes remain open |
 | 删除二进制记录的 SQL 检查节点无引用 / Binary-row deletion checks node references | `BinariesDao.deleteEntry` | 不代表完整 GC 生命周期或即时物理删除 / Not a complete GC contract |
@@ -35,12 +36,15 @@ REA inventory establishes archive identity/entries, not runtime semantics. Focus
 实例交叉验证使用本项目自创的 65 字节样本：物理路径与内容摘要匹配；将相同内容顺序上传到另一逻辑路径后，原物理 inode、大小和 mtime 未变，两个路径的元数据摘要相同。临时重复路径已删除并验证不存在。
 A controlled sequential duplicate upload corroborated reuse of the authored 65-byte object: physical identity remained unchanged and both logical paths returned matching metadata checksums. The duplicate path was removed and absence verified.
 
+同一测试仓库的错误 `X-Checksum-Sha256` 上传返回 409，逻辑制品未创建，已有物理对象未变；这是该仓库配置下的单次负例，不外推到其他校验策略。
+An incorrect declared SHA-256 returned 409 without creating a logical artifact or changing the existing object, under this one repository configuration.
+
 ## 实现约束与待核实项 / Implementation contract and open checks
 
 下一条 Go 切片沿用已批准的领域存储接口和数据库方向，先建 SHA-1 内容身份及多摘要/长度模型，再验证本地持久化；仓库节点、权限与 Generic HTTP 闭环继续分别接入。这份记录不新增对象存储产品或 HA 架构决定。
 The next Go slice follows the approved domain-store/database direction with SHA-1 content identity and multiple checksums. Repository nodes, authorization and Generic HTTP remain separate integrations; no cloud-storage or HA decision is made here.
 
-- 摘要在流中的计算时机、声明值不符和错误映射 / Digest computation, declared mismatch and error mapping.
+- 其他校验策略、预计算上传分支、长度不符和完整错误映射 / Other policies, precomputed uploads, length mismatch and complete error mapping.
 - 同内容并发写、同 SHA-1 不同字节、已有文件损坏 / Concurrent duplicates, digest collision and existing corruption.
 - 中断写入、数据库失败后的引用、临时内容和 GC / Interrupted writes, database failure, references, staging and GC.
 - 空文件、大文件、磁盘满、重启与多节点 / Empty/large files, disk exhaustion, restart and multi-node behavior.
