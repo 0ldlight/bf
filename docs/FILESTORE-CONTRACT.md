@@ -1,7 +1,7 @@
 # 本地内容存储对齐 / Local filestore alignment
 
-状态：BIN-129 调查记录，尚未实现。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
-Status: investigation for [BIN-129](https://linear.app/binfloow/issue/BIN-129); no storage implementation yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
+状态：BIN-129 调查记录，首条内容模型切片正在实现，本地 provider 尚未实现。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
+Status: investigation for [BIN-129](https://linear.app/binfloow/issue/BIN-129); content-metadata implementation is underway; the local provider is not implemented yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
 
 ## 基线与证据 / Baseline and evidence
 
@@ -55,3 +55,13 @@ The next Go slice follows the approved domain-store/database direction with SHA-
 
 刷盘、损坏拒绝、路径防护等实现策略必须说明原版证据和可见差异；没有观察到的能力保持待验证，不能凭设计声明兼容。
 Durability, corruption rejection and path hardening require explicit evidence and visible-difference accounting; unobserved behavior stays unverified.
+
+## 新增受控验证 / Additional controlled checks
+
+在独立自创 Generic 仓库中，6 路同时上传相同 65,584 字节样本到不同逻辑路径均返回 201；逐一下载及元数据的三摘要/长度均匹配，物理 SHA-1 路径与 SHA-256 另行核实。随后一次顺序重复上传保持 inode/长度/mtime 不变；不能据此证明并发首次写入没有替换 inode。空内容上传 201、下载 200，空内容摘要与长度匹配。测试仓库已删除，并通过仓库清单核实不存在。
+Six simultaneous uploads of identical authored bytes to distinct logical paths returned 201 with matching downloads and metadata. Physical SHA-1 layout and SHA-256 were verified; a subsequent sequential duplicate preserved physical identity. This does not prove inode stability among first concurrent writers. Empty upload/download and digests passed; the owned repository was removed and absence checked through the repository list.
+
+同一仓库中，错误的 SHA-1/SHA-256/MD5 分别返回 409 且逻辑路径 404；正确摘要、三种摘要各自的大写值及单空格 SHA-256 均上传成功。底层 PostProcessChecksumBinaryStream 的精确比较不能直接充当 HTTP 输入契约：目标包 artifactory-papi-7.161.15.jar（SHA-256 494c1eccb978c3105385ad59c958a0b3272dc5fdfd1d177681fa9d859aa236e8）的 ChecksumInfo.normalize 对有效摘要转小写，构造器另有按长度处理的分支。HTTP 接入仍需完整验证配置/调用链。
+Wrong SHA-1, SHA-256 and MD5 each returned 409 without a logical artifact. Correct, uppercase and one-space SHA-256 declarations succeeded. Target ChecksumInfo normalizes valid inputs before the stream comparison; the constructor has another length-based branch. These observations remain scoped to this repository configuration and do not freeze the entire HTTP policy.
+
+[首条持久化切片提案 / Persistence slice proposal](FILESTORE-SLICE-PROPOSAL.md) 等待所有者决定。损坏、碰撞、故障恢复与 GC 仍未验证。
