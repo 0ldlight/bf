@@ -22,6 +22,9 @@ The internal package defines the narrow `Provider.Put` and `Registry.Register` i
 `New` 以有界配置错误拒绝空依赖；调用方保证有效实现并拥有其生命周期，无反射式类型化 nil 检测。服务无内部可变调用状态，依赖支持时允许并发 Add。错误文本只含常量阶段归因，不含读取器内容、摘要或凭据。
 `New` rejects nil dependencies with a bounded configuration error; callers supply valid implementations and own their lifetime (no reflection-based typed-nil checks). The service holds no mutable call state, so concurrent Adds follow dependency guarantees. Error text carries only constant stage attribution.
 
+失败包装是内部 `stageError`：`Error()` 只返回固定阶段常量，底层错误文本（可能含请求体、摘要或凭据）不会自动进入 `Error()`；`Unwrap()` 原样暴露未修改的原始原因，供可信调用方用 `errors.Is`/`errors.As` 诊断。HTTP 响应与日志不得盲目序列化解包后的原因文本，需在上层按信任边界过滤。
+The failure wrapper is an internal `stageError`: `Error()` returns only the fixed stage constant so underlying text (which may carry bodies, digests or credentials) never propagates automatically, while `Unwrap()` exposes the untouched original cause for trusted callers using `errors.Is`/`errors.As`. HTTP responses and logging must not blindly serialize the unwrapped cause; filter it per trust boundary in upper layers.
+
 ## 边界 / Boundaries
 - 顺序依据是目标 `addBinary(BinaryStream)`/`transactionalInsertRecordInDb` 的静态字节码证据（provider 在前、`invokeInNewTransaction` 登记在后、正常失败不删内容）；目标的重复插入重试是独立逻辑，本片未实现猜测版本。目标数据库失败路径未实测。
   Ordering follows static bytecode evidence of the target methods (provider first, registration via a new transaction second, normal failure keeps content). The target's duplicate-insert retry is separate logic and is not guessed here; target database-failure paths are untested at runtime.

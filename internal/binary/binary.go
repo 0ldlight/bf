@@ -5,12 +5,37 @@ package binary
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/0ldlight/bf/internal/content"
 	"github.com/0ldlight/bf/internal/filestore"
 )
+
+// 阶段文案是固定常量：Error() 永远只输出阶段归因，底层错误对象不经过任何
+// 格式化，其文本（可能含请求体、摘要或凭据）不会自动出现在 Error() 里。
+// Stage texts are fixed constants: Error() always prints only the stage
+// attribution. The underlying error object is never formatted in, so its
+// text (which may carry bodies, digests or credentials) cannot leak into
+// Error() automatically. Unwrap still exposes the untouched original cause
+// for trusted callers; HTTP responses and logging must not blindly
+// serialize it.
+const (
+	stageCancelledBeforePut      = "binary: context cancelled before provider put"
+	stageProviderPut             = "binary: provider put failed"
+	stageCancelledBeforeRegister = "binary: context cancelled before registration"
+	stageRegistryRegister        = "binary: registry register failed"
+)
+
+// stageError 携带固定阶段文案与原始原因；不修改、不包装原始错误对象本身。
+// stageError pairs a fixed stage text with the original cause; the original
+// error object is neither redacted nor mutated.
+type stageError struct {
+	stage string
+	cause error
+}
+
+func (e *stageError) Error() string { return e.stage }
+func (e *stageError) Unwrap() error { return e.cause }
 
 // Provider 是内容持久化依赖：以 SHA-1 为身份消费调用方读取器并返回内容元数据。
 // filestore.Store 直接满足该接口；本切片没有第二个实现。
@@ -75,18 +100,18 @@ func New(provider Provider, registry Registry) (*Service, error) {
 // transaction second, and the normal failure handler keeps the content.
 func (s *Service) Add(ctx context.Context, reader io.Reader, expected filestore.Expected) (content.Metadata, error) {
 	if err := ctx.Err(); err != nil {
-		return content.Metadata{}, fmt.Errorf("binary: cancelled before provider put: %w", err)
+		return content.Metadata{}, &stageError{stage: stageCancelledBeforePut, cause: err}
 	}
 	stored, err := s.provider.Put(ctx, reader, expected)
 	if err != nil {
-		return content.Metadata{}, fmt.Errorf("binary: provider put: %w", err)
+		return content.Metadata{}, &stageError{stage: stageProviderPut, cause: err}
 	}
 	if err := ctx.Err(); err != nil {
-		return content.Metadata{}, fmt.Errorf("binary: cancelled before registration: %w", err)
+		return content.Metadata{}, &stageError{stage: stageCancelledBeforeRegister, cause: err}
 	}
 	registered, err := s.registry.Register(ctx, stored)
 	if err != nil {
-		return content.Metadata{}, fmt.Errorf("binary: registry register: %w", err)
+		return content.Metadata{}, &stageError{stage: stageRegistryRegister, cause: err}
 	}
 	return registered, nil
 }
