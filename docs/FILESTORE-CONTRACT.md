@@ -1,7 +1,7 @@
 # 本地内容存储对齐 / Local filestore alignment
 
-状态：BIN-129 调查记录，首条内容模型切片正在实现，本地 provider 尚未实现。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
-Status: investigation for [BIN-129](https://linear.app/binfloow/issue/BIN-129); content-metadata implementation is underway; the local provider is not implemented yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
+状态：BIN-129 调查记录；[本地 provider](LOCAL-FILESTORE.md) 与[二进制写入服务](BINARY-WRITE.md)已实现，数据库登记适配未接入。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
+Status: investigation record for [BIN-129](https://linear.app/binfloow/issue/BIN-129); the [local provider](LOCAL-FILESTORE.md) and the [binary write service](BINARY-WRITE.md) are implemented, while the database registration adapter is not wired yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
 
 ## 基线与证据 / Baseline and evidence
 
@@ -64,4 +64,5 @@ Six simultaneous uploads of identical authored bytes to distinct logical paths r
 同一仓库中，错误的 SHA-1/SHA-256/MD5 分别返回 409 且逻辑路径 404；正确摘要、三种摘要各自的大写值及单空格 SHA-256 均上传成功。底层 PostProcessChecksumBinaryStream 的精确比较不能直接充当 HTTP 输入契约：目标包 artifactory-papi-7.161.15.jar（SHA-256 494c1eccb978c3105385ad59c958a0b3272dc5fdfd1d177681fa9d859aa236e8）的 ChecksumInfo.normalize 对有效摘要转小写，构造器另有按长度处理的分支。HTTP 接入仍需完整验证配置/调用链。
 Wrong SHA-1, SHA-256 and MD5 each returned 409 without a logical artifact. Correct, uppercase and one-space SHA-256 declarations succeeded. Target ChecksumInfo normalizes valid inputs before the stream comparison; the constructor has another length-based branch. These observations remain scoped to this repository configuration and do not freeze the entire HTTP policy.
 
-[首条持久化切片提案 / Persistence slice proposal](FILESTORE-SLICE-PROPOSAL.md) 等待所有者决定。损坏、碰撞、故障恢复与 GC 仍未验证。
+[首条持久化切片提案 / Persistence slice proposal](FILESTORE-SLICE-PROPOSAL.md) 已于 2026-10-20 获批准；内容模型与本地 provider 已实现并汇入默认分支。后续写入编排见 [BINARY-WRITE.md](BINARY-WRITE.md)，数据库适配器、损坏/碰撞、完整故障恢复与 GC 继续验证。
+The proposal was approved on 2026-10-20; content primitives and the local provider are integrated. Binary-write orchestration is documented separately; database integration and the listed failure/GC boundaries remain open.
