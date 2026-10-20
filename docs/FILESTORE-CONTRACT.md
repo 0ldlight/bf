@@ -1,7 +1,7 @@
 # 本地内容存储对齐 / Local filestore alignment
 
-状态：BIN-129 调查记录，首条内容模型切片正在实现，本地 provider 尚未实现。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
-Status: investigation for [BIN-129](https://linear.app/binfloow/issue/BIN-129); content-metadata implementation is underway; the local provider is not implemented yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
+状态：BIN-129 调查记录；[本地 provider](LOCAL-FILESTORE.md) 与[二进制写入服务](BINARY-WRITE.md)已实现，数据库登记适配未接入。所有者于 2026-10-20 要求严格对齐 Artifactory 并参考源码，原 SHA-256 物理寻址建议已撤回。
+Status: investigation record for [BIN-129](https://linear.app/binfloow/issue/BIN-129); the [local provider](LOCAL-FILESTORE.md) and the [binary write service](BINARY-WRITE.md) are implemented, while the database registration adapter is not wired yet. The owner requires Artifactory alignment; the earlier SHA-256 physical-key proposal is withdrawn.
 
 ## 基线与证据 / Baseline and evidence
 
