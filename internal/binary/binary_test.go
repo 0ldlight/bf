@@ -141,7 +141,8 @@ func TestAddOrdersProviderThenRegistryAndReturnsCanonical(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	reader := stringsReader("abc")
 	size := int64(3)
 	expected := filestore.Expected{SHA1: abcSHA1, SHA256: abcSHA256, MD5: abcMD5, Size: &size}
