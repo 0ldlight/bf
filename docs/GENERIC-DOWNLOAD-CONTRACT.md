@@ -54,10 +54,10 @@ Recovered source locates the methods; target bytecode corroborates the matching,
 Parent-package identity is in the research index. Component versions differ from product identity; controlled bytecode/manifests and raw observations stay private.
 ## 探针边界与验收 / Probe boundaries and verification
 
-Go 标准库核心 `internal/compatprobe` 仅发出上述 GET/HEAD；调用者显式提供 URL、已知合成字节和可选 Basic/Bearer 值。URL 禁止 userinfo/query/fragment；拒绝代理与重定向，保留系统 TLS 校验，限定每请求超时、响应头和正文。报告在内存中生成，仅保留允许的头与摘要，并抹除回显的凭据和目标 URL。
-The core takes explicit options, bounds transport/I/O, and returns a sanitized in-memory report. The CLI/file-protection wrapper is a separate increment.
+Go标准库CLI仅发出上述GET/HEAD，从显式本机文件读取测试正文与认证；仓库配置和制品由操作者单独准备。认证可选，来自权限0600的本机普通文件，内容为单行Authorization值（Basic或Bearer）；不得用命令参数传递值。URL禁止userinfo/query/fragment，报告以独占创建、0600权限写入；不覆盖既有文件或符号链接。禁止代理与重定向，保留系统TLS验证，限定每请求超时和64KiB响应。错误不输出URL、认证值或服务器正文。
+The runner has fixed read-only scenarios, bounded I/O, normal TLS verification and private exclusive reports. It does not provision fixtures or elevate access.
 
-只接受5..65536字节的已知合成fixture。首个GET内容/校验头或validator不符则报告失败并标明后续未执行；不能把18项未测当作通过。状态、正文、长度或范围头不符返回非 nil error，报告仍保留已执行结果。
+只接受5..65536字节的已知合成fixture。首个GET内容/校验头或validator不符则报告失败并标明后续未执行；不能把18项未测当作通过。状态、正文、长度或范围头不符导致非零退出，报告仍保留已执行结果。
 A fixed profile is compared against controlled fixture bytes. Early failure explicitly leaves later cases unexecuted.
 
 验证使用独立负例、go vet/test-race、共享 scripts/check.sh 及真实原版重放。文档和代码由所有者审阅，默认分支不自动合并。
@@ -66,16 +66,24 @@ Keep raw evidence private, record executed commands and real replay results, and
 未覆盖：空/大文件、多段Range、完整ETag语法、上传与校验上传、目录/属性、匿名/权限矩阵、远端/虚拟仓库、并发写/缓存/故障、其他客户端/平台版本。后续分项研究，不缩减PKG-007最终范围。
 Open scope stays explicit; no tested-download claim applies to BinFlow yet.
 
-## 核心调用 / In-repository Go API
+## CLI / CLI command
 
-```go
-report, err := compatprobe.Run(ctx, compatprobe.Options{
-    URL: artifactURL, Fixture: fixtureBytes,
-    Authorization: authorization, Timeout: 10 * time.Second,
-})
+`cmd/binflow-contract`（Go 标准库）封装 `internal/compatprobe`：
+`cmd/binflow-contract` (Go standard library only) wraps `internal/compatprobe`:
+
+```sh
+go build -o /tmp/binflow-contract ./cmd/binflow-contract
+/tmp/binflow-contract -url https://artifacts.example.test/generic/payload.bin \
+  -fixture-file /path/to/known-fixture.bin \
+  -authorization-file /path/outside-repository/authorization.txt \
+  -report /path/to/new-report.json
 ```
 
-`Run` 返回结构化的 18 项计划；配置错误、传输错误或断言不符均返回非 nil error。命令行与认证/报告文件保护由独立 CLI 切片接入。
-Run returns a full 18-row plan and a non-nil error for invalid configuration, transport or assertion failure; file handling belongs to the CLI increment.
-
-验证入口：`go test -race ./internal/compatprobe`、`go vet ./...`、`./scripts/check.sh`。
+- `-url` 绝对制品 URL（http/https，无 userinfo/query/fragment）；`-fixture-file` 已知合成制品（普通非符号链接文件，5..65536 字节）；`-report` 报告路径（必须不存在，独占创建 0600，网络前预约）；`-authorization-file` 可选凭据（普通非符号链接、0600 或更严、≤4096 字节、恰一行 Basic/Bearer、位于仓库之外，仅允许末尾一个 LF）；`-timeout` 每请求超时，默认 10s、上限 60s。
+  `-url` is the absolute artifact URL; `-fixture-file` known synthetic bytes (regular non-symlink, 5..65536); `-report` exclusive 0600 JSON reserved before any network; `-authorization-file` optional credential (regular non-symlink, 0600 or stricter, ≤4096 bytes, exactly one Basic/Bearer line, outside the repository, one trailing LF at most); `-timeout` per request, default 10s max 60s.
+- 显式提供的认证文件不能为空；匿名探测时省略 `-authorization-file`。替换示例中的站点和本机路径，报告路径必须是新文件。
+  A supplied authorization file must not be empty; omit the flag for anonymous probes. Replace example endpoints/paths and choose a new report path.
+- 退出码：0 全部通过；1 网络/断言失败（仍写入结构化报告）；2 配置或输入拒绝（报告未创建）。stdout 仅计数；错误为静态类别，不回显 URL、凭据、路径或正文；报告仅含允许头与哈希并做凭据/URL 抹除。
+  Exit codes: 0 all pass; 1 network/assertion failure (structured report still written); 2 rejected configuration/inputs (no report created). Stdout carries counts only; errors are static categories without URLs, credentials, paths or bodies; reports keep allowlisted headers and hashes only, with credential/URL redaction.
+- 无代理、无重定向、无 TLS 降级参数；仅 Linux/macOS 支持防符号链接竞态的输入打开。选择 profile 不证明目标版本。
+  No proxy, redirect or TLS-weakening flags; race-free non-symlink input opening supports Linux/macOS. Profile selection does not attest the target version.
