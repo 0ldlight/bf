@@ -1,0 +1,180 @@
+# BIN-125 CircleCI UAT activation / CircleCI UAT 激活.
+# Deployment-only: no build, no packaging, no Kubernetes and no dependency
+# installation here. Jenkins builds and uploads the archive (see Jenkinsfile);
+# this job only validates the requested commit/digest pair and the public
+# ingress address, then sends the single JSON activation line through the
+# deploy identity's forced command.
+# Regular pushes keep deploy-uat at its default false, so nothing runs
+# automatically; parameters are set only by an explicit approved run, and
+# full trigger wiring follows account-capability verification.
+# 仅部署:Jenkins 构建上传,CircleCI 只做校验与激活;默认参数不触发任何任务。
+version: 2.1
+
+parameters:
+  deploy-uat:
+    type: boolean
+    default: false
+  commit:
+    type: string
+    default: ""
+  artifact-sha256:
+    type: string
+    default: ""
+
+jobs:
+  activate-uat:
+    docker:
+      # Verified CircleCI current image / 已核实的 CircleCI 镜像摘要。
+      - image: cimg/base@sha256:64becfab2860932391d834a770033665874e287a655dbef26e38df060414a79a
+    environment:
+      # Pipeline parameters reach the shell only through the job
+      # environment; they are never interpolated into shell source text.
+      # 管道参数仅经环境变量进入脚本,绝不拼入 shell 源码。
+      BINFLOW_DEPLOY_COMMIT: << pipeline.parameters.commit >>
+      BINFLOW_DEPLOY_SHA256: << pipeline.parameters.artifact-sha256 >>
+    steps:
+      # Native Additional SSH Keys injection for the approved deploy
+      # identity. This step accepts literal fingerprints only — CircleCI
+      # does not expand environment variables here, so neither pipeline
+      # parameters nor project variables can influence which key is added.
+      # 本步骤仅接受字面量指纹,不支持环境变量插值。
+      # Both fingerprints below are public identifiers of the approved key,
+      # not secrets. CircleCI writes the private file to
+      # ~/.ssh/id_rsa_<MD5 without colons>:
+      #   SHA256: SHA256:M1YXCU6I8jZikeW6l855ZQNmJgMf8PWOUS5uyEJ0zUs
+      #   MD5:    35:e5:f4:49:5a:f9:c4:5c:eb:74:65:fc:da:a7:91:e1
+      #   file:   ~/.ssh/id_rsa_35e5f4495af9c45ceb7465fcdaa791e1
+      # BINFLOW_UAT_SSH_KEY_FINGERPRINT (project environment) carries the
+      # same SHA256 value; the run step verifies the injected file against
+      # it before any SSH use.
+      - add_ssh_keys:
+          fingerprints:
+            - "SHA256:M1YXCU6I8jZikeW6l855ZQNmJgMf8PWOUS5uyEJ0zUs"
+      - run:
+          name: Validate input and activate UAT release
+          shell: /bin/sh
+          # No set -x, no echo of key or known_hosts values.
+          command: |
+            set -eu
+
+            fail() {
+              echo "activate-uat: $*" >&2
+              exit 1
+            }
+
+            commit="${BINFLOW_DEPLOY_COMMIT-}"
+            sha256="${BINFLOW_DEPLOY_SHA256-}"
+
+            # Strict validation: exact lowercase hex lengths, nothing else.
+            if [ "${#commit}" -ne 40 ]; then
+              fail "commit must be exactly 40 lowercase hex characters"
+            fi
+            case "$commit" in
+              *[!0-9a-f]*) fail "commit contains non-hex characters" ;;
+            esac
+            if [ "${#sha256}" -ne 64 ]; then
+              fail "artifact-sha256 must be exactly 64 lowercase hex characters"
+            fi
+            case "$sha256" in
+              *[!0-9a-f]*) fail "artifact-sha256 contains non-hex characters" ;;
+            esac
+
+            # Public ingress address: trusted project env, one IPv4 literal
+            # only, validated in plain shell before any SSH use (rejects
+            # missing, hostnames, IPv6, paths/CIDR, whitespace, shell
+            # metacharacters, newlines, leading zeros, wrong octet counts
+            # and empty/doubled dot fields). 公网入口仅接受规范 IPv4 字面量。
+            address="${BINFLOW_UAT_ADDRESS-}"
+            case "$address" in
+              "") fail "BINFLOW_UAT_ADDRESS is not set" ;;
+              .* | *. | *..*) fail "BINFLOW_UAT_ADDRESS must have four non-empty octets: $address" ;;
+              *[!0-9.]*) fail "BINFLOW_UAT_ADDRESS must be an IPv4 dotted-quad literal: $address" ;;
+            esac
+            oldIFS=$IFS
+            IFS=.
+            # shellcheck disable=SC2086
+            set -- $address
+            IFS=$oldIFS
+            [ "$#" -eq 4 ] || fail "BINFLOW_UAT_ADDRESS must have exactly four octets: $address"
+            for _octet in "$@"; do
+              case "$_octet" in
+                "" | 0[0-9]* | ????*) fail "BINFLOW_UAT_ADDRESS octet must be 0..255 without leading zeros: $address" ;;
+              esac
+              [ "$_octet" -le 255 ] || fail "BINFLOW_UAT_ADDRESS octet must be 0..255: $address"
+            done
+
+            expected_fingerprint="${BINFLOW_UAT_SSH_KEY_FINGERPRINT:?BINFLOW_UAT_SSH_KEY_FINGERPRINT is not set}"
+            known_hosts="${BINFLOW_UAT_KNOWN_HOSTS:?BINFLOW_UAT_KNOWN_HOSTS is not set}"
+
+            # add_ssh_keys injects the approved identity at the fixed path
+            # derived from its public MD5 fingerprint; private key material
+            # never passes through the environment or this script.
+            identity="${HOME:?}/.ssh/id_rsa_35e5f4495af9c45ceb7465fcdaa791e1"
+            if [ ! -f "$identity" ]; then
+              fail "injected SSH identity is missing: $identity"
+            fi
+            # Verify the injected file is exactly the approved identity
+            # before use. ssh-keygen -l prints public fingerprint data only;
+            # the key itself is never read into a variable or logged.
+            injected_fingerprint="$(ssh-keygen -l -E sha256 -f "$identity" </dev/null 2>/dev/null | cut -d' ' -f2)"
+            if [ -z "$injected_fingerprint" ]; then
+              fail "cannot read the injected identity fingerprint"
+            fi
+            if [ "$injected_fingerprint" != "$expected_fingerprint" ]; then
+              fail "injected identity fingerprint does not match BINFLOW_UAT_SSH_KEY_FINGERPRINT"
+            fi
+
+            # Values are validated lowercase hex, so no JSON escaping applies.
+            header="{\"commit\":\"$commit\",\"sha256\":\"$sha256\"}"
+
+            umask 077
+            tmp="$(mktemp -d "${TMPDIR:-/tmp}/binflow-uat-activate.XXXXXX")"
+            cleanup() { rm -rf "$tmp"; }
+            trap cleanup EXIT INT TERM
+
+            # The temp directory carries the host key file, the activation
+            # header and health output only — never private key material.
+            # 临时目录仅存放主机密钥、激活头与健康输出,绝不存放私钥。
+            printf '%s\n' "$known_hosts" > "$tmp/known_hosts"
+            printf '%s\n' "$header" > "$tmp/header.json"
+
+            # The remote account is a forced command
+            # (sudo -n python3 -I /usr/local/lib/binflow/uat-release.py activate)
+            # that ignores any requested shell; stdin carries the single JSON
+            # line only. -F /dev/null plus IdentitiesOnly and the exact
+            # IdentityFile keep older project keys or ~/.ssh/config from
+            # altering selection; publickey-only leaves no password or root
+            # fallback. 固定身份与配置,无密码或 root 回退。
+            ssh -F /dev/null \
+              -o BatchMode=yes \
+              -o StrictHostKeyChecking=yes \
+              -o IdentitiesOnly=yes \
+              -o IdentityFile="$identity" \
+              -o UserKnownHostsFile="$tmp/known_hosts" \
+              -o PreferredAuthentications=publickey \
+              -o ConnectTimeout=10 \
+              -o ConnectionAttempts=1 \
+              binflow-deploy@uat.binflow.org \
+              < "$tmp/header.json"
+
+            # Direct public acceptance after the helper reports success:
+            # --noproxy '*' bypasses any proxy environment; certificate
+            # validation and the exact 200 + ok\n contract are unchanged.
+            # 公网验收直连批准 IPv4,禁用代理,证书校验不变。
+            health_url="https://$address/healthz"
+            status="$(curl -fsS --noproxy '*' --max-time 20 --output "$tmp/health" --write-out '%{http_code}' "$health_url")" \
+              || fail "helper activated the release but the public HTTPS health check failed; manual attention required"
+            printf 'ok\n' > "$tmp/expected-health"
+            if [ "$status" != 200 ] || ! cmp -s "$tmp/expected-health" "$tmp/health"; then
+              fail "unexpected public health status or body"
+            fi
+            echo "activate-uat: $health_url returned ok"
+
+workflows:
+  uat-deployment:
+    # Runs only for an explicitly requested activation; default pushes and
+    # PR activity never start this workflow.
+    when:
+      equal: [true, << pipeline.parameters.deploy-uat >>]
+    jobs:
+      - activate-uat
