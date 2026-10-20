@@ -49,6 +49,11 @@ Historical root metadata reports these labels. Only selected root metadata files
 这些资料是线索：缺少 `sourcesContent` 的前端 sourcemap 近似重建不等于可构建 TypeScript；Ghidra C 伪代码不等于恢复 Go 源码。多层版本标记需要归属核实，不能替代目标包和运行证据。
 Approximate sourcemap reconstruction is not buildable TypeScript, and Ghidra pseudocode is not recovered Go source. Establish version-layer provenance and validate against the target.
 
+## 本地内容存储 / Local filestore
+
+2026-10-20 按所有者要求核对目标包字节码及专用实例，确认本地 provider 的 SHA-1 物理寻址与多摘要模型；见[存储对齐记录](FILESTORE-CONTRACT.md)。记录列出暂存/移动/数据库边界及证据限制，未宣布内容存储实现、并发写、GC 或 HA 兼容完成。
+The source-grounded filestore note distinguishes static findings, bounded runtime evidence and open verification.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
