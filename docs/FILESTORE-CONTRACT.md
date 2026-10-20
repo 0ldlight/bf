@@ -12,6 +12,7 @@ The product baseline is 7.161.26, revision 86126900. Historical recovered source
 | --- | --- |
 | Product archive | `b967a1fc263ec8cf0314194fc24daf99e10a130ca8e19b076c8a18faf02bc4d9` |
 | `artifactory.war` | `9c2c1883d39b9e60587c09d1f1f8cbf1215c9ed2751d0ee817f78cd3cc8c9f37` |
+| `artifactory-core-7.161.15.jar` | `1abd1ce70341b8125a12b0ef9c3b7d95074e71c90f734c776fdf973297fac831` |
 | `binary-store-core-4.372.5.jar` | `f22cc9ea6bad295f7317eeab56f666a5a5a5861366e560018d281b05a5ddd198` |
 
 JAR 的组件版本不等于产品版本。历史副本的 binary-store-core JAR 与本目标副本摘要一致；不能据此将整个恢复树视为同一版本。
@@ -19,6 +20,9 @@ Component versions differ from the product version. Only this historical core JA
 
 REA 对 WAR 的只读清单证据为 `ev_a0a85dfa700ebde3340fdb25eb8d30fd0b68425c0dcb0bbd0805e1e1f353e130`；它证明包身份与条目清单，不能证明运行行为。方法检查使用 `javap 26.0.2.1 -p -c`，路径拼接额外检查 `-v` 的常量。受控字节码、地址、凭据及原始实例记录留在私有研究区。
 REA inventory establishes archive identity/entries, not runtime semantics. Focused javap inspection supplies method evidence; controlled files and raw observations remain private.
+
+恢复源码的 `RepositoryServiceImpl.saveResource` 用于定位期望校验和与仓库保存入口；目标包内同名方法另行复核了先取得二进制结果、再进入节点保存事务的调用顺序。配置条件、锁和失败恢复仍需完整验证。
+Recovered source locates the repository save entry point; target bytecode corroborates the binary-result-before-node-transaction ordering. Configuration, locking and failure recovery remain open.
 
 ## 已核实的边界 / Corroborated boundaries
 
