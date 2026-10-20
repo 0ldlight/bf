@@ -29,3 +29,39 @@ jobs:
           go-version-file: go.mod
       - name: Run shared check script
         run: ./scripts/check.sh
+
+  postgres:
+    name: PostgreSQL registry (real DB)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        # Official PostgreSQL 17.10 image pinned to the exact amd64 bits the
+        # root fixture used (17.10 Debian 17.10-1.pgdg13+1 x86_64). CI/test
+        # image only — no UAT topology change. Test-only disposable
+        # credentials.
+        image: postgres:17.10@sha256:7958605b474b3d264a969cb3a123d6aa00ad1e1fe9da8a69984dabb704d93317
+        env:
+          POSTGRES_PASSWORD: binflow-ci-disposable
+          POSTGRES_DB: binflow_registry_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d binflow_registry_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+      - name: Run real-PostgreSQL check script
+        env:
+          BINFLOW_TEST_POSTGRES_DSN: postgres://postgres:binflow-ci-disposable@127.0.0.1:5432/binflow_registry_test?sslmode=disable
+          BINFLOW_TEST_POSTGRES_DISPOSABLE: '1'
+        run: ./scripts/check-postgres.sh
