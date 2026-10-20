@@ -1,5 +1,5 @@
 # BIN-129 首条本地持久化切片 / First local persistence slice
-状态 / State: proposed for owner review, 2026-10-20. This is a concrete slice proposal, not a completed provider or full compatibility claim.
+状态 / State: owner approved this implementation direction in the current chat on 2026-10-20. Implementation and compatibility checks remain separate; main merges and releases still require owner decisions.
 
 ## 决策 / Decision
 采用已核实的 Artifactory 本地文件 provider 语义，先实现单机开发与受控兼容验证所需的文件内容存储。沿用已批准的 Go 领域接口方向；最终对象存储产品、HA 与多数据库验证仍保留现有任务。

@@ -2,7 +2,7 @@
 
 ## 审批记录 / Approval record
 
-所有者于 2026-10-19 批准以下三个方向。完整理由和细节保存在[启动提案](STARTUP-PROPOSAL.md)，本页只记录决定状态。
+所有者于 2026-10-19 批准核心三项方向，以下记录包含后续专项批准。完整理由和细节保存在[启动提案](STARTUP-PROPOSAL.md)，本页只记录决定状态。
 The owner approved three directions; the proposal holds their rationale/details and this page records status.
 
 | 决定 / Decision | 状态 / State | 批准范围 / Scope |
@@ -14,6 +14,7 @@ The owner approved three directions; the proposal holds their rationale/details 
 | ADR-005 | 提案 / Proposed | 自主运行许可证、签发与到期策略 / Runtime entitlements/issuance/expiry |
 | 文档平台 / Documentation | 已确认 / Confirmed | 2026-10-20 修订：Fern 仅使用文档；工程资料在源码 `docs/` / Usage docs in Fern; engineering in source |
 | P0 UAT | 已批准 / Approved 2026-10-19 | [运行与制品交付方案](UAT-PROPOSAL.md)：独立 CI 身份、非 root systemd、Caddy HTTPS；Jenkins 构建、CircleCI 仅部署 / Scoped identities, runtime and transport |
+| 本地内容存储 / Local filestore | 已批准 / Approved 2026-10-20 | [持久化切片](FILESTORE-SLICE-PROPOSAL.md)：SHA-1、临时写入后原子发布、已有普通对象复用；GC/HA 保留验证 / Source-aligned single-host slice |
 | 对象存储 / Object storage | 待比较 / Investigation | 维护、资源、S3 兼容与许可 / Maintenance, resources, compatibility, licensing |
 | 后台调度 / Scheduler | 方向提案 / Proposed details | 持久认领、租约、失败、恢复；未实现 daemon / Durable execution design |
 
