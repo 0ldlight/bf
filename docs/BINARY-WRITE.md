@@ -1,6 +1,6 @@
 # 二进制写入顺序 / Binary write ordering
-状态 / State: BIN-129 领域服务切片，已实现并验证；数据库登记适配器与产品 HTTP 未接入。
-Domain-service slice implemented and verified; the database registration adapter and product HTTP remain future work.
+状态 / State: BIN-129 领域服务切片已实现并验证，PostgreSQL 元数据登记适配器已接入并以真实 17.10 验证；产品 HTTP 未接入。
+Domain-service slice implemented and verified, with the PostgreSQL metadata-registration adapter wired in and verified against a real 17.10 instance; product HTTP remains future work.
 
 ## 顺序与责任 / Ordering and ownership
 `internal/binary` 定义窄接口 `Provider.Put(ctx, io.Reader, filestore.Expected)` 与 `Registry.Register(ctx, content.Metadata)`，`Service.Add` 依次编排：
@@ -28,12 +28,13 @@ The failure wrapper is an internal `stageError`: `Error()` returns only the fixe
 ## 边界 / Boundaries
 - 顺序依据是目标 `addBinary(BinaryStream)`/`transactionalInsertRecordInDb` 的静态字节码证据（provider 在前、`invokeInNewTransaction` 登记在后、正常失败不删内容）；目标的重复插入重试是独立逻辑，本片未实现猜测版本。目标数据库失败路径未实测。
   Ordering follows static bytecode evidence of the target methods (provider first, registration via a new transaction second, normal failure keeps content). The target's duplicate-insert retry is separate logic and is not guessed here; target database-failure paths are untested at runtime.
-- 登记失败留下的已发布对象是可读的引用候选；孤儿回收/引用计数/GC 不在本片。本片无数据库适配器、SQL 事务、网络/HTTP、鉴权与多节点声明。
-  Content left by a registry failure is a readable reference candidate; orphan collection and GC are out of scope. There is no database adapter, SQL transaction, network/HTTP, authorization or multi-node claim here.
+- 登记失败留下的已发布对象是可读的引用候选；孤儿回收/引用计数/GC 不在写入顺序本身。数据库登记适配器已由 [PostgreSQL 登记切片](POSTGRES-REGISTRY.md)提供（真实 17.10 验证）；网络/HTTP、鉴权与多节点声明仍未接入。
+  Content left by a registry failure is a readable reference candidate; orphan collection and GC sit outside the ordering itself. The database registration adapter now exists as the [PostgreSQL registry slice](POSTGRES-REGISTRY.md) (verified on a real 17.10 instance); network/HTTP, authorization and multi-node claims remain unwired.
 - 真实 [本地 provider](LOCAL-FILESTORE.md) 集成测试证明登记失败后字节仍可 Open、换新读取器重试成功且顺序复用保持原 inode。
   Real local-provider integration tests prove bytes stay Open-able after a registry failure and that a fresh-reader retry succeeds, reusing the original inode for sequential rewrites.
 
 ## 关联 / Links
 - 内容模型与摘要：[CONTENT-METADATA.md](CONTENT-METADATA.md) / Content identity
+- PostgreSQL 登记适配器：[POSTGRES-REGISTRY.md](POSTGRES-REGISTRY.md) / PostgreSQL registry adapter
 - 本地 provider 合同：[LOCAL-FILESTORE.md](LOCAL-FILESTORE.md) / Local provider contract
 - 目标证据与边界：[FILESTORE-CONTRACT.md](FILESTORE-CONTRACT.md) / Target evidence
