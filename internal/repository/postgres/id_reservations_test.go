@@ -19,6 +19,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"strings"
 	"sync"
@@ -42,6 +43,7 @@ type faultKnobs struct {
 	commitErr   error
 	rowsCount   int64
 	rowsErr     error
+	queryBound  *int64
 }
 
 func (k *faultKnobs) snapshot() (connects, execCount, commitCount, rollbacks int) {
@@ -135,7 +137,31 @@ func (c *faultConn) QueryContext(ctx context.Context, query string, args []drive
 	if c.knobs.queryErr != nil {
 		return nil, c.knobs.queryErr
 	}
-	return nil, errors.New("idres fault: queries not configured for this knob set")
+	return &faultRows{bound: c.knobs.queryBound}, nil
+}
+
+// faultRows 恒定返回单列 current_id：queryBound 为 nil 时空结果集（bare
+// sql.ErrNoRows 路径），否则恰好一行该值（负上界读取路径）。
+// faultRows always serves the single current_id column: a nil queryBound
+// yields an empty result set (the bare sql.ErrNoRows path), otherwise exactly
+// one row with that value (the negative persisted-bound read path).
+type faultRows struct {
+	bound *int64
+	done  bool
+}
+
+func (r *faultRows) Columns() []string { return []string{"current_id"} }
+
+func (r *faultRows) Close() error { return nil }
+
+func (r *faultRows) Next(dest []driver.Value) error {
+	if r.done || r.bound == nil {
+		r.done = true
+		return io.EOF
+	}
+	r.done = true
+	dest[0] = *r.bound
+	return nil
 }
 
 func (c *faultConn) Begin() (driver.Tx, error) {
@@ -281,6 +307,89 @@ func TestCurrentFaultMapping(t *testing.T) {
 	}
 	if !errors.Is(err, queryErr) {
 		t.Fatalf("query cause must stay reachable via Unwrap, got %v", err)
+	}
+}
+
+// TestCurrentPreservesExactWrappedErrNoRowsCause 是根评审回归（先 RED）：
+// 驱动可能返回包裹 sql.ErrNoRows 的原始错误对象；Current 必须原样保留该
+// 对象（Unwrap 身份相等），不得替换为裸 sql.ErrNoRows 哨兵。
+// TestCurrentPreservesExactWrappedErrNoRowsCause is the root-review
+// regression (RED first): a driver may return an original error object
+// wrapping sql.ErrNoRows; Current must preserve that object verbatim (Unwrap
+// identity), never replacing it with the bare sql.ErrNoRows sentinel.
+func TestCurrentPreservesExactWrappedErrNoRowsCause(t *testing.T) {
+	wrapped := fmt.Errorf("idres fault: driver no rows: %w", sql.ErrNoRows)
+	knobs := &faultKnobs{queryErr: wrapped}
+	r, err := NewReservations(faultDB(t, knobs))
+	if err != nil {
+		t.Fatalf("NewReservations: %v", err)
+	}
+	cur, err := r.Current(context.Background())
+	if cur != 0 || err == nil {
+		t.Fatalf("Current(wrapped no rows) = (%d, %v), want (0, error)", cur, err)
+	}
+	if err.Error() != idStageCurrent {
+		t.Fatalf("Current error text = %q, want fixed %q", err.Error(), idStageCurrent)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("sql.ErrNoRows must stay reachable via Unwrap, got %v", err)
+	}
+	if cause := errors.Unwrap(err); cause != wrapped {
+		t.Fatalf("Unwrap must return the ORIGINAL wrapped driver error object, got %v (identity lost)", cause)
+	}
+}
+
+// TestCurrentBareNoRowsCauseIdentity 钉住空结果集路径：database/sql 将无行
+// 结果折叠为裸 sql.ErrNoRows，该对象本身即 Unwrap 原因。
+// TestCurrentBareNoRowsCauseIdentity pins the empty-result path:
+// database/sql folds a no-row result into the bare sql.ErrNoRows, and that
+// exact object is the Unwrap cause.
+func TestCurrentBareNoRowsCauseIdentity(t *testing.T) {
+	knobs := &faultKnobs{}
+	r, err := NewReservations(faultDB(t, knobs))
+	if err != nil {
+		t.Fatalf("NewReservations: %v", err)
+	}
+	cur, err := r.Current(context.Background())
+	if cur != 0 || err == nil {
+		t.Fatalf("Current(no rows) = (%d, %v), want (0, error)", cur, err)
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("sql.ErrNoRows must stay reachable via Unwrap, got %v", err)
+	}
+	if cause := errors.Unwrap(err); cause != sql.ErrNoRows {
+		t.Fatalf("Unwrap must be the bare sql.ErrNoRows for an empty result, got %v", cause)
+	}
+}
+
+// TestCurrentRejectsNegativePersistedBound 是确定性单元夹具（驱动返回
+// 单行负值）：全新 CHECK 只证明写入侧拒绝负值，此分支证明读取侧对存量
+// 异常的显式拒绝——零值、固定文案、Unwrap 链含 ErrInvalidIDRange，且
+// 永不回显存储值。
+// TestCurrentRejectsNegativePersistedBound is a deterministic unit fixture
+// (the driver returns one negative row): the fresh CHECK proves only the
+// write side; this branch proves the explicit read-side rejection of legacy
+// anomalies — a zero value, the fixed text, ErrInvalidIDRange under Unwrap
+// and no echo of the stored value.
+func TestCurrentRejectsNegativePersistedBound(t *testing.T) {
+	negative := int64(-3)
+	knobs := &faultKnobs{queryBound: &negative}
+	r, err := NewReservations(faultDB(t, knobs))
+	if err != nil {
+		t.Fatalf("NewReservations: %v", err)
+	}
+	cur, err := r.Current(context.Background())
+	if cur != 0 || err == nil {
+		t.Fatalf("Current(negative bound) = (%d, %v), want (0, error)", cur, err)
+	}
+	if err.Error() != idStageCurrent {
+		t.Fatalf("Current error text = %q, want fixed %q", err.Error(), idStageCurrent)
+	}
+	if !errors.Is(err, ErrInvalidIDRange) {
+		t.Fatalf("ErrInvalidIDRange must be reachable via Unwrap, got %v", err)
+	}
+	if strings.Contains(err.Error(), "-3") {
+		t.Fatalf("error text echoes the stored value: %q", err.Error())
 	}
 }
 

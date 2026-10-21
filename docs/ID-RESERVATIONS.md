@@ -27,8 +27,8 @@ The constructor rejects a nil `*sql.DB` (bounded constant error) and performs no
 - `Reservations`（本原语）：调用方只提供可信 `*sql.DB`（连接池/配置自担），每次 `Reserve` 由本原语开启并提交**自有** READ COMMITTED 事务。
   `Reservations` (this primitive): the caller supplies only a trusted `*sql.DB` (pool/configuration owned by the caller); every `Reserve` begins and commits its **own** READ COMMITTED transaction.
 
-成功提交只是数据库确认，不是掉电/fsync/副本保证；可信调用方提供连接池与配置。
-A successful Commit is a database acknowledgement only — not a power-loss/fsync/replication guarantee; the trusted caller supplies the pool and configuration.
+成功提交只是数据库确认，不是掉电/fsync/副本保证；可信调用方提供连接池与配置。`Current`/`Reserve` 接收调用方 ctx 且不施加内部期限——需要时限时由调用方为 ctx 设界。Go `database/sql` 可能在连接获取阶段透明恢复 `driver.ErrBadConn`（`BeginTx`/查询在语句执行前重取连接）；本适配器自身绝不重复预留 UPDATE/Commit，也不自动和解结果不明的提交，无需重新设计安全获取。
+A successful Commit is a database acknowledgement only — not a power-loss/fsync/replication guarantee; the trusted caller supplies the pool and configuration. `Current`/`Reserve` receive the caller's ctx and add no internal deadline — the caller bounds the context where a deadline is required. Go's `database/sql` may transparently recover `driver.ErrBadConn` while acquiring a connection (BeginTx/query re-acquire before any statement runs); this adapter itself never repeats the reservation UPDATE/Commit and never auto-reconciles an unknown commit, so no redesign of safe acquisition is needed.
 
 ## 全新引导 / Fresh bootstrap
 
@@ -37,16 +37,16 @@ A successful Commit is a database acknowledgement only — not a power-loss/fsyn
 
 - `unique_ids(index_type VARCHAR(32) NOT NULL PRIMARY KEY, current_id BIGINT NOT NULL CHECK (current_id >= 0))`——非负 CHECK 是**显式本地政策**，不是目标复制模式；
   the nonnegative CHECK is **explicit local policy**, not a copied target schema;
-- 种子行 `('general', 0)`：固定 general 命名空间（对齐打包全新模式的引导事实），其他命名空间行不读不改。
-  the seed row `('general', 0)`: the general namespace is fixed (aligned with the packaged fresh-schema bootstrap fact); other namespace rows are neither read nor written.
+- 种子行 `('general', 0)`：固定 general 命名空间，其他命名空间行不读不改。来源限定：打包全新 `postgresql.sql` 只建 `unique_ids` 表、不含 general 种子 INSERT；目标的 general 零值初始化属于 `IdGenerator.initializeIdGenerator` 的缺行写零——本种子行是**显式本地全新引导投影**，非复制目标 SQL。
+  the seed row `('general', 0)`: the general namespace is fixed and other namespace rows are neither read nor written. Provenance: the packaged fresh `postgresql.sql` only creates the `unique_ids` table with no general seed INSERT; the target's general zero initialization belongs to `IdGenerator.initializeIdGenerator` writing zero for an absent row — this seed row is an **explicit local fresh-bootstrap projection**, not copied target SQL.
 
-无 ON CONFLICT/自动建行/upsert、并发引导、完整目标 schema 导入或任意命名空间 API；重复应用时种子 INSERT 按原样报错。全新 CHECK 阻止负持久上界，`Current` 仍显式拒绝（固定错误包裹 `ErrInvalidIDRange`）存量异常。
-No ON CONFLICT, automatic row creation/upsert, concurrent bootstrap, full target-schema import or arbitrary-namespace API; re-applying the seed INSERT fails as-is. The fresh CHECK prevents a negative persisted bound, and `Current` still rejects legacy anomalies explicitly (fixed error wrapping `ErrInvalidIDRange`).
+无 ON CONFLICT/自动建行/upsert、并发引导、完整目标 schema 导入或任意命名空间 API。DDL 不带 IF NOT EXISTS（仅限全新应用）：重复应用在 CREATE TABLE 或种子 INSERT 处按原样报错，无 upsert。全新 CHECK 阻止负持久上界，`Current` 仍显式拒绝（固定错误包裹 `ErrInvalidIDRange`）存量异常——读取侧拒绝由确定性单元夹具与真实库夹具共同验证。
+No ON CONFLICT, automatic row creation/upsert, concurrent bootstrap, full target-schema import or arbitrary-namespace API. The DDL carries no IF NOT EXISTS (fresh-only application): re-application fails as-is at the CREATE TABLE or the seed INSERT, with no upsert. The fresh CHECK prevents a negative persisted bound, and `Current` still rejects legacy anomalies explicitly (fixed error wrapping `ErrInvalidIDRange`) — the read-side rejection is verified by a deterministic unit fixture alongside the real-database fixtures.
 
 ## 行为契约 / Behavior contract
 
-- `Current`：有限上下文的单条参数化 SELECT，直接读已提交的 general 持久上界；不分配、不自动初始化。缺行返回 0 且 `errors.Is(err, sql.ErrNoRows)` 成立；预取消在池操作前以固定错误拒绝。
-  `Current`: one bounded parameterized SELECT directly reading the committed general bound; no allocation, no auto-initialization. A missing row returns 0 with `errors.Is(err, sql.ErrNoRows)` true; a pre-cancelled context is rejected before any pool operation.
+- `Current`：单条参数化 SELECT，直接读已提交的 general 持久上界；不分配、不自动初始化。缺行返回 0 且 `errors.Is(err, sql.ErrNoRows)` 成立——原始错误对象（database/sql 折叠的裸哨兵或驱动包裹错误）原样经 Unwrap 保留，绝不替换；预取消在池操作前以固定错误拒绝（失败文案为固定阶段常量：预取消用取消阶段，其余用读取阶段）。
+  `Current`: one parameterized SELECT directly reading the committed general bound; no allocation, no auto-initialization. A missing row returns 0 with `errors.Is(err, sql.ErrNoRows)` true — the ORIGINAL error object (database/sql's folded bare sentinel or a driver-wrapped error) stays verbatim under Unwrap and is never replaced; a pre-cancelled context is rejected before any pool operation (failure texts are fixed stage constants: the cancelled stage for pre-cancellation, the read stage otherwise).
 - `Reserve` 输入前置（触库前，固定哨兵 `ErrInvalidIDRange`，零号段/false，不回显输入）：`expected >= 0`、`amount > 0`、`amount <= MaxInt64-expected`（`Last` 恒不超过 `MaxInt64`）。
   `Reserve` input preconditions (before the pool, fixed sentinel `ErrInvalidIDRange`, zero range/false, no input echo): `expected >= 0`, `amount > 0`, `amount <= MaxInt64-expected` (`Last` never exceeds `MaxInt64`).
 - `Reserve` 主体：自有事务内单条参数化条件 `UPDATE ... WHERE index_type='general' AND current_id=expected`；无 SELECT/MAX/序列、自动重试/upsert/自动建行。
@@ -65,10 +65,10 @@ No ON CONFLICT, automatic row creation/upsert, concurrent bootstrap, full target
 
 ## 证据与验证 / Evidence and verification
 
-- 单元（`internal/repository/postgres/id_reservations_test.go`）：nil 构造、触库前输入前置（含 MaxInt64 边界）、预取消、常量错误/Unwrap/不回显、stdlib 伪驱动故障注入（Begin/Exec/RowsAffected/Commit、异常行数、提交结果不明不返回号段且单次执行无重试）。
-  Unit: nil constructor, pre-pool input preconditions (including MaxInt64 boundaries), pre-cancellation, constant errors with Unwrap/no echo, and stdlib fake-driver fault injection (Begin/Exec/RowsAffected/Commit, odd counts, ambiguous commit returning no range with single execution and no retry).
-- 真实 PostgreSQL（`integration/postgres/id_reservations_test.go`、`id_reservations_tx_test.go`，一次性测试库门禁）：初值/闭区间/过期期望、全新池重开不复用、固定 general 键与他命名空间并存、缺行 ErrNoRows 与不自动建行、真实 CHECK/PK 约束、MaxInt64 精确边界与溢出拒绝、并发独立池同期望恰一胜者、有界锁等待取消后新操作成功、延迟约束真实 Commit 失败不返回号段、调用方节点事务回滚不影响独立已提交预留（既有 binaries 行保留）。
-  Real PostgreSQL (disposable-database gate): initial bound/inclusive ranges/stale expectation, fresh-pool reopen without reuse, the fixed general key beside another namespace row, missing-row ErrNoRows without auto-creation, real CHECK/PK constraints, exact MaxInt64 boundary and overflow rejection, exactly one winner among concurrent independent pools, bounded lock-wait cancellation followed by fresh success, deferred-constraint real Commit failure returning no range, and a caller node-transaction rollback leaving the independent committed reservation (existing binaries rows retained).
+- 单元（`internal/repository/postgres/id_reservations_test.go`）：nil 构造、触库前输入前置（含 MaxInt64 边界）、预取消、常量错误/Unwrap/不回显、包裹 ErrNoRows 原因的对象身份保留（裸/驱动包裹两路径）、确定性负持久上界读取侧拒绝（零值、固定文案、Unwrap 链含哨兵、不回显存储值）、stdlib 伪驱动故障注入（Begin/Exec/RowsAffected/Commit、异常行数、提交结果不明不返回号段且单次执行无重试）。
+  Unit: nil constructor, pre-pool input preconditions (including MaxInt64 boundaries), pre-cancellation, constant errors with Unwrap/no echo, wrapped-ErrNoRows cause identity preserved verbatim (both the bare and driver-wrapped paths), the deterministic negative-persisted-bound read-side rejection (zero value, fixed text, sentinel under Unwrap, no stored-value echo), and stdlib fake-driver fault injection (Begin/Exec/RowsAffected/Commit, odd counts, ambiguous commit returning no range with single execution and no retry).
+- 真实 PostgreSQL（`integration/postgres/id_reservations_test.go`、`id_reservations_tx_test.go`，一次性测试库门禁；新测试各拥随机 schema 并行调度）：初值/闭区间/过期期望、全新池重开不复用、固定 general 键与他命名空间行并存、缺行 ErrNoRows 与不自动建行、真实 CHECK/PK 约束、MaxInt64 精确边界与溢出拒绝、并发独立池同期望恰一胜者且每个落败者零号段、有界锁等待取消后新操作成功、延迟约束真实 Commit 失败不返回号段、调用方节点事务先开启并在存活期间预留新号段后回滚——独立已提交预留上界保持推进、节点行未落库、既有 binaries 行保留。
+  Real PostgreSQL (disposable-database gate; the new tests each own a random schema and run in parallel): initial bound/inclusive ranges/stale expectation, fresh-pool reopen without reuse, the fixed general key beside another namespace row, missing-row ErrNoRows without auto-creation, real CHECK/PK constraints, exact MaxInt64 boundary and overflow rejection, exactly one winner among concurrent independent pools with every loser returning the zero range, bounded lock-wait cancellation followed by fresh success, deferred-constraint real Commit failure returning no range, and a caller node transaction opened FIRST whose rollback after reserving a new range mid-flight leaves the independently committed bound advanced, the node row absent and the existing binaries rows retained.
 
 ## 边界与后续 / Limits and follow-ups
 
