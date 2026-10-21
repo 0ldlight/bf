@@ -149,7 +149,9 @@ func (s *Store) Update(ctx context.Context, ref repository.FileReference) (int64
 // errors.Is(err, sql.ErrNoRows) 成立。返回存储 ID、重构的文件 Path 与
 // 元数据，不做重算/回填；NULL MD5/SHA256 经 sql.NullString 映射为空，
 // 行内 NULL/空/'.' 组件归一为空（对齐 BaseDao 的字面空/点边界，而非
-// Java-blank 折叠）。
+// Java-blank 折叠）。写入侧 Content 恒为规范值，但 Lookup 对存量行按原样
+// 返回（可为空校验和投影）；外键只证明 SHA-1 已登记，不证明跨校验和/
+// 长度一致或物理完整性。
 // Lookup queries by repo/parent/name and ignores the input kind (matching
 // the target NodesDao.get keys). A stored non-file row yields ErrNotFile
 // with a zero reference; a miss yields the fixed text with
@@ -157,7 +159,10 @@ func (s *Store) Update(ctx context.Context, ref repository.FileReference) (int64
 // reconstructed file Path and metadata with no recompute or backfill; NULL
 // MD5/SHA256 map to empty via sql.NullString and row NULL/empty/'.'
 // components normalize to empty (the literal BaseDao empty/dot boundary,
-// not a Java-blank collapse).
+// not a Java-blank collapse). Writes always carry canonical Content, but
+// Lookup returns legacy rows as-is (possibly empty checksum projections);
+// the FK proves only SHA-1 registration, never cross-checksum/length
+// agreement or physical integrity.
 func (s *Store) Lookup(ctx context.Context, path repository.Path) (repository.FileReference, error) {
 	if err := validateIdentity(path); err != nil {
 		return repository.FileReference{}, err
@@ -202,6 +207,14 @@ func (s *Store) Lookup(ctx context.Context, path repository.Path) (repository.Fi
 	}, nil
 }
 
+// validateWriteRef 及全部校验出口都返回 opError{stageInvalid}：公开
+// Error() 恒为固定文案；带细节的诊断原因（字段/长度/深度哨兵）只存在于
+// Unwrap 链下，供可信调用方排查，永不进入 Error()。
+// validateWriteRef and every validation exit return opError{stageInvalid}:
+// the public Error() stays the fixed constant; detailed diagnostic causes
+// (field/length/depth sentinels) live only under Unwrap for trusted
+// callers and never enter Error().
+//
 // validateWriteRef 在任何 SQL 之前拒绝非法写入：ID>0、非零且成功构造的
 // Path、IsFile 且非根、父/名字面 '.' 排除（本地规范画像，避免与 SQL 点
 // 哨兵互为别名）、Depth 上界（保留 repository.ErrDepthExceeded）与规范
@@ -268,7 +281,7 @@ func validateContent(meta content.Metadata) error {
 		return err
 	}
 	if meta.Size < 0 {
-		return fmt.Errorf("postgres nodes: size (%d): %w", meta.Size, ErrInvalidReference)
+		return invalidCause(fmt.Errorf("size (%d): %w", meta.Size, ErrInvalidReference))
 	}
 	return nil
 }
@@ -278,19 +291,26 @@ func validateContent(meta content.Metadata) error {
 // bounded and never echo values.
 func canonicalHex(field, s string, want int) error {
 	if len(s) != want {
-		return fmt.Errorf("postgres nodes: %s (len %d): %w", field, len(s), ErrInvalidReference)
+		return invalidCause(fmt.Errorf("%s (len %d): %w", field, len(s), ErrInvalidReference))
 	}
 	for i := 0; i < len(s); i++ {
 		c := s[i]
 		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
-			return fmt.Errorf("postgres nodes: %s (bad hex at %d): %w", field, i, ErrInvalidReference)
+			return invalidCause(fmt.Errorf("%s (bad hex at %d): %w", field, i, ErrInvalidReference))
 		}
 	}
 	return nil
 }
 
 func invalidField(field string) error {
-	return fmt.Errorf("postgres nodes: %s: %w", field, ErrInvalidReference)
+	return invalidCause(fmt.Errorf("%s: %w", field, ErrInvalidReference))
+}
+
+// invalidCause 把诊断细节固定在 Unwrap 链下，公开文案恒为 stageInvalid。
+// invalidCause pins diagnostic detail under Unwrap; the public text stays
+// stageInvalid.
+func invalidCause(cause error) error {
+	return &opError{op: stageInvalid, cause: cause}
 }
 
 // dotIfEmpty 仅把空串映射为 SQL '.' 哨兵；Unicode 空白原样保留。

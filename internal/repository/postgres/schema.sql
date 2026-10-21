@@ -8,8 +8,8 @@
 CREATE TABLE IF NOT EXISTS nodes (
     node_id     bigint        NOT NULL,
     node_type   smallint      NOT NULL CHECK (node_type IN (0, 1)),
-    repo        varchar(64),
-    node_path   varchar(1024),
+    repo        varchar(64)   NOT NULL COLLATE "C",
+    node_path   varchar(1024) NOT NULL COLLATE "C",
     node_name   varchar(255)  NOT NULL COLLATE "C",
     depth       smallint      NOT NULL,
     bin_length  bigint,
