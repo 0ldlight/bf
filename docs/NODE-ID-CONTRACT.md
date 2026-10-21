@@ -54,5 +54,8 @@ This is neither application startup, real PostgreSQL, Spring transaction nor HA 
 先审阅持久化号段预留契约：明确数据库所有权、初始化竞争、条件更新、重读、取消、失败和上界溢出；再为真实 ID 消费者定义最小接口，SQL 留在适配器，避免预建跨领域框架。
 First review durable range reservation: database ownership, initialization races, conditional update, reload, cancellation, failure and overflow. Then define the smallest interface at a real consumer boundary, keeping SQL in its adapter and avoiding a speculative framework.
 
+该审阅的第一片已落地为显式本地原语 `Reservations`（自有 READ COMMITTED 事务的条件更新），规范来源与边界见[号段预留记录](ID-RESERVATIONS.md)；本页调查事实不变，内存分配器与保存编排仍未实现。
+The first slice of that review now exists as the explicit local primitive `Reservations` (a conditional update in an owned READ COMMITTED transaction); the [reservation note](ID-RESERVATIONS.md) owns its contract and limits. The investigation facts above are unchanged and no in-memory allocator or save orchestration is implemented.
+
 验收至少覆盖一次性真实数据库中的独立事务/独立进程竞争、区间不重叠、重启不复用、失败不返回未确认号段、内容与引用保留及有界取消。提交结果不明时不得盲目重放旧号段。完整保存编排、PathValidator、节点元数据、权限和 Generic HTTP 继续按独立切片推进。
 Acceptance requires independent transactions/processes against an owned disposable database, non-overlapping ranges, no reuse after restart, no IDs from unconfirmed reservations, retained content/references and bounded cancellation. Ambiguous commit must not blindly replay an old range. Full save orchestration, path validation, node metadata, authorization and Generic HTTP remain separate slices.

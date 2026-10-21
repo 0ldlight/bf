@@ -1,10 +1,17 @@
 // Package postgres 在调用方拥有的 *sql.Tx 上实现事务内文件引用的最小
-// nodes 投影：调用方拥有事务、节点 ID 与生命周期，本包不 Begin/Commit/
-// Rollback/Ping/建表/Close。
+// nodes 投影（Store），并提供本地 PostgreSQL 号段预留原语（Reservations）。
+// Store 侧：调用方拥有事务、节点 ID 与生命周期，Store 从不 Begin/Commit/
+// Rollback/Ping/建表/Close。Reservations 侧：调用方仅提供可信 *sql.DB，
+// 每次预留由 Reservations 开启并提交自有的 READ COMMITTED 事务（见
+// docs/ID-RESERVATIONS.md）。
 // Package postgres implements the minimal transaction-scoped nodes
-// projection for file references on a caller-owned *sql.Tx: the caller owns
-// the transaction, node IDs and lifetimes; this package never begins,
-// commits, rolls back, pings, bootstraps DDL or closes anything.
+// projection for file references on a caller-owned *sql.Tx (Store), plus the
+// local PostgreSQL ID-range reservation primitive (Reservations). On the
+// Store side the caller owns the transaction, node IDs and lifetimes and
+// Store never begins, commits, rolls back, pings, bootstraps DDL or closes
+// anything. On the Reservations side the caller supplies only a trusted
+// *sql.DB and every reservation begins and commits its own READ COMMITTED
+// transaction (see docs/ID-RESERVATIONS.md).
 package postgres
 
 import (

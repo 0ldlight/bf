@@ -74,6 +74,9 @@ The minimal file-reference nodes projection follows static bytecode of the targe
 2026-10-22 校验同一目标 WAR 的 storage-db、addon-ha、storage-common 和 config 组件，核实 general 号段、Simple/HA 分支及事件序列区别；13 项受控 JVM 回放直接执行目标分配器 class，周边配置/异常辅助类型/JDBC 使用显式替身，含 8 实例分配 40 个唯一 ID。规范来源与限制见[节点 ID 契约](NODE-ID-CONTRACT.md)。未实现分配器，未执行原版真实数据库/Spring/HA 故障验证。
 The same target WAR supplies the general-range, Simple/HA and separate event-sequence evidence. Thirteen controlled JVM observations execute exact allocator class bytes with explicit surrounding doubles, including forty unique IDs from eight instances. The [node-ID contract](NODE-ID-CONTRACT.md) owns the scope and limits. No allocator implementation or live target DB/Spring/HA failure validation is claimed.
 
+2026-10-22 上述调查的第一实现切片落地：显式本地 PostgreSQL 已提交号段预留原语 `Reservations`（调用方 `*sql.DB`、自有 READ COMMITTED 事务的条件更新、仅 Commit 成功返回闭区间号段）。契约与验证边界见[号段预留记录](ID-RESERVATIONS.md)；这是原创本地政策，不宣称目标分配器/autocommit/HA 运行时对等。
+The first implementation slice of that investigation landed: the explicit local PostgreSQL committed ID-range reservation primitive `Reservations` (caller-owned `*sql.DB`, a conditional update inside an owned READ COMMITTED transaction, the inclusive range returned only after a successful Commit). The [reservation note](ID-RESERVATIONS.md) owns the contract and verification limits; this is original local policy with no target allocator/autocommit/HA runtime parity claimed.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
