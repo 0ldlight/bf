@@ -2,11 +2,14 @@
 
 ## 接续入口 / Start with the contract
 
-依次读取[已确认需求](PROJECT-BRIEF.md)、[架构决定](ARCHITECTURE.md)、[P0 计划](P0-PLAN.md)、[能力矩阵](CAPABILITY-MATRIX.md)与[研究索引](RESEARCH-INDEX.md)。已确认需求无需重新访谈。
-Read the requirements, decisions, P0 plan, matrix and research index without restarting discovery.
+依次读取[已确认需求](PROJECT-BRIEF.md)、[架构决定](ARCHITECTURE.md)、[P0 计划](P0-PLAN.md)、[工程地图](ENGINEERING-MAP.md)、[能力矩阵](CAPABILITY-MATRIX.md)与[研究索引](RESEARCH-INDEX.md)。已确认需求无需重新访谈。
+Read the requirements, decisions, P0 plan, engineering map, matrix and research index without restarting discovery.
 
 源码仓库是 [0ldlight/bf](https://github.com/0ldlight/bf)，使用文档维护在 [0ldlight/binflow-docs](https://github.com/0ldlight/binflow-docs)，工程文档维护在本仓库 `docs/`。任务、依赖、审批与最新状态使用[现有 Linear 项目](https://linear.app/binfloow/project/binflow-2ad2bc04f63e)。
 Keep usage docs in the separate Fern repository and engineering docs in source `docs/`; use the existing Linear project as the task authority.
+
+全部产品代码都在 `bf` 主检出：每任务一条分支，仅在确有必要时在 `bf` 内创建隔离 worktree（如 `.binflow/worktrees/`），不建立兄弟代码目录。历史遗留的本地 `.binflow` 归档与证据是被忽略的私有材料，不是活跃代码源。代码结构导航见[工程地图](ENGINEERING-MAP.md)。
+All product code stays in the `bf` primary checkout: one branch per task, an isolated worktree inside `bf` (for example `.binflow/worktrees/`) only when truly needed, and no sibling code directories. The historical local `.binflow` archive/evidence is ignored private material, not an active source. See the [engineering map](ENGINEERING-MAP.md) for code navigation.
 
 ## 本机配置 / Host-local access
 
