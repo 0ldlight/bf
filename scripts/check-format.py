@@ -48,8 +48,18 @@ def main(argv):
     )
     if not files:
         return 0
-    proc = subprocess.run(["gofmt", "-l", *files], stdout=subprocess.PIPE,
-                          stderr=subprocess.PIPE)
+    # gofmt runs inside the target repository with "./"-prefixed relative
+    # paths: the caller's cwd cannot shadow target files (a formatted
+    # same-named file elsewhere must never mask the target), and a leading
+    # "-" in a filename is never parsed as a gofmt flag.
+    # gofmt 在目标仓库内以 "./" 前缀相对路径运行：调用方 cwd 无法遮蔽目标文件，
+    # 文件名前导 "-" 也绝不会被解析为 gofmt 标志。
+    proc = subprocess.run(
+        ["gofmt", "-l", *("./" + f for f in files)],
+        cwd=repo,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     if proc.returncode != 0:
         sys.stderr.write(
             "check-format: gofmt failed "

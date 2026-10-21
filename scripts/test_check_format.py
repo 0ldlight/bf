@@ -25,12 +25,21 @@ GIT_ENV["GIT_CONFIG_NOSYSTEM"] = "1"
 
 
 def _need_tools():
-    for tool in ("git", "gofmt"):
+    # No skips: missing tools must fail the gate tests actionably.
+    # 不跳过：缺少工具必须让测试可操作地失败。
+    missing = [
+        tool
+        for tool in ("git", "gofmt")
         if subprocess.run(
             ["sh", "-c", f"command -v {tool} >/dev/null 2>&1"],
             env=GIT_ENV,
-        ).returncode != 0:
-            raise unittest.SkipTest(f"{tool} not available")
+        ).returncode != 0
+    ]
+    if missing:
+        raise AssertionError(
+            f"required tools missing from PATH: {', '.join(missing)} "
+            "(the shared check and its tests require git and gofmt)"
+        )
 
 
 class Fixture:
@@ -230,6 +239,69 @@ class GitScopedGofmtGate(unittest.TestCase):
         proc = fx.gate(cwd=pathlib.Path(elsewhere.name))
         self.assertEqual(proc.returncode, 1, proc.stdout)
         self.assertIn("cmd/app/main.go", proc.stderr)
+
+    def test_clean_target_passes_from_outside_without_shadow(self):
+        fx = self._fixture()
+        fx.write("cmd/app/main.go", FORMATTED)
+        fx.add("cmd/app/main.go")
+        elsewhere = tempfile.TemporaryDirectory()  # empty: no same-named file
+        self.addCleanup(elsewhere.cleanup)
+        proc = fx.gate(cwd=pathlib.Path(elsewhere.name))
+        self.assertEqual(
+            proc.returncode, 0,
+            f"clean target rejected from outside cwd:\n{proc.stdout}{proc.stderr}",
+        )
+
+    def test_unformatted_target_with_formatted_shadow_in_caller_is_rejected(self):
+        # The old gate ran gofmt relative to the caller's cwd, so a formatted
+        # same-named file there masked an unformatted target file.
+        # 旧门禁按调用方 cwd 运行 gofmt，调用方同名已格式化文件会掩盖目标未格式化文件。
+        fx = self._fixture()
+        fx.write("cmd/app/main.go", UNFORMATTED)
+        fx.add("cmd/app/main.go")
+        caller = tempfile.TemporaryDirectory()
+        self.addCleanup(caller.cleanup)
+        shadow_root = pathlib.Path(caller.name) / "cmd" / "app"
+        shadow_root.mkdir(parents=True)
+        (shadow_root / "main.go").write_text(FORMATTED, encoding="utf-8")
+        proc = fx.gate(cwd=pathlib.Path(caller.name))
+        self.assertEqual(
+            proc.returncode, 1,
+            f"formatted shadow in caller masked the unformatted target:\n"
+            f"{proc.stdout}{proc.stderr}",
+        )
+        self.assertIn("need formatting", proc.stderr)
+        self.assertIn("cmd/app/main.go", proc.stderr)
+
+    def test_formatted_leading_dash_filename_passes(self):
+        fx = self._fixture()
+        fx.write("cmd/app/main.go", FORMATTED)
+        fx.add("cmd/app/main.go")
+        fx.write("-valid.go", FORMATTED)
+        fx.add("-valid.go")
+        proc = fx.gate()
+        self.assertEqual(
+            proc.returncode, 0,
+            f"formatted '-valid.go' rejected:\n{proc.stdout}{proc.stderr}",
+        )
+
+    def test_unformatted_leading_dash_filename_reports_formatting(self):
+        # A leading dash must never be parsed as a gofmt flag.
+        # 前导连字符绝不能被解析为 gofmt 标志。
+        fx = self._fixture()
+        fx.write("cmd/app/main.go", FORMATTED)
+        fx.add("cmd/app/main.go")
+        fx.write("-bad.go", UNFORMATTED)
+        fx.add("-bad.go")
+        proc = fx.gate()
+        self.assertEqual(
+            proc.returncode, 1,
+            f"unformatted '-bad.go' not reported as source:\n"
+            f"{proc.stdout}{proc.stderr}",
+        )
+        self.assertIn("need formatting", proc.stderr)
+        self.assertIn("-bad.go", proc.stderr)
+        self.assertNotIn("flag provided but not defined", proc.stderr)
 
 
 if __name__ == "__main__":
