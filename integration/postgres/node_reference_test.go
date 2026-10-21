@@ -64,17 +64,29 @@ func fileRefOf(t *testing.T, id int64, repo, parent, name string, meta content.M
 	return repository.FileReference{ID: id, Path: p, Content: meta}
 }
 
-// nodeTx 开启调用方自有事务并绑定 Store；BeginTx 使用 background 上下文
-// （该 ctx 绑定事务整个生命周期，不得提前 cancel），语句各自携带有限 ctx；
-// t.Cleanup 兜底回滚，即使 t.Fatal 也不遗留持锁事务。
-// nodeTx begins a caller-owned transaction bound to a Store; BeginTx uses a
-// background context (that ctx governs the whole tx lifetime and must not
-// be cancelled early), statements carry their own bounded ctx, and
-// t.Cleanup rolls back as a safety net so even a t.Fatal leaves no
-// lock-holding tx.
+// nodeTestContext 返回测试存活期内保留的有限上下文（30s），cancel 经
+// t.Cleanup 注册；后续注册的回滚清理先于 cancel 执行（LIFO）。
+// nodeTestContext returns a bounded context (30s) retained for the test
+// lifetime whose cancel is registered via t.Cleanup; later-registered
+// rollback cleanups therefore run before the cancel (LIFO).
+func nodeTestContext(t *testing.T) context.Context {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	t.Cleanup(cancel)
+	return ctx
+}
+
+// nodeTx 开启调用方自有事务并绑定 Store：BeginTx 绑定 nodeTestContext
+// （有限且保留到清理，绝不提前 cancel——该 ctx 管辖事务整个生命周期），
+// 兜底回滚在 cancel 之前注册执行；语句一律携带各自的有限 ctx。
+// nodeTx begins a caller-owned transaction bound to a Store: BeginTx rides
+// nodeTestContext (bounded, retained until cleanup, never cancelled early
+// — that ctx governs the whole tx lifetime), the safety-net rollback is
+// registered after the cancel so LIFO rolls back first, and every
+// statement carries its own bounded ctx.
 func nodeTx(t *testing.T, db *sql.DB) (*sql.Tx, *refpg.Store) {
 	t.Helper()
-	tx, err := db.BeginTx(context.Background(), nil)
+	tx, err := db.BeginTx(nodeTestContext(t), nil)
 	if err != nil {
 		t.Fatalf("begin tx: %v", err)
 	}
@@ -109,7 +121,7 @@ func pgCodeOf(t *testing.T, err error) string {
 func TestNodeCreateLookupCanonicalRoundTrip(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1A := strings.Repeat("1", 40)
 	seedNodeBinary(t, adm, schema, sha1A)
 	metaA := nodeMeta(sha1A)
@@ -201,7 +213,7 @@ func TestNodeCreateLookupCanonicalRoundTrip(t *testing.T) {
 func TestNodeUncommittedInvisibleCommitVisibleRollbackAbsent(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	seedNodeBinary(t, adm, schema, strings.Repeat("4", 40))
 	meta := nodeMeta(strings.Repeat("4", 40))
 
@@ -234,7 +246,7 @@ func TestNodeUncommittedInvisibleCommitVisibleRollbackAbsent(t *testing.T) {
 func TestNodeDuplicateTupleAndIDReject23505(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1 := strings.Repeat("5", 40)
 	seedNodeBinary(t, adm, schema, sha1)
 	meta := nodeMeta(sha1)
@@ -295,7 +307,8 @@ func TestNodeCreateMissingBinaryFK23503(t *testing.T) {
 	// 该 SHA-1 不在 binaries：FK 拒绝，明细错误经 Unwrap 可达。
 	// The SHA-1 is absent from binaries: the FK rejects and the driver
 	// detail stays reachable via Unwrap.
-	_, err := st.Create(context.Background(), fileRefOf(t, 401, "repoD", "", "x.bin",
+	ctx := nodeTestContext(t)
+	_, err := st.Create(ctx, fileRefOf(t, 401, "repoD", "", "x.bin",
 		nodeMeta(strings.Repeat("6", 40))))
 	if err == nil {
 		t.Fatal("Create with missing binary must fail")
@@ -317,7 +330,7 @@ func TestNodeCreateMissingBinaryFK23503(t *testing.T) {
 func TestNodeUpdateSwitchesSHA1AndKeepsBothBinaries(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1A, sha1B := strings.Repeat("7", 40), strings.Repeat("8", 40)
 	seedNodeBinary(t, adm, schema, sha1A)
 	seedNodeBinary(t, adm, schema, sha1B)
@@ -374,7 +387,7 @@ func TestNodeUpdateSwitchesSHA1AndKeepsBothBinaries(t *testing.T) {
 func TestNodeFailedTxnRollbackPreservesOldReference(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1A := strings.Repeat("9", 40)
 	seedNodeBinary(t, adm, schema, sha1A)
 	metaA := nodeMeta(sha1A)

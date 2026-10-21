@@ -11,7 +11,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +29,7 @@ import (
 func TestNodeDeferredCommitFailureRowAbsent(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1 := strings.Repeat("b", 40)
 	seedNodeBinary(t, adm, schema, sha1)
 	meta := nodeMeta(sha1)
@@ -78,7 +80,7 @@ func TestNodeDeferredCommitFailureRowAbsent(t *testing.T) {
 func TestNodeRawFolderRowLookupAndGuards(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1 := strings.Repeat("c", 40)
 	seedNodeBinary(t, adm, schema, sha1)
 	meta := nodeMeta(sha1)
@@ -144,7 +146,7 @@ func TestNodeRawFolderRowLookupAndGuards(t *testing.T) {
 func TestNodeLegacyNullChecksumsMapEmptyWithoutMutation(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	sha1 := strings.Repeat("d", 40)
 	seedNodeBinary(t, adm, schema, sha1)
 
@@ -249,10 +251,40 @@ func TestNodeRowLockCancellationAndFreshTx(t *testing.T) {
 	}
 }
 
+// soleObjectFile 定位全新 store 根下唯一的对象文件（同 digest 去重下首次
+// Add 后恰有一个常规文件），返回路径与 Stat 信息供 inode 复用断言。
+// soleObjectFile locates the sole object file under a fresh store root
+// (exactly one regular file after the first Add under same-digest
+// dedupe), returning its path and Stat info for inode-reuse assertions.
+func soleObjectFile(t *testing.T, root string) (string, os.FileInfo) {
+	t.Helper()
+	var found string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if !d.IsDir() {
+			found = path
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk store root: %v", err)
+	}
+	if found == "" {
+		t.Fatal("no object file found under the store root")
+	}
+	info, err := os.Stat(found)
+	if err != nil {
+		t.Fatalf("stat object file: %v", err)
+	}
+	return found, info
+}
+
 func TestNodeFailureKeepsBinaryAndRetrySucceeds(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
-	ctx := context.Background()
+	ctx := nodeTestContext(t)
 	reg, err := nodereg.New(db)
 	if err != nil {
 		t.Fatalf("registry New: %v", err)
@@ -282,6 +314,7 @@ func TestNodeFailureKeepsBinaryAndRetrySucceeds(t *testing.T) {
 	if _, _, _, _, ok := rowOf(t, adm, schema, staged.SHA1); !ok {
 		t.Fatal("binary registration row missing after Add")
 	}
+	firstPath, firstInfo := soleObjectFile(t, root)
 
 	// 节点事务失败（未知 SHA-1 触发 FK）并回滚：字节与登记行都保留，无补偿。
 	// The node transaction fails (an unknown SHA-1 trips the FK) and the
@@ -314,11 +347,26 @@ func TestNodeFailureKeepsBinaryAndRetrySucceeds(t *testing.T) {
 		t.Fatalf("node count = %d, want 0", got)
 	}
 
-	// 换新读取器重试：对象复用（同一 SHA-1 可 Open），新节点事务成功。
-	// A fresh-reader retry: the object is reused (the same SHA-1 stays
-	// Open-able) and a new node transaction succeeds.
+	// 换新读取器重试：以 os.Stat/os.SameFile 证明复用同一 inode（而非仅
+	// 同 digest 可 Open），且重试后字节仍然一致，新节点事务成功。
+	// A fresh-reader retry: os.Stat/os.SameFile prove the very same inode
+	// is reused (not merely that the digest stays Open-able), the bytes
+	// still match after the retry, and a new node transaction succeeds.
 	if _, err := svc.Add(ctx, strings.NewReader(payload), filestore.Expected{}); err != nil {
 		t.Fatalf("svc.Add retry: %v", err)
+	}
+	retryPath, retryInfo := soleObjectFile(t, root)
+	if retryPath != firstPath || !os.SameFile(firstInfo, retryInfo) {
+		t.Fatalf("object not reused: first=%q retry=%q sameInode=%v", firstPath, retryPath, os.SameFile(firstInfo, retryInfo))
+	}
+	retryObj, err := store.Open(ctx, staged.SHA1)
+	if err != nil {
+		t.Fatalf("Open after retry: %v", err)
+	}
+	retryBytes, readErr := io.ReadAll(retryObj)
+	retryObj.Close()
+	if readErr != nil || string(retryBytes) != payload {
+		t.Fatalf("bytes differ after retry: readErr=%v len=%d", readErr, len(retryBytes))
 	}
 	tx2, st2 := nodeTx(t, db)
 	if n, err := st2.Create(ctx, fileRefOf(t, 1101, "repoK", "dir", "a.bin", staged)); err != nil || n != 1 {
