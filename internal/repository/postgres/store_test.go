@@ -121,7 +121,15 @@ func TestCreateRejectsInvalidReferenceBeforeSQL(t *testing.T) {
 			if !errors.Is(err, ErrInvalidReference) {
 				t.Fatalf("Create error must wrap ErrInvalidReference, got %v", err)
 			}
-			if s := err.Error(); strings.Contains(s, oneMiB) {
+			// 公开校验错误必须恒为固定文案：细节（含负数 Size 数值）只在
+			// Unwrap 链下。
+			// Public validation errors must stay the fixed constant;
+			// details (including a negative Size value) live only under
+			// Unwrap.
+			if s := err.Error(); s != "postgres nodes: invalid reference" {
+				t.Fatalf("validation Error() = %q, want fixed stageInvalid text", s)
+			}
+			if s := err.Error(); strings.Contains(s, oneMiB) || strings.Contains(s, "-1") {
 				t.Fatalf("error text echoes caller value: %q", s)
 			}
 			if len(err.Error()) > 200 {
@@ -168,6 +176,9 @@ func TestCreateDepthExceededPreservesSentinel(t *testing.T) {
 	if !errors.Is(err, repository.ErrDepthExceeded) {
 		t.Fatalf("deep Create must preserve ErrDepthExceeded, got %v", err)
 	}
+	if s := err.Error(); s != "postgres nodes: invalid reference" {
+		t.Fatalf("depth Error() = %q, want fixed stageInvalid text", s)
+	}
 	if len(err.Error()) > 200 {
 		t.Fatalf("deep error text unbounded: %d bytes", len(err.Error()))
 	}
@@ -184,6 +195,9 @@ func TestLookupValidation(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidReference) {
 		t.Fatalf("Lookup(zero) error must wrap ErrInvalidReference, got %v", err)
+	}
+	if s := err.Error(); s != "postgres nodes: invalid reference" {
+		t.Fatalf("Lookup validation Error() = %q, want fixed stageInvalid text", s)
 	}
 	dotParent, err := repository.NewPath("repo-x", ".", "f.bin", false)
 	if err != nil {
