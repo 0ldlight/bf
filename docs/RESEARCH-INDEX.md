@@ -61,8 +61,8 @@ The metadata-registration branches follow static bytecode evidence of the target
 
 ## 仓库节点路径 / Repository node path
 
-2026-10-21 按目标 `NodePath`/`NodeUtils` 静态字节码与 23 例 JVM 回放（私有证据）实现内部路径身份值模型；规范来源与证据边界见[节点路径记录](REPOSITORY-NODE-PATH.md)。仅路径身份，不宣称仓库保存、HTTP、SQL 或目标畸形输入运行时对等。
-The internal path-identity value model follows static bytecode of the target's `NodePath`/`NodeUtils` plus a 23-case private JVM replay; the [node-path note](REPOSITORY-NODE-PATH.md) is the canonical source. Path identity only: no repository-save, HTTP, SQL or target malformed-input runtime parity is claimed.
+2026-10-21 按目标 `NodePath`/`NodeUtils` 静态字节码与 23 例 JVM 回放（私有证据）实现内部路径身份值模型；23 例回放仅在本地 OpenJDK 26.0.2.1 上运行目标 WAR 内 storage-db 组件的精确路径类对象，非运行中 Artifactory HTTP/数据库采样。规范来源与证据边界见[节点路径记录](REPOSITORY-NODE-PATH.md)。仅路径身份，不宣称仓库保存、HTTP、SQL 或目标畸形输入运行时对等。
+The internal path-identity value model follows static bytecode of the target's `NodePath`/`NodeUtils` plus a 23-case private JVM replay that ran only exact target path class objects from the storage-db component inside the target WAR under a local OpenJDK 26.0.2.1 — not live Artifactory HTTP/DB sampling. The [node-path note](REPOSITORY-NODE-PATH.md) is the canonical source. Path identity only: no repository-save, HTTP, SQL or target malformed-input runtime parity is claimed.
 
 ## 证据规则 / Evidence rules
 

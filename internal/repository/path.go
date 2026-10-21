@@ -38,13 +38,16 @@ type Key struct {
 }
 
 // Path 是带 Kind 的节点路径，持有未导出的 Key 与 file 标志。
-// 消费者必须使用 NewPath 成功构造的值；零值只来自失败构造，本切片没有
-// 运行期持久化消费者。构造器不提供认证、安全或路径穿越保证。
+// 零 Path/Key 不是合法构造值：构造器出错返回零值；Go 的 var/字面量同样
+// 能写出零值，语言本身并不阻止，消费者必须使用 NewPath 成功构造的值。
+// 本切片没有运行期持久化消费者。构造器不提供认证、安全或路径穿越保证。
 // Path is a kind-carrying node path holding the unexported Key and file
-// flag. Consumers must use values from successful NewPath calls; zero
-// values only arise from failed construction and this slice has no runtime
-// persistence consumer. The constructor provides no auth, security or
-// path-traversal guarantee.
+// flag. Zero Path/Key values are invalid constructed values: constructors
+// return zero on error, yet Go var/literals also produce zero values — the
+// language does not prevent them — so consumers must use values from
+// successful NewPath calls. This slice has no runtime persistence
+// consumer. The constructor provides no auth, security or path-traversal
+// guarantee.
 type Path struct {
 	key  Key
 	file bool
@@ -98,10 +101,14 @@ func (p Path) IsFolder() bool { return !p.file }
 func (p Path) IsRoot() bool { return javaBlank(p.key.parent) && javaBlank(p.key.name) }
 
 // PathName 在父路径 Java-blank 时返回名字，否则返回 parent+'/'+name。
-// 有意不提供 String()，避免输入被自动渲染。
+// 有意不提供自定义 String()（Go 的 fmt 仍会默认打印结构体字段）：
+// Path/Key 不是脱敏日志容器，诊断输出必须按信任边界过滤路径；固定错误
+// 文案保持有界且不含输入。
 // PathName returns the name alone when the parent is Java-blank, otherwise
-// parent+'/'+name. String() is deliberately absent so input is never
-// rendered automatically.
+// parent+'/'+name. No custom String() is provided (Go's fmt still prints
+// struct fields by default): Path/Key are not redacted logging containers,
+// diagnostics must filter paths according to the trust boundary; the fixed
+// error texts remain bounded and input-free.
 func (p Path) PathName() string {
 	if javaBlank(p.key.parent) {
 		return p.key.name

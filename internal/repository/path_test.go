@@ -138,6 +138,14 @@ func TestRootAndPathName(t *testing.T) {
 	if got := rootBlank.PathName(); got != "\u3000" {
 		t.Errorf("root PathName = %q, want name alone", got)
 	}
+	// 空串根与保留 Unicode 空白的根都 IsRoot，但 Key 不同：归一化不折叠
+	// Unicode 空白身份。
+	// The empty-string root and the retained Unicode-blank root are both
+	// IsRoot yet carry different Keys: normalization never collapses
+	// Unicode blank identity.
+	if rootFile.Key() == rootBlank.Key() {
+		t.Error("empty-string root and Unicode-blank root must have different Keys")
+	}
 	nested, _ := NewPath("repo", "/a/b/", "c", false)
 	if nested.IsRoot() {
 		t.Error("nonblank parent cannot be root")
@@ -195,20 +203,32 @@ func TestDepth(t *testing.T) {
 	}
 }
 
-// 零值仅来自失败构造；契约要求消费者使用成功构造的 Path。
-// The zero value only arises from failed construction; the contract
-// requires consumers to use successfully constructed paths.
+// 零值不是合法构造值：构造器出错返回零值，但 Go var/字面量同样能写出
+// 零值，语言本身不阻止；契约要求消费者使用成功构造的 Path。
+// Zero values are invalid constructed values: constructors return zero on
+// error, yet Go var/literals also produce them and the language does not
+// prevent it; the contract requires successfully constructed paths.
 func TestZeroValues(t *testing.T) {
 	var zero Path
 	if !zero.IsRoot() {
 		t.Error("zero Path is blank-rooted; consumers must not rely on this")
 	}
-	if zero != (Path{}) {
-		t.Error("literal zero must equal itself")
-	}
 	var zeroKey Key
-	filePath, _ := NewPath("r", "", "x", true)
-	if filePath.Key() == zeroKey {
+	// 成功构造的值（含空父路径）也不等于零 Key：repo 非空白即可构造。
+	// Even a successfully constructed blank-parent value differs from the
+	// zero Key: a nonblank repo alone is constructible.
+	blankParent, err := NewPath("r", "", "x", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blankParent.Key() == zeroKey {
 		t.Error("constructed Key must differ from the zero Key")
+	}
+	// 失败构造按契约返回零值，与语言零值一致。
+	// Failed construction returns the zero value, identical to the
+	// language zero.
+	failed, err := NewPath("", "a", "b", true)
+	if err == nil || failed != zero {
+		t.Error("failed construction must return the zero Path with an error")
 	}
 }
