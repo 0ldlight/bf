@@ -21,8 +21,8 @@ Locate research by artifact ID/digest rather than assuming identical host paths.
 
 ## Worker 生命周期 / Worker lifecycle
 
-每条任务声明独立 worktree/分支、文件责任、输入证据、验收、上下文范围和报告位置。所有 Claude 角色及重试共用最多 3 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
-Each task has an isolated worktree, ownership, evidence, acceptance and report contract. All roles/retries share three slots; no hidden workers.
+每条任务声明独立分支、工作目录、文件责任、输入证据、验收、上下文范围和报告位置；工作目录遵循上方主检出约定。所有 Claude 角色及重试共用最多 3 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
+Each task declares its branch, working directory, ownership, evidence, acceptance and report contract; its working directory follows the primary-checkout policy above. All roles/retries share three slots; no hidden workers.
 
 2026-10-19 所有者确认其他主机均已停止，当前 Mac 接管。之后每次迁移都应重新核对真实进程、任务状态和未完成请求；租约超时不代表进程或服务端请求已终止。
 The owner confirmed handover on 2026-10-19. Future migrations must verify actual processes and outstanding requests; lease expiry does not establish termination.
