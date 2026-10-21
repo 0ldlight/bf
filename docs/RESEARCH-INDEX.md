@@ -69,6 +69,11 @@ The internal path-identity value model follows static bytecode of the target's `
 2026-10-21 按目标 `NodesDao`/`BaseDao` 静态字节码与打包全新 `postgresql.sql`（SHA-256 `667a150c…dbf133cf` 行 23..53，仅全新模式，安装库未查询）实现文件引用的最小 nodes 投影：调用方拥有事务与节点 ID，成功计数在 Commit 前是临时的，字面空↔点 SQL 边界与 `sha1_actual → binaries` 外键。规范来源、本地策略与边界见[文件引用记录](NODE-REFERENCES.md)。不宣称完整目标 Node/HTTP/schema 导入、PathValidator/认证替代或目标数据库故障运行时对等。
 The minimal file-reference nodes projection follows static bytecode of the target's `NodesDao`/`BaseDao` plus the packaged fresh `postgresql.sql` (SHA-256 `667a150c…dbf133cf`, lines 23..53 — fresh schema only, the installed DB was never queried): caller-owned transactions and node IDs, provisional successful counts until commit, the literal empty↔dot SQL boundary and the `sha1_actual → binaries` FK. The [node-references note](NODE-REFERENCES.md) is the canonical source for local policies and boundaries. No full target Node/HTTP/schema import, PathValidator/auth replacement, or target DB-fault runtime parity is claimed.
 
+## 节点 ID 分配 / Node ID allocation
+
+2026-10-22 校验同一目标 WAR 的 storage-db、addon-ha、storage-common 和 config 组件，核实 general 号段、Simple/HA 分支及事件序列区别；13 项受控 JVM 回放直接执行目标分配器 class，周边配置/异常辅助类型/JDBC 使用显式替身，含 8 实例分配 40 个唯一 ID。规范来源与限制见[节点 ID 契约](NODE-ID-CONTRACT.md)。未实现分配器，未执行原版真实数据库/Spring/HA 故障验证。
+The same target WAR supplies the general-range, Simple/HA and separate event-sequence evidence. Thirteen controlled JVM observations execute exact allocator class bytes with explicit surrounding doubles, including forty unique IDs from eight instances. The [node-ID contract](NODE-ID-CONTRACT.md) owns the scope and limits. No allocator implementation or live target DB/Spring/HA failure validation is claimed.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
