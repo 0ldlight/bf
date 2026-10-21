@@ -30,6 +30,9 @@ Malformed UTF-8 is outside the target Java String equivalence; this layer neithe
 `internal/repository` 表驱动与专项用例（`-race`）：拒绝先于归一化（'/' 父 + 空名）、NBSP/NEL 非空白、控制字符 NUL/US 的 Java trim、repo 保留空格、内部双斜杠、点段/反斜杠/名字斜杠不清洗、Unicode 空白根保留、Kind 排除与大小写/组件分隔身份、深度 32767/32768、零输出与固定错误文本；全部经 `./scripts/check.sh`。
 Table-driven and focused cases (`-race`): reject-before-normalize ('/' parent + empty name), NBSP/NEL nonblank, Java trim of NUL/US controls, retained repo spaces, internal double slashes, no dot/backslash/name-slash cleaning, Unicode-blank root retention, kind-excluded and case/component-separated identity, depth 32767/32768, zero outputs and fixed error texts; all through `./scripts/check.sh`.
 
+Codex 对最终源码独立运行 203 项 JVM/Go 差分用例（包含前述 23 例，并增加 40 个字符在三个组件中的边界及 60 个确定性组合），全部一致；验证范围仍限于路径类对象。固定错误不回显输入；路径值本身须按上文日志边界处理。
+Codex independently compared the final Go source with the exact target path objects across 203 cases (the original 23, 40 characters in three components and 60 deterministic combinations); all agreed within this object-level scope. Fixed errors do not echo input; path values still require the logging treatment above.
+
 ## 关联 / Links
 - 证据索引 / Evidence index: [RESEARCH-INDEX.md](RESEARCH-INDEX.md)
 - 内容身份 / Content identity: [CONTENT-METADATA.md](CONTENT-METADATA.md)
