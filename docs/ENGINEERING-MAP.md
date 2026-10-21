@@ -17,7 +17,7 @@ A navigation map of the code that exists today. It records the current structure
 | `cmd/binflow` | HTTP 服务入口，组装运行时（当前仅内部 `/healthz`，见 `internal/httpserver`）；运行时接线属于 cmd / HTTP service entry point; runtime wiring belongs to cmd | [PROJECT-BRIEF.md](PROJECT-BRIEF.md) |
 | `cmd/binflow-contract` | 契约 CLI：只读引用探针，调用 `internal/compatprobe` / Contract CLI running the read-only reference probe | [GENERIC-DOWNLOAD-CONTRACT.md](GENERIC-DOWNLOAD-CONTRACT.md) |
 | `internal/content` | 制品字节流的内容元数据（MD5/SHA-1/SHA-256），无内部依赖 / Content metadata for artifact byte streams; no internal imports | [CONTENT-METADATA.md](CONTENT-METADATA.md) |
-| `internal/filestore` | 本地文件内容存储：布局与校验原语、临时写入后原子发布 / Local file content store: layout and validation primitives, staging-then-atomic publish | [FILESTORE-CONTRACT.md](FILESTORE-CONTRACT.md)、[LOCAL-FILESTORE.md](LOCAL-FILESTORE.md) |
+| `internal/filestore` | 文件系统适配器：本地文件内容存储的布局与校验原语、临时写入后原子发布（不是纯领域模型）/ Filesystem adapter: layout and validation primitives for the local file content store, staging-then-atomic publish (not a pure domain model) | [FILESTORE-CONTRACT.md](FILESTORE-CONTRACT.md)、[LOCAL-FILESTORE.md](LOCAL-FILESTORE.md) |
 | `internal/binary` | 编排缝：先写内容 provider、后登记元数据的二进制写入顺序 / Orchestration seam: provider-before-registration write order | [BINARY-WRITE.md](BINARY-WRITE.md) |
 | `internal/registry/postgres` | 适配器：`database/sql` 实现内容元数据登记（驱动由调用方注入），SQL 属于本包 / Adapter: content-metadata registration over `database/sql`, caller-supplied driver; owns its SQL | [POSTGRES-REGISTRY.md](POSTGRES-REGISTRY.md) |
 | `internal/repository` | 领域：`Path`/`Key` 路径身份与 `FileReference` 投影；只依赖 `internal/content` / Domain: `Path`/`Key` node path identity and the `FileReference` projection; imports only `internal/content` | [REPOSITORY-NODE-PATH.md](REPOSITORY-NODE-PATH.md)、[NODE-REFERENCES.md](NODE-REFERENCES.md) |
@@ -41,8 +41,11 @@ internal/repository/postgres   ─► internal/content,
 integration/postgres  ─► 上述各包（仅测试，独立模块 / tests only, separate module）
 ```
 
-规则 / Rules: 领域包（`content`、`filestore`、`binary`、`repository`）不导入任何 SQL 适配器；适配器包拥有自己的 SQL 并依赖领域；运行时接线只出现在 `cmd`。当前没有也不新增通用 utils 或占位接口脚手架。
-Domain packages (`content`, `filestore`, `binary`, `repository`) import no SQL adapters; adapter packages own their SQL and depend on the domain; runtime wiring lives only in `cmd`. There are — and will be — no generic utils or placeholder interface scaffolds.
+规则（本页记录的是当前经 import 证实的状态）/ Rules (current state confirmed by imports at the time of this map):
+- 领域包（`content`、`binary`、`repository`）不导入任何 SQL 适配器 / Domain packages (`content`, `binary`, `repository`) import no SQL adapters.
+- 适配器包拥有自己的 SQL 并依赖领域：`registry/postgres`、`repository/postgres`；`filestore` 是文件系统适配器，只依赖 `content` / Adapter packages own their SQL and depend on the domain: `registry/postgres`, `repository/postgres`; `filestore` is the filesystem adapter, importing only `content`.
+- 运行时接线只出现在 `cmd` / Runtime wiring lives only in `cmd`.
+- 当前代码中没有通用 utils 包或占位接口脚手架（据本页撰写时的 import 扫描）；后续设计仍以[架构决定](ARCHITECTURE.md)为准 / Today's import scan shows no generic utils package or placeholder interface scaffolds; future designs still follow the recorded architecture decisions.
 
 ## 检查命令 / Check commands
 
