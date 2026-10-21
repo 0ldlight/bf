@@ -64,6 +64,11 @@ The metadata-registration branches follow static bytecode evidence of the target
 2026-10-21 按目标 `NodePath`/`NodeUtils` 静态字节码与 23 例 JVM 回放（私有证据）实现内部路径身份值模型；23 例回放仅在本地 OpenJDK 26.0.2.1 上运行目标 WAR 内 storage-db 组件的精确路径类对象，非运行中 Artifactory HTTP/数据库采样。规范来源与证据边界见[节点路径记录](REPOSITORY-NODE-PATH.md)。仅路径身份，不宣称仓库保存、HTTP、SQL 或目标畸形输入运行时对等。
 The internal path-identity value model follows static bytecode of the target's `NodePath`/`NodeUtils` plus a 23-case private JVM replay that ran only exact target path class objects from the storage-db component inside the target WAR under a local OpenJDK 26.0.2.1 — not live Artifactory HTTP/DB sampling. The [node-path note](REPOSITORY-NODE-PATH.md) is the canonical source. Path identity only: no repository-save, HTTP, SQL or target malformed-input runtime parity is claimed.
 
+## 事务内文件引用 / Transaction-scoped file references
+
+2026-10-21 按目标 `NodesDao`/`BaseDao` 静态字节码与打包全新 `postgresql.sql`（SHA-256 `667a150c…dbf133cf` 行 23..53，仅全新模式，安装库未查询）实现文件引用的最小 nodes 投影：调用方拥有事务与节点 ID，成功计数在 Commit 前是临时的，字面空↔点 SQL 边界与 `sha1_actual → binaries` 外键。规范来源、本地策略与边界见[文件引用记录](NODE-REFERENCES.md)。不宣称完整目标 Node/HTTP/schema 导入、PathValidator/认证替代或目标数据库故障运行时对等。
+The minimal file-reference nodes projection follows static bytecode of the target's `NodesDao`/`BaseDao` plus the packaged fresh `postgresql.sql` (SHA-256 `667a150c…dbf133cf`, lines 23..53 — fresh schema only, the installed DB was never queried): caller-owned transactions and node IDs, provisional successful counts until commit, the literal empty↔dot SQL boundary and the `sha1_actual → binaries` FK. The [node-references note](NODE-REFERENCES.md) is the canonical source for local policies and boundaries. No full target Node/HTTP/schema import, PathValidator/auth replacement, or target DB-fault runtime parity is claimed.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。

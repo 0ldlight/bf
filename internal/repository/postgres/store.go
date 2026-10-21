@@ -1,0 +1,314 @@
+// Package postgres 在调用方拥有的 *sql.Tx 上实现事务内文件引用的最小
+// nodes 投影：调用方拥有事务、节点 ID 与生命周期，本包不 Begin/Commit/
+// Rollback/Ping/建表/Close。
+// Package postgres implements the minimal transaction-scoped nodes
+// projection for file references on a caller-owned *sql.Tx: the caller owns
+// the transaction, node IDs and lifetimes; this package never begins,
+// commits, rolls back, pings, bootstraps DDL or closes anything.
+package postgres
+
+import (
+	"context"
+	"database/sql"
+	_ "embed"
+	"errors"
+	"fmt"
+
+	"github.com/0ldlight/bf/internal/content"
+	"github.com/0ldlight/bf/internal/repository"
+)
+
+// SchemaSQL 是 v1 首个全新库的最小 nodes 投影，仅供可信引导/测试显式应用；
+// 依赖既有 binaries 表（sha1 外键，无级联）。
+// SchemaSQL is the v1 minimal fresh-database nodes projection for explicit
+// trusted bootstrap/tests only; it depends on the existing binaries table
+// (sha1 foreign key, no cascade).
+//
+//go:embed schema.sql
+var SchemaSQL string
+
+var (
+	// ErrInvalidReference 表示写入/查询输入不满足本投影的显式本地前置
+	// （见 validateWriteRef/validateIdentity）；文本永不回显输入。
+	// ErrInvalidReference means the input fails this projection's explicit
+	// local preconditions; the text never echoes input.
+	ErrInvalidReference = errors.New("postgres nodes: invalid reference")
+	// ErrNotFile 表示查询命中的存储行不是文件（node_type != 1）。
+	// ErrNotFile means the stored row hit by a lookup is not a file.
+	ErrNotFile = errors.New("postgres nodes: stored node is not a file")
+)
+
+// 阶段文案是固定常量：Error() 只输出操作归因，底层错误对象不经 %w 并入
+// 文本；Unwrap 原样保留原因供可信调用方（errors.Is/As 可达）。
+// Stage texts are fixed constants: Error() prints only the operation
+// attribution and Unwrap exposes the untouched cause for trusted callers.
+const (
+	stageInvalid   = "postgres nodes: invalid reference"
+	stageCancelled = "postgres nodes: cancelled before statement"
+	stageCreate    = "postgres nodes: create file reference"
+	stageUpdate    = "postgres nodes: update file reference"
+	stageLookup    = "postgres nodes: lookup file reference"
+)
+
+// opError 携带固定操作文案与原始原因；不修改、不包装原始错误对象本身。
+// opError pairs a fixed operation text with the original cause.
+type opError struct {
+	op    string
+	cause error
+}
+
+func (e *opError) Error() string { return e.op }
+func (e *opError) Unwrap() error { return e.cause }
+
+// Store 绑定调用方拥有的单个 *sql.Tx；无自有连接状态，事务结局（含成功
+// 计数的临时性）完全归调用方。
+// Store binds one caller-owned *sql.Tx; it holds no connection state of its
+// own and the transaction outcome (including the provisional nature of
+// successful counts) belongs entirely to the caller.
+type Store struct {
+	tx *sql.Tx
+}
+
+// New 拒绝 nil *sql.Tx，返回有界常量错误；不做 DDL、Ping 或连接创建。
+// New rejects a nil *sql.Tx with a bounded constant error; no DDL, Ping or
+// connection creation happens here.
+func New(tx *sql.Tx) (*Store, error) {
+	if tx == nil {
+		return nil, errors.New("postgres nodes: nil transaction")
+	}
+	return &Store{tx: tx}, nil
+}
+
+// Create 在调用方事务内做普通参数化 INSERT（node_type=1）并返回受影响行
+// 数。无 ON CONFLICT/回读/重试/提交；成功计数在调用方 Commit 之前只是
+// 临时的。对齐目标 NodesDao.create 的普通插入（createIfNotExists 是另一
+// 方法），SQL 空串父/名仅按空串映射为 '.'（Unicode 空白原样保留）。
+// Create performs an ordinary parameterized INSERT (node_type=1) inside the
+// caller transaction and returns the affected count. No ON CONFLICT,
+// readback, retry or commit; a successful count stays PROVISIONAL until the
+// caller commits. This mirrors the target NodesDao.create plain insert
+// (createIfNotExists is a separate method); only the empty string maps to
+// the SQL '.' sentinel (Unicode blanks are retained verbatim).
+func (s *Store) Create(ctx context.Context, ref repository.FileReference) (int64, error) {
+	depth, err := validateWriteRef(ref)
+	if err != nil {
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, &opError{op: stageCancelled, cause: err}
+	}
+	res, err := s.tx.ExecContext(ctx,
+		"INSERT INTO nodes (node_id, node_type, repo, node_path, node_name, depth, bin_length, sha1_actual, md5_actual, sha256) "+
+			"VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9)",
+		ref.ID, ref.Path.Repo(), dotIfEmpty(ref.Path.Parent()), dotIfEmpty(ref.Path.Name()),
+		depth, ref.Content.Size, ref.Content.SHA1, ref.Content.MD5, ref.Content.SHA256)
+	if err != nil {
+		return 0, &opError{op: stageCreate, cause: err}
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, &opError{op: stageCreate, cause: err}
+	}
+	return n, nil
+}
+
+// Update 只更新可变投影列（repo/node_path/node_name/depth/实际校验和/
+// 长度），WHERE node_id 且 node_type=1，不改 node_type（文件 Kind 守卫是
+// 显式本地投影策略；目标通用 DAO 按 node_id 更新）。缺失 ID 返回 0,nil，
+// 绝不转创建；无重试/提交。
+// Update touches only the mutable projection columns (repo/node_path/
+// node_name/depth/actual checksums/length) WHERE node_id AND node_type=1,
+// never node_type (the file-kind guard is explicit local projection policy;
+// the target generic DAO updates by node_id). A missing ID returns 0,nil
+// with no create, no retry and no commit.
+func (s *Store) Update(ctx context.Context, ref repository.FileReference) (int64, error) {
+	depth, err := validateWriteRef(ref)
+	if err != nil {
+		return 0, err
+	}
+	if err := ctx.Err(); err != nil {
+		return 0, &opError{op: stageCancelled, cause: err}
+	}
+	res, err := s.tx.ExecContext(ctx,
+		"UPDATE nodes SET repo = $2, node_path = $3, node_name = $4, depth = $5, bin_length = $6, "+
+			"sha1_actual = $7, md5_actual = $8, sha256 = $9 WHERE node_id = $1 AND node_type = 1",
+		ref.ID, ref.Path.Repo(), dotIfEmpty(ref.Path.Parent()), dotIfEmpty(ref.Path.Name()),
+		depth, ref.Content.Size, ref.Content.SHA1, ref.Content.MD5, ref.Content.SHA256)
+	if err != nil {
+		return 0, &opError{op: stageUpdate, cause: err}
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, &opError{op: stageUpdate, cause: err}
+	}
+	return n, nil
+}
+
+// Lookup 按 repo/parent/name 查询并忽略输入 Kind（对齐目标 NodesDao.get
+// 的键）。命中非文件行返回 ErrNotFile 与零引用；缺失返回固定文案且
+// errors.Is(err, sql.ErrNoRows) 成立。返回存储 ID、重构的文件 Path 与
+// 元数据，不做重算/回填；NULL MD5/SHA256 经 sql.NullString 映射为空，
+// 行内 NULL/空/'.' 组件归一为空（对齐 BaseDao 的字面空/点边界，而非
+// Java-blank 折叠）。
+// Lookup queries by repo/parent/name and ignores the input kind (matching
+// the target NodesDao.get keys). A stored non-file row yields ErrNotFile
+// with a zero reference; a miss yields the fixed text with
+// errors.Is(err, sql.ErrNoRows) true. It returns the stored ID, a
+// reconstructed file Path and metadata with no recompute or backfill; NULL
+// MD5/SHA256 map to empty via sql.NullString and row NULL/empty/'.'
+// components normalize to empty (the literal BaseDao empty/dot boundary,
+// not a Java-blank collapse).
+func (s *Store) Lookup(ctx context.Context, path repository.Path) (repository.FileReference, error) {
+	if err := validateIdentity(path); err != nil {
+		return repository.FileReference{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return repository.FileReference{}, &opError{op: stageCancelled, cause: err}
+	}
+	row := s.tx.QueryRowContext(ctx,
+		"SELECT node_id, node_type, repo, node_path, node_name, bin_length, sha1_actual, md5_actual, sha256 "+
+			"FROM nodes WHERE repo = $1 AND node_path = $2 AND node_name = $3",
+		path.Repo(), dotIfEmpty(path.Parent()), dotIfEmpty(path.Name()))
+	var id int64
+	var nodeType int16
+	var repo, nodePath, nodeName sql.NullString
+	var binSHA1, binMD5, binSHA256 sql.NullString
+	var length sql.NullInt64
+	if err := row.Scan(&id, &nodeType, &repo, &nodePath, &nodeName,
+		&length, &binSHA1, &binMD5, &binSHA256); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return repository.FileReference{}, &opError{op: stageLookup, cause: sql.ErrNoRows}
+		}
+		return repository.FileReference{}, &opError{op: stageLookup, cause: err}
+	}
+	if nodeType != 1 {
+		return repository.FileReference{}, &opError{op: stageLookup, cause: ErrNotFile}
+	}
+	stored, nerr := repository.NewPath(rowComponent(repo), rowComponent(nodePath),
+		rowComponent(nodeName), true)
+	if nerr != nil {
+		return repository.FileReference{}, &opError{op: stageLookup,
+			cause: fmt.Errorf("postgres nodes: stored path components: %w", ErrInvalidReference)}
+	}
+	return repository.FileReference{
+		ID:   id,
+		Path: stored,
+		Content: content.Metadata{
+			SHA1:   binSHA1.String,
+			SHA256: binSHA256.String,
+			MD5:    binMD5.String,
+			Size:   length.Int64,
+		},
+	}, nil
+}
+
+// validateWriteRef 在任何 SQL 之前拒绝非法写入：ID>0、非零且成功构造的
+// Path、IsFile 且非根、父/名字面 '.' 排除（本地规范画像，避免与 SQL 点
+// 哨兵互为别名）、Depth 上界（保留 repository.ErrDepthExceeded）与规范
+// 内容前置（精确小写 ASCII 十六进制 40/64/32、Size>=0 —— 显式本地内容
+// 管道前置，非目标畸形/存量对齐）。不做 Clean/TrimSpace/小写化/其他斜杠
+// 归一，也不实现臆测的 PathValidator（上游 FileService 另行调用之）。
+// validateWriteRef rejects invalid writes before any SQL: ID>0, a nonzero
+// constructed Path, IsFile and non-root, literal '.' parent/name excluded
+// (a local canonical profile avoiding aliasing with the SQL dot sentinel),
+// the Depth bound (preserving repository.ErrDepthExceeded) and the canonical
+// content precondition (exact lowercase ASCII hex 40/64/32, Size>=0 — an
+// explicit local content-pipeline precondition, not target malformed/legacy
+// parity). No Clean/TrimSpace/lowercasing/other-slash normalization and no
+// guessed PathValidator (upstream FileService applies its own).
+func validateWriteRef(ref repository.FileReference) (int16, error) {
+	if err := validateIdentity(ref.Path); err != nil {
+		return 0, err
+	}
+	if ref.ID <= 0 {
+		return 0, invalidField("node id")
+	}
+	if !ref.Path.IsFile() {
+		return 0, invalidField("kind")
+	}
+	if ref.Path.IsRoot() {
+		return 0, invalidField("root")
+	}
+	depth, err := ref.Path.Depth()
+	if err != nil {
+		return 0, &opError{op: stageInvalid, cause: errors.Join(ErrInvalidReference, err)}
+	}
+	if err := validateContent(ref.Content); err != nil {
+		return 0, err
+	}
+	return depth, nil
+}
+
+// validateIdentity 校验查询/写入共用的路径身份：非零、repo 非空与字面
+// '.' 排除；查询侧允许 folder Kind 与根查询。
+// validateIdentity covers the identity shared by writes and lookups:
+// nonzero, nonempty repo and the literal '.' exclusion; folder-kind and
+// root lookups stay permitted.
+func validateIdentity(p repository.Path) error {
+	if p == (repository.Path{}) {
+		return invalidField("path")
+	}
+	if p.Repo() == "" {
+		return invalidField("repo")
+	}
+	if p.Parent() == "." || p.Name() == "." {
+		return invalidField("dot component")
+	}
+	return nil
+}
+
+func validateContent(meta content.Metadata) error {
+	if err := canonicalHex("sha1", meta.SHA1, 40); err != nil {
+		return err
+	}
+	if err := canonicalHex("sha256", meta.SHA256, 64); err != nil {
+		return err
+	}
+	if err := canonicalHex("md5", meta.MD5, 32); err != nil {
+		return err
+	}
+	if meta.Size < 0 {
+		return fmt.Errorf("postgres nodes: size (%d): %w", meta.Size, ErrInvalidReference)
+	}
+	return nil
+}
+
+// canonicalHex 只报字段与长度/位置，错误有界且永不回显值。
+// canonicalHex reports only the field and length/position; errors stay
+// bounded and never echo values.
+func canonicalHex(field, s string, want int) error {
+	if len(s) != want {
+		return fmt.Errorf("postgres nodes: %s (len %d): %w", field, len(s), ErrInvalidReference)
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return fmt.Errorf("postgres nodes: %s (bad hex at %d): %w", field, i, ErrInvalidReference)
+		}
+	}
+	return nil
+}
+
+func invalidField(field string) error {
+	return fmt.Errorf("postgres nodes: %s: %w", field, ErrInvalidReference)
+}
+
+// dotIfEmpty 仅把空串映射为 SQL '.' 哨兵；Unicode 空白原样保留。
+// dotIfEmpty maps only the empty string to the SQL '.' sentinel; Unicode
+// blanks are retained verbatim.
+func dotIfEmpty(s string) string {
+	if s == "" {
+		return "."
+	}
+	return s
+}
+
+// rowComponent 把行内 NULL/空/'.' 组件归一为空；其余原样。
+// rowComponent normalizes row NULL/empty/'.' components to empty;
+// everything else stays verbatim.
+func rowComponent(ns sql.NullString) string {
+	if !ns.Valid || ns.String == "" || ns.String == "." {
+		return ""
+	}
+	return ns.String
+}
