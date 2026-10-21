@@ -47,12 +47,12 @@ type Provider interface {
 }
 
 // Registry 登记内容元数据并返回规范结果。登记层独立拥有元数据提交策略：
-// 已有数据库记录可作为规范结果，允许与刚流式计算的元数据不同。本切片没有
-// 数据库适配器；SQL 事务接入是后续工作。
+// 已有数据库记录可作为规范结果，允许与刚流式计算的元数据不同。数据库适配
+// 器由 internal/registry/postgres 提供（见 docs/POSTGRES-REGISTRY.md）。
 // Register commits metadata under its own policy and returns the canonical
 // result: an existing database row may legitimately differ from freshly
-// streamed metadata. There is no database adapter in this slice; wiring the
-// SQL transaction remains future work.
+// streamed metadata. The database adapter lives in
+// internal/registry/postgres (see docs/POSTGRES-REGISTRY.md).
 type Registry interface {
 	Register(ctx context.Context, meta content.Metadata) (content.Metadata, error)
 }
