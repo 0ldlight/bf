@@ -8,10 +8,14 @@ Fern holds usage documentation only; engineering documents live in this reposito
 
 - [需求 / Requirements](docs/PROJECT-BRIEF.md)
 - [P0 计划 / Foundation](docs/P0-PLAN.md)
+- [工程地图 / Engineering map](docs/ENGINEERING-MAP.md)
 - [接续研发 / Continuation](docs/P0-HANDOFF.md)
 - [能力矩阵 / Matrix](docs/CAPABILITY-MATRIX.md)
 - [文档维护范围 / Documentation scope](docs/DOCUMENTATION.md)
 - [Linear 项目 / Tasks and approvals](https://linear.app/binfloow/project/binflow-2ad2bc04f63e)
+
+全部产品代码维护在 `bf` 主检出：每任务一条分支，仅在确有必要时在 `bf` 内创建隔离 worktree（如 `.binflow/worktrees/`），不使用兄弟代码目录。公开文档使用可移植路径（`bf/`、`.binflow/`），不写机器特定绝对路径。
+All product code lives in the `bf` primary checkout: one branch per task, an isolated worktree inside `bf` (for example `.binflow/worktrees/`) only when truly needed, and no sibling code directories. Public documents use portable paths (`bf/`, `.binflow/`) rather than machine-specific absolute paths.
 
 所有者负责架构决定、主分支合并与正式发布。代码许可仍待审阅；本提交不发布 LICENSE。
 The owner controls architecture, main-branch merges and releases. Source licensing remains under review.

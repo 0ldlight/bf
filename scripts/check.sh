@@ -14,13 +14,16 @@ if ! command -v python3 >/dev/null 2>&1; then
 	exit 1
 fi
 
-echo '== gofmt (gate: fails, never auto-formats) =='
-unformatted=$(gofmt -l .)
-if [ -n "$unformatted" ]; then
-	echo 'gofmt: these files need formatting (run gofmt -w, then commit):' >&2
-	printf '%s\n' "$unformatted" >&2
-	exit 1
-fi
+echo '== gofmt over Git-discovered sources (gate: fails, never auto-formats) =='
+# Git-scoped discovery keeps ignored local archive/research worktrees out of
+# the gate while covering tracked, staged and untracked non-ignored Go,
+# including the nested integration module and unusual filenames.
+# 基于 Git 的发现范围排除被忽略的本地归档/研究工作树，同时覆盖已跟踪、
+# 暂存与未跟踪且未被忽略的 Go 源码（含嵌套 integration 模块与特殊文件名）。
+python3 scripts/check-format.py
+
+echo '== format gate tests =='
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts -p 'test_*.py'
 
 echo '== go mod verify =='
 go mod verify
