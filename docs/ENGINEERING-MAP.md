@@ -67,7 +67,7 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 
 ## 后续工作落点 / Where future work is discussed
 
-- **节点 ID 分配与保存编排 / Node ID allocation and save orchestration**: 未来节点 ID 分配器、保存事务边界与对应 HTTP 面在 [NODE-REFERENCES.md](NODE-REFERENCES.md)、[REPOSITORY-NODE-PATH.md](REPOSITORY-NODE-PATH.md) 与 Linear 中讨论定案后再实现；本页与当前代码不预设分配器或 HTTP 设计。
+- **节点 ID 分配与保存编排 / Node ID allocation and save orchestration**: 未来节点 ID 分配器先依据[节点 ID 调查契约](NODE-ID-CONTRACT.md)；保存事务边界与对应 HTTP 面在 [NODE-REFERENCES.md](NODE-REFERENCES.md)、[REPOSITORY-NODE-PATH.md](REPOSITORY-NODE-PATH.md) 与 Linear 中讨论定案后再实现；本页与当前代码不预设分配器或 HTTP 设计。
   Future allocator, save-transaction boundary and any HTTP surface are designed in the linked canonical docs and Linear before implementation; nothing here presupposes an allocator or HTTP design.
 - **前端 / Frontend**: 按 [ARCHITECTURE.md](ARCHITECTURE.md) ADR-003 已批准方向（React + TypeScript + Vite + shadcn/ui），仅在真实 UI 切片启动时开始；当前无任何脚手架。
   Per approved ADR-003 direction; begins only when an actual UI slice starts. No scaffold exists.
