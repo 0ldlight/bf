@@ -26,7 +26,8 @@ import (
 )
 
 func TestIDReservationConcurrentPoolsSingleWinner(t *testing.T) {
-	_, schema := idResFixture(t)
+	t.Parallel()
+	_, _, schema := idResFixture(t)
 	const racers = 4
 
 	type outcome struct {
@@ -82,6 +83,12 @@ func TestIDReservationConcurrentPoolsSingleWinner(t *testing.T) {
 				winner = o.got
 			default:
 				losses++
+				// 每个落败者同样必须返回零号段，而非仅 false/无错。
+				// Every loser must also return the ZERO range, not merely
+				// false with no error.
+				if o.got != (idrespg.IDRange{}) {
+					t.Errorf("racer %d lost the race but returned a range {%d %d}", o.name, o.got.First, o.got.Last)
+				}
 			}
 		case <-wctx.Done():
 			t.Fatalf("timed out collecting racers: %d collected", i)
@@ -101,6 +108,7 @@ func TestIDReservationConcurrentPoolsSingleWinner(t *testing.T) {
 }
 
 func TestIDReservationTransactionBoundaries(t *testing.T) {
+	t.Parallel()
 	// nodeFixture 提供 binaries+nodes 模式；在同一隔离 schema 上再应用号段
 	// 预留模式，让锁持有者、延迟约束与调用方节点事务共库不同事务。
 	// nodeFixture supplies the binaries+nodes schemas; applying the
@@ -195,18 +203,29 @@ func TestIDReservationTransactionBoundaries(t *testing.T) {
 		t.Fatalf("fresh Reserve after unlock = ({%d %d}, %v, %v), want {6 9}, true, nil", got.First, got.Last, ok, err)
 	}
 
-	// 场景 3：调用方事务以预留取得的 ID 写节点引用后回滚——只撤销其自有
-	// 事务，独立已提交预留保持，节点行未落库，既有 binaries 行保留。
-	// Scenario 3: a caller transaction writes a node reference with an ID
-	// from the reservation and then rolls back — it undoes only its own
-	// transaction while the independently committed reservation stays, the
-	// node row is absent and the existing binaries row remains.
+	// 场景 3（事务独立性）：先开启调用方节点事务并保持存活，再在其存活
+	// 期间预留**新**号段，用返回的新 ID 写节点引用，然后回滚调用方事务
+	// ——只撤销其自有事务：独立提交的预留上界保持推进，节点行未落库，
+	// 既有 binaries 行保留。预留发生在调用方事务开启之后，证明两者互不
+	// 嵌套。
+	// Scenario 3 (transaction independence): open the caller node transaction
+	// FIRST and keep it alive, then reserve a NEW range while it stays
+	// active, write the node reference with that freshly returned ID and
+	// roll the caller transaction back — it undoes only its own transaction:
+	// the independently committed reservation bound stays advanced, the node
+	// row is absent and the existing binaries row remains. The reservation
+	// happens AFTER the caller transaction opened, proving the two never
+	// nest.
 	sha1 := strings.Repeat("d", 40)
 	seedNodeBinary(t, adm, schema, sha1)
 	tx, st := nodeTx(t, db)
+	rgot, rok, rerr := r.Reserve(ctx, 9, 4)
+	if rerr != nil || !rok || rgot.First != 10 || rgot.Last != 13 {
+		t.Fatalf("Reserve during open caller tx = ({%d %d}, %v, %v), want {10 13}, true, nil", rgot.First, rgot.Last, rok, rerr)
+	}
 	nctx, ncancel := context.WithTimeout(ctx, 10*time.Second)
 	defer ncancel()
-	if n, err := st.Create(nctx, fileRefOf(t, 6, "repoR", "", "kept.bin", nodeMeta(sha1))); err != nil || n != 1 {
+	if n, err := st.Create(nctx, fileRefOf(t, rgot.First, "repoR", "", "kept.bin", nodeMeta(sha1))); err != nil || n != 1 {
 		t.Fatalf("caller Create = (%d, %v), want provisional (1, nil)", n, err)
 	}
 	if err := tx.Rollback(); err != nil {
@@ -218,11 +237,11 @@ func TestIDReservationTransactionBoundaries(t *testing.T) {
 	if _, _, _, _, present := rowOf(t, adm, schema, sha1); !present {
 		t.Fatal("existing binary row must survive the caller rollback")
 	}
-	if b, _ := boundOf(t, adm, schema); b != 9 {
-		t.Fatalf("committed reservation bound = %d, want 9", b)
+	if b, _ := boundOf(t, adm, schema); b != 13 {
+		t.Fatalf("committed reservation bound = %d, want 13 (survives caller rollback)", b)
 	}
 	fresh := newIDRes(t, registryPool(t, os.Getenv("BINFLOW_TEST_POSTGRES_DSN"), schema))
-	if cur, err := fresh.Current(nodeTestContext(t)); err != nil || cur != 9 {
-		t.Fatalf("fresh-pool Current = (%d, %v), want (9, nil)", cur, err)
+	if cur, err := fresh.Current(nodeTestContext(t)); err != nil || cur != 13 {
+		t.Fatalf("fresh-pool Current = (%d, %v), want (13, nil)", cur, err)
 	}
 }

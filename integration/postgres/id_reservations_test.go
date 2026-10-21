@@ -1,21 +1,26 @@
 // 号段预留原语的真实 PostgreSQL 核心场景（BIN-135）：初值读取、闭区间预留、
 // 过期期望零结果、全新连接池不复用已关闭状态、固定 general 键、缺行
-// ErrNoRows 不自动建行、真实模式约束与 MaxInt64 溢出边界。场景共用夹具以
-// 留在门禁时限内（每夹具 ~7s 固定开销），每条行为断言保持独立；事务/并发/
-// 提交失败场景在 id_reservations_tx_test.go。
+// ErrNoRows 不自动建行、真实模式约束与 MaxInt64 溢出边界。场景共用专用
+// bfids_ 隔离夹具（不经 binaries/registry 设置）以留在门禁时限内，每条
+// 行为断言保持独立；四个新测试各自拥有随机 schema、只读环境、无全局
+// DDL，可安全并行。事务/并发/提交失败场景在 id_reservations_tx_test.go。
 // Real-PostgreSQL core scenarios for the ID-range reservation primitive:
 // initial bound read, inclusive reservation, stale-expectation zero result,
 // fresh pool without closed-state reuse, the fixed general key, missing-row
 // ErrNoRows without automatic row creation, real schema constraints and the
-// MaxInt64 overflow boundary. Scenarios share fixtures to stay inside the
-// gate timeout (~7s fixed cost per fixture) while every behavioral assertion
-// stays separate. Transaction/concurrency/commit-failure scenarios live in
-// id_reservations_tx_test.go.
+// MaxInt64 overflow boundary. Scenarios share the dedicated bfids_ isolated
+// fixture (no binaries/registry setup) to stay inside the gate timeout while
+// every behavioral assertion stays separate; each of the four new tests owns
+// a random schema, reads the environment only and issues no global DDL, so
+// they run safely in parallel. Transaction/concurrency/commit-failure
+// scenarios live in id_reservations_tx_test.go.
 package postgresit
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -26,21 +31,40 @@ import (
 	idrespg "github.com/0ldlight/bf/internal/repository/postgres"
 )
 
-// idResFixture 复用 newRegistry 的独立 bfreg_ schema，显式应用号段预留
-// 模式（unique_ids 表 + general 种子行），返回绑定该 schema 的连接池。
-// idResFixture reuses the isolated bfreg_ schema from newRegistry, applies
-// the reservation schema explicitly (unique_ids table plus the general seed
-// row) and returns a pool bound to that schema.
-func idResFixture(t *testing.T) (*sql.DB, string) {
+// idResFixture 建立专用 bfids_ 隔离 schema（随机十六进制名，无参数拼接
+// 面）：一个 adminPool 守卫 + 一个 schema 绑定连接池 + 显式应用
+// ReservationSchemaSQL；不做 binaries/registry 设置（号段场景不需要）。
+// 返回的 adm 供测试复用，避免重开多余连接池；清理只删除本 schema。
+// idResFixture creates the dedicated bfids_ isolated schema (random hex
+// name, no parameter interpolation surface): one adminPool guard, one
+// schema-bound pool and an explicit ReservationSchemaSQL application; no
+// binaries/registry setup (ID scenarios need none). Tests reuse the returned
+// adm instead of reopening extra pools; cleanup drops only this schema.
+func idResFixture(t *testing.T) (*sql.DB, *sql.DB, string) {
 	t.Helper()
-	_, schema := newRegistry(t)
-	db := registryPool(t, os.Getenv("BINFLOW_TEST_POSTGRES_DSN"), schema)
+	var rnd [8]byte
+	if _, err := rand.Read(rnd[:]); err != nil {
+		t.Fatalf("read random bytes: %v", err)
+	}
+	schema := "bfids_" + hex.EncodeToString(rnd[:])
+	adm := adminPool(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
+	if _, err := adm.ExecContext(ctx, fmt.Sprintf("CREATE SCHEMA %s", schema)); err != nil {
+		t.Fatalf("create schema: %v", err)
+	}
+	t.Cleanup(func() {
+		dropCtx, dropCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer dropCancel()
+		if _, err := adm.ExecContext(dropCtx, fmt.Sprintf("DROP SCHEMA IF EXISTS %s CASCADE", schema)); err != nil {
+			t.Errorf("drop schema %s: %v", schema, err)
+		}
+	})
+	db := registryPool(t, os.Getenv("BINFLOW_TEST_POSTGRES_DSN"), schema)
 	if _, err := db.ExecContext(ctx, idrespg.ReservationSchemaSQL); err != nil {
 		t.Fatalf("apply reservation schema: %v", err)
 	}
-	return db, schema
+	return db, adm, schema
 }
 
 // newIDRes 构造绑定连接池的 Reservations；构造失败即测试失败。
@@ -75,8 +99,8 @@ func boundOf(t *testing.T, adm *sql.DB, schema string) (int64, bool) {
 }
 
 func TestIDReservationCurrentReserveStaleAndFreshPool(t *testing.T) {
-	db, schema := idResFixture(t)
-	adm := adminPool(t)
+	t.Parallel()
+	db, adm, schema := idResFixture(t)
 	ctx := nodeTestContext(t)
 	r := newIDRes(t, db)
 
@@ -136,8 +160,8 @@ func TestIDReservationCurrentReserveStaleAndFreshPool(t *testing.T) {
 }
 
 func TestIDReservationGeneralKeyMissingRowBoundariesAndConstraints(t *testing.T) {
-	db, schema := idResFixture(t)
-	adm := adminPool(t)
+	t.Parallel()
+	db, adm, schema := idResFixture(t)
 	ctx := nodeTestContext(t)
 	r := newIDRes(t, db)
 
