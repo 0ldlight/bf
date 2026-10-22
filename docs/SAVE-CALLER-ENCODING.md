@@ -74,8 +74,8 @@ Statically, `DbStoringRepoMixin.saveResource`: `securityService.currentUsername`
 
 - 本页**仅**消解所选参数 profile 上的编码边界 UNKNOWN：未配对单元在所选 PostgreSQL 参数编码处变为字节 `3f`。真实 JDBC 写入、JSON 序列化、数据库接受/读回、其他驱动、简单查询模式、其他工厂/class、实际装配与配置**仍未知**。
   This resolves the encoding-boundary UNKNOWN **only** for the selected parameter profile: the unpaired unit becomes byte `3f` at the selected PostgreSQL parameter encoding. Real JDBC writes, JSON serialization, database acceptance/readback, other drivers, simple-query mode, alternate factories/classes and effective wiring/configuration **remain unknown**.
-- 既有 Go 元数据/模型/SQL **不变**。未来 Go 模型必须**显式决定** UTF-16 缩写、actor 可空性与编码策略（普通 Go UTF-8/rune 截断是另一种策略）；本页不做任何静默拒绝、替换、模型/schema/迁移选择。
-  Existing Go metadata/model/SQL are **unchanged**. A future Go model must **explicitly decide** UTF-16 abbreviation, actor nullability and the encoding policy (ordinary Go UTF-8/rune truncation would be a different policy); this page makes no silent rejection, replacement, model/schema or migration choice.
+- 既有 Go 元数据/模型/SQL **不变**。表示策略已按所有者批准实现为纯值 `Actor`（UTF-16 缩写、可空性、未配对码元原样保留，见[Actor 值记录](ACTOR-VALUE.md)；普通 Go UTF-8/rune 截断是另一种策略，未采用）；驱动编码策略仍留在各自边界，本页不做任何静默拒绝、替换、模型/schema/迁移选择。
+  Existing Go metadata/model/SQL are **unchanged**. The representation policy is now implemented as the owner-approved pure value `Actor` (UTF-16 abbreviation, nullability, verbatim unpaired units — see the [Actor value note](ACTOR-VALUE.md); ordinary Go UTF-8/rune truncation would be a different policy and was not adopted); the driver encoding policy stays at its own boundary, and this page makes no silent rejection, replacement, model/schema or migration choice.
 
 ## 关联 / Links
 
