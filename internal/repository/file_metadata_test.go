@@ -102,10 +102,16 @@ func TestFileMetadataActorComposition(t *testing.T) {
 }
 
 // original 的 null 与非 nil 空互不相同：nil 输入返回 nil，空输入返回非 nil
-// 零长度；大容量空子切片也不保留后备容量。
+// 零长度。cap 断言只描述返回防御性副本的新分配（恰为 len、空得 0），不
+// 是内部存储已释放调用方数组的证明——不保留调用方后备数组由源码评审
+// （make(len)+copy）与输入写入隔离测试确立，非 GC 或容量证据。
 // Originals keep null and nonnil empty distinct: nil returns nil, empty
-// returns a nonnil zero length; even a large-capacity empty subslice
-// retains no backing capacity.
+// returns a nonnil zero length. The cap assertion describes only the fresh
+// allocation of the returned defensive copy (exactly len, zero when empty);
+// it is NOT proof that internal storage released a caller array —
+// non-retention of caller backing arrays is established by source review of
+// make(len)+copy plus the input-write isolation tests, not by GC or
+// capacity evidence.
 func TestFileMetadataOriginalNullEmptyFidelity(t *testing.T) {
 	largeCapEmpty := make([]uint16, 0, 4096)
 	m := repository.NewFileMetadata(repository.FileMetadataInput{
@@ -117,7 +123,7 @@ func TestFileMetadataOriginalNullEmptyFidelity(t *testing.T) {
 	} else if len(got) != 0 {
 		t.Errorf("SHA1OriginalUTF16() length = %d, want 0", len(got))
 	} else if cap(got) != 0 {
-		t.Errorf("SHA1OriginalUTF16() capacity = %d, want 0 (no retained backing store)", cap(got))
+		t.Errorf("SHA1OriginalUTF16() returned copy capacity = %d, want a fresh 0-capacity allocation", cap(got))
 	}
 	if got := m.MD5OriginalUTF16(); got != nil {
 		t.Errorf("MD5OriginalUTF16() = %v, want nil", got)
@@ -129,7 +135,152 @@ func TestFileMetadataOriginalNullEmptyFidelity(t *testing.T) {
 	}
 }
 
-// original 逐码元保留全部原始 UTF-16 码元：大小写、NO_ORIG 标记、空白、
+// original 反转与双空：每个字段各自独立核对精确 nil 化（不用 equalUnits，
+// 它把 nil 与空视为相等）。SHA1 为 nil 而 MD5 为非 nil 空（大容量空输入）、
+// 双空、以及空与含 NUL 非空值的组合，两字段都要分别得出正确的 nil/非 nil
+// 与长度/内容。
+// Reversed and both-empty originals: each field is checked independently for
+// EXACT nilness (never via equalUnits, which treats nil and empty alike).
+// SHA1 nil with MD5 nonnil empty (large-capacity empty input), both empty,
+// and empty mixed with a NUL-bearing nonempty value — each field must
+// report the correct nil/nonnil result plus length/content on its own.
+func TestFileMetadataOriginalNullEmptyReversedAndBoth(t *testing.T) {
+	// 反转方向：SHA1=nil、MD5=非 nil 空（大容量空输入）。
+	// Reversed direction: SHA1=nil, MD5=nonnil empty (large-capacity input).
+	largeCapEmpty := make([]uint16, 0, 2048)
+	m := repository.NewFileMetadata(repository.FileMetadataInput{
+		SHA1Original: nil,
+		MD5Original:  largeCapEmpty,
+	})
+	if got := m.SHA1OriginalUTF16(); got != nil {
+		t.Errorf("SHA1OriginalUTF16() = %v, want exactly nil", got)
+	}
+	if got := m.MD5OriginalUTF16(); got == nil {
+		t.Error("MD5OriginalUTF16() = nil for nonnil empty input, want exactly nonnil")
+	} else if len(got) != 0 {
+		t.Errorf("MD5OriginalUTF16() length = %d, want 0", len(got))
+	}
+	largeCapEmpty = append(largeCapEmpty, 0xffff)
+	if got := m.MD5OriginalUTF16(); got == nil || len(got) != 0 {
+		t.Errorf("after caller append MD5OriginalUTF16() = %v, want nonnil empty", got)
+	}
+
+	// 双空：两字段都为非 nil 零长度。
+	// Both empty: both fields nonnil zero length.
+	m2 := repository.NewFileMetadata(repository.FileMetadataInput{
+		SHA1Original: []uint16{},
+		MD5Original:  []uint16{},
+	})
+	if got := m2.SHA1OriginalUTF16(); got == nil || len(got) != 0 {
+		t.Errorf("both-empty SHA1OriginalUTF16() = %v, want nonnil empty", got)
+	}
+	if got := m2.MD5OriginalUTF16(); got == nil || len(got) != 0 {
+		t.Errorf("both-empty MD5OriginalUTF16() = %v, want nonnil empty", got)
+	}
+
+	// 空与非空（含 NUL）混排：nil 化、长度与内容逐字段独立成立。
+	// Empty mixed with a NUL-bearing nonempty value: nilness, length and
+	// content hold independently per field.
+	sha1Want := []uint16{0x0000, 0x0041, 0x0000}
+	m3 := repository.NewFileMetadata(repository.FileMetadataInput{
+		SHA1Original: sha1Want,
+		MD5Original:  []uint16{},
+	})
+	if got := m3.SHA1OriginalUTF16(); got == nil {
+		t.Error("mixed SHA1OriginalUTF16() = nil, want nonnil")
+	} else if !equalUnits(got, sha1Want) {
+		t.Errorf("mixed SHA1OriginalUTF16() = %04x, want %04x", got, sha1Want)
+	}
+	if got := m3.MD5OriginalUTF16(); got == nil || len(got) != 0 {
+		t.Errorf("mixed MD5OriginalUTF16() = %v, want nonnil empty", got)
+	}
+}
+
+// Actor 字段独立性：createdBy 与 modifiedBy 传入不同值（含 null 与空的
+// 双向组合），两个字段各自独立断言 IsNull 与精确码元/nil 化；期望全部为
+// 测试内字面量，绝不用被测 getter 或 NewActor 重新推导。错误路由（如
+// ModifiedBy 返回 createdBy 的值）会被不同值组合抓住；修改返回的
+// Actor.UTF16 切片也不得影响快照。
+// Actor field independence: createdBy and modifiedBy get DIFFERENT values
+// (including null-versus-empty in both directions); each field is asserted
+// independently for IsNull and exact units/nilness, with expectations built
+// only from test-side literals, never re-derived via the getter under test
+// or NewActor. Wrong routing (for example ModifiedBy returning createdBy's
+// value) is caught by the differing pairs; mutating returned Actor.UTF16
+// slices must not affect the snapshot either.
+func TestFileMetadataActorFieldIndependence(t *testing.T) {
+	createdWant := []uint16{'c', 'r', 'e', 'a', 't', 'o', 'r'}
+	modifiedWant := join(fill(61, 'M'), dots())
+	m := repository.NewFileMetadata(repository.FileMetadataInput{
+		CreatedBy:  repository.NewActor(createdWant),
+		ModifiedBy: repository.NewActor(fill(70, 'M')),
+	})
+	if m.CreatedBy().IsNull() || m.ModifiedBy().IsNull() {
+		t.Fatal("distinct nonnull actors: a field reports null")
+	}
+	if got := m.CreatedBy().UTF16(); !equalUnits(got, createdWant) {
+		t.Errorf("CreatedBy().UTF16() = %04x, want %04x", got, createdWant)
+	}
+	if got := m.ModifiedBy().UTF16(); !equalUnits(got, modifiedWant) {
+		t.Errorf("ModifiedBy().UTF16() = %04x..., want 61 'M' plus dots", got)
+	}
+
+	// 修改返回的 Actor.UTF16 副本，两个字段随后读取仍各归原值。
+	// Mutating returned Actor.UTF16 copies: later reads of both fields keep
+	// their own values.
+	createdCopy := m.CreatedBy().UTF16()
+	createdCopy[0] = 0x0000
+	modifiedCopy := m.ModifiedBy().UTF16()
+	modifiedCopy[0] = 0xffff
+	if got := m.CreatedBy().UTF16(); !equalUnits(got, createdWant) {
+		t.Errorf("after mutating a returned copy CreatedBy().UTF16() = %04x, want %04x", got, createdWant)
+	}
+	if got := m.ModifiedBy().UTF16(); !equalUnits(got, modifiedWant) {
+		t.Errorf("after mutating a returned copy ModifiedBy().UTF16() = %04x..., want 61 'M' plus dots", got)
+	}
+
+	// null 与空双向组合：每字段独立核对 IsNull 与 UTF16 的 nil 化。
+	// Null versus empty in BOTH directions: each field's IsNull and the
+	// nilness of UTF16 are checked independently.
+	updWant := []uint16{'u', 'p', 'd'}
+	admWant := []uint16{'a', 'd', 'm'}
+	cases := []struct {
+		name      string
+		cRaw      []uint16
+		mRaw      []uint16
+		cNull     bool
+		mNull     bool
+		cNonEmpty []uint16 // nil 表示空/无内容期望 / nil means empty expectation
+		mNonEmpty []uint16
+	}{
+		{"created null / modified empty", nil, []uint16{}, true, false, nil, nil},
+		{"created empty / modified null", []uint16{}, nil, false, true, nil, nil},
+		{"created null / modified nonempty", nil, updWant, true, false, nil, updWant},
+		{"created nonempty / modified null", admWant, nil, false, true, admWant, nil},
+		{"created empty / modified nonempty", []uint16{}, updWant, false, false, nil, updWant},
+	}
+	for _, tc := range cases {
+		mm := repository.NewFileMetadata(repository.FileMetadataInput{
+			CreatedBy:  repository.NewActor(tc.cRaw),
+			ModifiedBy: repository.NewActor(tc.mRaw),
+		})
+		if got := mm.CreatedBy(); got.IsNull() != tc.cNull {
+			t.Errorf("%s: CreatedBy().IsNull() = %v, want %v", tc.name, got.IsNull(), tc.cNull)
+		} else if units := got.UTF16(); (units == nil) != tc.cNull {
+			t.Errorf("%s: CreatedBy().UTF16() nilness = %v, want %v", tc.name, units == nil, tc.cNull)
+		} else if !tc.cNull && !equalUnits(units, tc.cNonEmpty) {
+			t.Errorf("%s: CreatedBy().UTF16() = %04x, want %04x", tc.name, units, tc.cNonEmpty)
+		}
+		if got := mm.ModifiedBy(); got.IsNull() != tc.mNull {
+			t.Errorf("%s: ModifiedBy().IsNull() = %v, want %v", tc.name, got.IsNull(), tc.mNull)
+		} else if units := got.UTF16(); (units == nil) != tc.mNull {
+			t.Errorf("%s: ModifiedBy().UTF16() nilness = %v, want %v", tc.name, units == nil, tc.mNull)
+		} else if !tc.mNull && !equalUnits(units, tc.mNonEmpty) {
+			t.Errorf("%s: ModifiedBy().UTF16() = %04x, want %04x", tc.name, units, tc.mNonEmpty)
+		}
+	}
+}
+
 // 组合码元、NUL、孤立/反序/重复/有效代理、全部 65536 单码元与超长值。
 // Originals keep every raw UTF-16 unit verbatim: case, the NO_ORIG marker,
 // whitespace, combining units, NUL, lone/reversed/repeated/valid surrogates,
@@ -245,10 +396,14 @@ func TestFileMetadataOwnershipInput(t *testing.T) {
 }
 
 // 所有权（读取侧）：getter 返回防御性副本，两次读取互不别名；修改返回
-// 切片不影响快照与值副本；非空副本不留多余容量。
+// 切片不影响快照与值副本。cap==len 断言只描述返回副本的恰长新分配，不
+// 构成内部存储不保留调用方数组的证明（该结论来自源码评审与隔离测试）。
 // Ownership (read side): getters return defensive copies that never alias
 // each other; mutating a returned slice changes neither the snapshot nor
-// its value copies; nonempty copies retain no excess capacity.
+// its value copies. The cap==len assertion describes only the exact-length
+// fresh allocation of the returned copy; it is not proof that internal
+// storage retains no caller array (that conclusion comes from source
+// review and the isolation tests).
 func TestFileMetadataOwnershipGetterAndValueCopy(t *testing.T) {
 	shape := join(fill(30, 'x'), []uint16{0xd83d, 0xde00}, fill(9, 'z'))
 	m := repository.NewFileMetadata(repository.FileMetadataInput{
@@ -258,7 +413,7 @@ func TestFileMetadataOwnershipGetterAndValueCopy(t *testing.T) {
 
 	first := m.SHA1OriginalUTF16()
 	if cap(first) != len(first) {
-		t.Errorf("SHA1OriginalUTF16() capacity = %d, want exactly len %d", cap(first), len(first))
+		t.Errorf("SHA1OriginalUTF16() returned copy capacity = %d, want exactly len %d", cap(first), len(first))
 	}
 	for i := range first {
 		first[i] = 0xffff
