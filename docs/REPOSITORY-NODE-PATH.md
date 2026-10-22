@@ -35,5 +35,6 @@ Codex independently compared the final Go source with the exact target path obje
 
 ## 关联 / Links
 - 证据索引 / Evidence index: [RESEARCH-INDEX.md](RESEARCH-INDEX.md)
+- 存储路径校验（独立检查器，`NewPath` 契约不变）/ Storage path validation (a separate checker; the `NewPath` contract above is unchanged): [STORAGE-PATH-VALIDATION.md](STORAGE-PATH-VALIDATION.md)
 - 内容身份 / Content identity: [CONTENT-METADATA.md](CONTENT-METADATA.md)
 - 写入顺序 / Write ordering: [BINARY-WRITE.md](BINARY-WRITE.md)
