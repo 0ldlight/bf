@@ -77,6 +77,11 @@ The same target WAR supplies the general-range, Simple/HA and separate event-seq
 2026-10-22 上述调查的第一实现切片落地：显式本地 PostgreSQL 已提交号段预留原语 `Reservations`（调用方 `*sql.DB`、自有 READ COMMITTED 事务的条件更新、仅 Commit 成功返回闭区间号段）。契约与验证边界见[号段预留记录](ID-RESERVATIONS.md)；这是原创本地政策，不宣称目标分配器/autocommit/HA 运行时对等。
 The first implementation slice of that investigation landed: the explicit local PostgreSQL committed ID-range reservation primitive `Reservations` (caller-owned `*sql.DB`, a conditional update inside an owned READ COMMITTED transaction, the inclusive range returned only after a successful Commit). The [reservation note](ID-RESERVATIONS.md) owns the contract and verification limits; this is original local policy with no target allocator/autocommit/HA runtime parity claimed.
 
+## 存储路径校验 / Storage path validation
+
+2026-10-22 按目标 `artifactory-common` 7.161.15 内精确 `PathValidator` 类（含其真实打包 `commons-lang3` 3.20.0）的私有受控纯方法回放（270524 个唯一有效 UTF-8 输入，本地 OpenJDK 26.0.2.1，隔离 URLClassLoader，无依赖替身）实现序列化存储路径检查器 `ValidateStoragePath`：未来保存消费者在 ID 消费/编排之前调用；`NewPath` 身份构造器不变；无效 UTF-8 为本地拒绝策略。规范来源、静态保存顺序证据与限制见[存储路径校验记录](STORAGE-PATH-VALIDATION.md)。不宣称完整 FileService/HTTP/数据库回放、认证或文件系统安全。
+Following a private controlled pure-method replay of the exact `PathValidator` class in the target's `artifactory-common` 7.161.15 (with its real packaged `commons-lang3` 3.20.0 — 270524 unique valid-UTF-8 inputs, local OpenJDK 26.0.2.1, isolated URLClassLoader, no dependency doubles), the serialized storage-path checker `ValidateStoragePath` landed: the future save consumer calls it before ID consumption/orchestration; the `NewPath` identity constructor is unchanged; invalid UTF-8 is a local rejection policy. The [storage-path validation note](STORAGE-PATH-VALIDATION.md) is the canonical source for the contract, the static save-order evidence and the limits. No full FileService/HTTP/DB replay, auth, or filesystem-safety claim is made.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
