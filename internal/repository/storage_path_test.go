@@ -58,11 +58,11 @@ func TestValidateStoragePathTable(t *testing.T) {
 		{"dotdot mid path", "repo/a/../b", false},
 		{"inner double slash kept", "repo/a//b", true},
 		{"NUL accepted", "repo/\x00", true},
-		{"literal U+FFFF root", "repo/￿", true},
-		{"literal U+FFFF then name", "repo/a￿b", true},
-		{"literal U+FFFF then space", "repo/a￿ b", false},
-		{"dot then U+FFFF", "repo/.￿b", false},
-		{"U+FFFF then dot", "repo/￿.b", true},
+		{"literal U+FFFF root", "repo/\uffff", true},
+		{"literal U+FFFF then name", "repo/a\uffffb", true},
+		{"literal U+FFFF then space", "repo/a\uffff b", false},
+		{"dot then U+FFFF", "repo/.\uffffb", false},
+		{"U+FFFF then dot", "repo/\uffff.b", true},
 		{"supplementary U+1FFFF", "repo/\U0001ffff", true},
 		{"max supplementary U+10FFFF", "repo/\U0010ffff", true},
 		{"astral emoji", "repo/😀", true},
@@ -70,7 +70,7 @@ func TestValidateStoragePathTable(t *testing.T) {
 		{"combining", "repo/é", true},
 		{"lone dot", ".", false},
 		{"lone amp", "&", false},
-		{"bare literal U+FFFF", "￿", true},
+		{"bare literal U+FFFF", "\uffff", true},
 		{"bare question", "?", false},
 		{"two chars", "aa", true},
 		{"trailing slash file", "a/", true},
@@ -249,7 +249,7 @@ func TestValidateStoragePathFixedSentinel(t *testing.T) {
 // accepted and EOF performs the same final check.
 func TestValidateStoragePathDelimiters(t *testing.T) {
 	accept := []string{
-		"￿", "￿￿", "￿/￿", "a￿", "a/￿", "￿a", "/￿", "￿/",
+		"\uffff", "\uffff\uffff", "\uffff/\uffff", "a\uffff", "a/\uffff", "\uffffa", "/\uffff", "\uffff/",
 	}
 	for _, raw := range accept {
 		if err := ValidateStoragePath(raw); err != nil {
@@ -257,7 +257,7 @@ func TestValidateStoragePathDelimiters(t *testing.T) {
 		}
 	}
 	reject := []string{
-		"a￿.", "a￿..", "a/.", "a/..", "a/ ", "a￿ ", "a￿&", "a /",
+		"a\uffff.", "a\uffff..", "a/.", "a/..", "a/ ", "a\uffff ", "a\uffff&", "a /",
 	}
 	for _, raw := range reject {
 		if err := ValidateStoragePath(raw); !errors.Is(err, ErrInvalidStoragePath) {
@@ -278,6 +278,68 @@ func TestValidateStoragePathSupplementaryNotTruncated(t *testing.T) {
 				t.Errorf("supplementary %U in %q rejected, want accept: %v", r, raw, err)
 			}
 		}
+	}
+}
+
+// TestValidateStoragePathSupplementaryLow16Bits 锚定增补平面字符的低 16 位
+// 绝不与 BMP 中的 '/'、U+FFFF、空白、'.'、'?'、'\\'、'|' 角色混淆：目标
+// oracle 证据（root-extra-cases.json，8 例全部接受）表明 "repo/.<增补>/"
+// 全部接受，而把码点截断为 uint16 的分类器会对其中每一例误拒（空白/点
+// 待定、分隔符或禁字符）。每个增补接受例配对同一低 16 位 BMP 字符的相应
+// 拒绝，构成可杀死截断变异的永久回归。
+// TestValidateStoragePathSupplementaryLow16Bits anchors that the low 16
+// bits of a supplementary rune never impersonate the BMP roles '/', U+FFFF,
+// whitespace, '.', '?', '\\', '|': target-oracle evidence
+// (root-extra-cases.json, all eight accepted) shows "repo/.<supp>/" is
+// always accepted, while a classifier truncating code points to uint16
+// falsely rejects every one of them (pending space/dot, delimiter or
+// forbidden char). Each supplementary acceptance is paired with the
+// corresponding rejection for the BMP rune carrying the same low 16 bits,
+// forming a permanent regression that kills the truncation mutant.
+func TestValidateStoragePathSupplementaryLow16Bits(t *testing.T) {
+	// 增补接受：低 16 位分别是 0020 空白、002e '.'、002f '/'、003f '?'、
+	// 005c '\\'、007c '|'、以及两个字面 FFFF 低位的边界码点。
+	// Supplementary accepts: low16 bits 0020 whitespace, 002e '.', 002f
+	// '/', 003f '?', 005c '\\', 007c '|', plus both FFFF-low boundary
+	// code points.
+	for _, r := range []rune{
+		'\U00010020', '\U0001002e', '\U0001002f', '\U0001003f',
+		'\U0001005c', '\U0001007c', '\U0001ffff', '\U0010ffff',
+	} {
+		for _, raw := range []string{
+			"repo/." + string(r) + "/", // oracle 例 / oracle case
+			"." + string(r) + "/",
+		} {
+			if err := ValidateStoragePath(raw); err != nil {
+				t.Errorf("ValidateStoragePath(%q) = %v, want nil (supplementary U+%04X must not truncate)", raw, err, r)
+			}
+		}
+	}
+	// 分隔符后跟增补字符再跟空白：目标接受；截断后 U+FFFF 低位会先变
+	// 分隔符、空白随即紧跟分隔符而误拒。
+	// Supplementary after a name then whitespace: the target accepts;
+	// truncation turns the FFFF-low rune into a delimiter so the trailing
+	// whitespace falsely rejects.
+	for _, r := range []rune{'\U0001ffff', '\U0010ffff'} {
+		if err := ValidateStoragePath("repo/a" + string(r) + " b"); err != nil {
+			t.Errorf("ValidateStoragePath(%q) = %v, want nil (U+%04X not a delimiter)", "repo/a"+string(r)+" b", err, r)
+		}
+	}
+	// 配对 BMP 拒绝：同低 16 位字符在相同位置必须拒绝。
+	// Paired BMP rejections: the rune carrying the same low 16 bits must
+	// reject in the same positions.
+	for _, bmp := range []rune{' ', '.', '/', '?', '\\', '|', '\uffff'} {
+		for _, raw := range []string{
+			"repo/." + string(bmp) + "/",
+			"." + string(bmp) + "/",
+		} {
+			if err := ValidateStoragePath(raw); !errors.Is(err, ErrInvalidStoragePath) {
+				t.Errorf("ValidateStoragePath(%q) = %v, want ErrInvalidStoragePath (BMP U+%04X)", raw, err, bmp)
+			}
+		}
+	}
+	if err := ValidateStoragePath("repo/a\uffff b"); !errors.Is(err, ErrInvalidStoragePath) {
+		t.Errorf("ValidateStoragePath(%q) = %v, want ErrInvalidStoragePath (literal U+FFFF is a delimiter)", "repo/a\uffff b", err)
 	}
 }
 

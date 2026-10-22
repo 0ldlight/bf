@@ -31,8 +31,17 @@ An internal pure-function slice implemented and verified by `-race` unit tests a
 
 ## 证据与验证 / Evidence and verification
 
-对齐目标 Artifactory 7.161.26（revision 86126900，WAR SHA-256 `9c2c1883…c9c8f37`）内 `artifactory-common` 7.161.15（JAR SHA-256 `32bd6c2a…afc77a05`）的精确 `PathValidator` 类（SHA-256 `23e330a5…aad3e`）及其真实打包 `commons-lang3` 3.20.0（SHA-256 `69e5c9fa…263f4`），经隔离 `URLClassLoader` 在本地 OpenJDK 26.0.2.1 直接运行，无依赖替身。私有受控纯方法回放覆盖 270524 个唯一有效 UTF-8 输入（256014 接受/14510 拒绝）：全非代理 BMP 四上下文、长度 0..4 穷举七字符序列、种子 15000 长路径与命名 Unicode 用例。这是受控纯方法回放，不是完整应用/FileService 执行、HTTP、数据库、认证或目标运行时接线。
-This follows the exact `PathValidator` class (SHA-256 `23e330a5…aad3e`) inside `artifactory-common` 7.161.15 (JAR SHA-256 `32bd6c2a…afc77a05`) of the target Artifactory 7.161.26 (revision 86126900, WAR SHA-256 `9c2c1883…c9c8f37`) together with its real packaged `commons-lang3` 3.20.0 (SHA-256 `69e5c9fa…263f4`), run directly under an isolated `URLClassLoader` on a local OpenJDK 26.0.2.1 with no dependency doubles. A private controlled pure-method replay covered 270524 unique valid-UTF-8 inputs (256014 accept/14510 reject): full non-surrogate BMP in four contexts, exhaustive seven-token sequences of length 0..4, 15000 seeded longer paths and named Unicode cases. This is a controlled pure-method replay, not full-application/FileService execution, HTTP, DB, auth or target runtime wiring.
+证据身份（完整 SHA-256，无缩写；父级/来源上下文见[研究索引](RESEARCH-INDEX.md)）/ Evidence identities (FULL SHA-256, no abbreviations; see the [research index](RESEARCH-INDEX.md) for parent/source context):
+
+| 对象 / Object | 版本 / Version | SHA-256 |
+|---|---|---|
+| 目标 WAR / target WAR | Artifactory 7.161.26 revision 86126900 | `9c2c1883d39b9e60587c09d1f1f8cbf1215c9ed2751d0ee817f78cd3cc8c9f37` |
+| `artifactory-common` JAR | 7.161.15 | `32bd6c2a23c2b109b3c1c8ea4947c0a093e5fc1436aea04a8eeb29c0afc77a05` |
+| `org.artifactory.util.PathValidator` class | 7.161.15 内精确类 / exact class within 7.161.15 | `23e330a568d6ef565ca4520cad6da8d62d358104f9d73c31699a4f47be9aad3e` |
+| `commons-lang3` JAR（真实打包依赖 / real packaged dependency） | 3.20.0 | `69e5c9fa35da7a51a5fd209d9fe56a2d8d32cf233e2f6d770e796146440263f4` |
+
+上述精确 `PathValidator` 类连同其真实打包 `commons-lang3` 3.20.0 经隔离 `URLClassLoader` 在本地 OpenJDK 26.0.2.1 直接运行，无依赖替身。私有受控纯方法回放覆盖 270524 个唯一有效 UTF-8 输入（256014 接受/14510 拒绝）：全非代理 BMP 四上下文、长度 0..4 穷举七字符序列、种子 15000 长路径与命名 Unicode 用例。这是受控纯方法回放，不是完整应用/FileService 执行、HTTP、数据库、认证或目标运行时接线。
+The exact `PathValidator` class above, together with its real packaged `commons-lang3` 3.20.0, ran directly under an isolated `URLClassLoader` on a local OpenJDK 26.0.2.1 with no dependency doubles. A private controlled pure-method replay covered 270524 unique valid-UTF-8 inputs (256014 accept/14510 reject): full non-surrogate BMP in four contexts, exhaustive seven-token sequences of length 0..4, 15000 seeded longer paths and named Unicode cases. This is a controlled pure-method replay, not full-application/FileService execution, HTTP, DB, auth or target runtime wiring.
 
 公开测试是原创 Go 表达（表驱动、25 个 Java 空白字符三向拒绝/段内接受、非断行排除、粘滞点/与号/空白迁移、重复分隔符与字面 U+FFFF、增补平面、控制/NUL、不解码不归一化、无效 UTF-8 本地拒绝、固定哨兵不泄露输入、`NewPath` 行为不变边界），经 `go test -race ./internal/repository` 与 `./scripts/check.sh`；全部通过。私有回放语料不进入跟踪文件。
 Public tests are original Go expressions (table-driven; all 25 Java whitespace chars rejected in three positions and accepted inside a segment; nonbreaking exclusions; sticky dot/ampersand/space transitions; repeated delimiters and the literal U+FFFF; supplementary plane; controls/NUL; no decoding or normalization; local invalid-UTF-8 rejection; the fixed sentinel never leaking input; and an explicit `NewPath`-unchanged boundary), run through `go test -race ./internal/repository` and `./scripts/check.sh`; all green. The private replay corpus never enters tracked files.
