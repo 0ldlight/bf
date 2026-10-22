@@ -47,3 +47,4 @@ Codex independently verified 21 database scenarios and an 8-process barrier race
 - 路径身份值模型 / Path identity: [REPOSITORY-NODE-PATH.md](REPOSITORY-NODE-PATH.md)
 - 内容元数据与登记 / Content metadata and registry: [CONTENT-METADATA.md](CONTENT-METADATA.md)、[POSTGRES-REGISTRY.md](POSTGRES-REGISTRY.md)
 - 写入顺序 / Write ordering: [BINARY-WRITE.md](BINARY-WRITE.md)
+- 目标保存链调查 / Target save-chain research: [FILE-NODE-SAVE-CONTRACT.md](FILE-NODE-SAVE-CONTRACT.md)（目标 18 列/元数据映射/入口变体事实；本 Store 仍为最小投影，不含隐式 schema 迁移 / target 18-column/metadata-mapping/entry-variant facts; this Store stays a minimal projection with no implied schema migration）
