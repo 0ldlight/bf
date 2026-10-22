@@ -22,6 +22,8 @@ State: BIN-140 implementation slice (owner approval on 2026-10-22). This page is
   No custom `String`/JSON/`driver.Valuer`/`sql.Scanner`/transport conversion is provided on purpose; default fmt/reflection behavior is not a redaction or transport guarantee. Future transport/SQL boundaries own length, encoding and rejection policy.
 - 本切片只交付纯值：既有 `FileReference`、`Path`、`Actor`、`ValidateStoragePath`、Store、schema、保存编排、HTTP 与运行接线不变；消费者、SQL/迁移、传输与保存编排仍开放（见[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)的剩余 UNKNOWN）。
   This slice delivers only the pure value: the existing `FileReference`, `Path`, `Actor`, `ValidateStoragePath`, Store, schema, save orchestration, HTTP and runtime wiring are unchanged; consumers, SQL/migration, transport and save orchestration remain open in the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md) UNKNOWNs.
+- 后续切片已落地 SQL 消费者：postgres Store 的七列元数据投影、私有编解码与受信任 v1→v2 升级/回退 SQL 见[文件元数据持久化](FILE-METADATA-PERSISTENCE.md)；本页仍只约束纯值本身。
+  A later slice landed the SQL consumer: the postgres Store's seven-column projection, private codec and trusted v1→v2 upgrade/downgrade SQL live in the [file-metadata persistence note](FILE-METADATA-PERSISTENCE.md); this page still governs the pure value only.
 - 原版 Java 模型/驱动源事实仍限定在上述研究页；本页不复制原始回放输出。
   The original Java model/driver source facts stay scoped to the linked research pages; no raw replay output is copied here.
 
