@@ -19,8 +19,8 @@ Target: Artifactory 7.161.26 revision 86126900, the same WAR as the [node-ID con
 
 ## RepoPath 入口变体 / RepoPath entry variants
 
-以下全部是**辅助类型观察**：哪个 HTTP 调用方选用哪个重载仍未观察。本页不改动也不重复[路径身份值模型](REPOSITORY-NODE-PATH.md)与[原始校验器](STORAGE-PATH-VALIDATION.md)契约。
-All entries below are **helper observations**: which HTTP caller selects which overload remains unobserved. This page neither changes nor duplicates the [path identity model](REPOSITORY-NODE-PATH.md) or the [raw validator](STORAGE-PATH-VALIDATION.md) contract.
+以下全部是**辅助类型观察**：已覆盖的静态调用方（见[保存调用方与参数编码](SAVE-CALLER-ENCODING.md)）选用的重载已静态梳理，各协议处理器在真实运行时的选择仍未观察，本页不作一般 HTTP 保证。本页不改动也不重复[路径身份值模型](REPOSITORY-NODE-PATH.md)与[原始校验器](STORAGE-PATH-VALIDATION.md)契约。
+All entries below are **helper observations**: the overloads used by the static callers covered so far (see [save caller and parameter encoding](SAVE-CALLER-ENCODING.md)) are mapped statically, while the per-protocol handlers' real runtime selections remain unobserved — no general HTTP guarantee is made here. This page neither changes nor duplicates the [path identity model](REPOSITORY-NODE-PATH.md) or the [raw validator](STORAGE-PATH-VALIDATION.md) contract.
 
 | 入口 / Entry | 语义 / Semantics |
 |---|---|

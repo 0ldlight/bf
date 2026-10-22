@@ -1,7 +1,7 @@
 # 保存调用方与参数编码 / Save caller and parameter encoding
 
-状态 / State: BIN-138 研究切片，**仅研究，无任何实现**；不新增模型、SQL、接口、ADR 或架构决定。本页记录目标上传调用方到 PostgreSQL 参数编码边界的静态事实与受控回放观察，作为[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)中"未配对 UTF-16 actor 序列化"UNKNOWN 的**部分**消解。
-Research slice only, **no implementation**: no new model, SQL, interface, ADR or architecture decision. This page records static facts and controlled-replay observations from the target's upload caller down to the selected PostgreSQL parameter-encoding boundary, as a **partial** resolution of the unpaired-UTF-16-actor UNKNOWN in the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md).
+状态 / State: BIN-138 研究切片，**本切片不新增任何运行时实现**（项目既有的 Go 元数据/模型/SQL 保持不变，见下文）；不新增模型、SQL、接口、ADR 或架构决定。本页记录目标上传调用方到 PostgreSQL 参数编码边界的静态事实与受控回放观察，作为[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)中"未配对 UTF-16 actor 序列化"UNKNOWN 的**部分**消解。
+Research slice only — **this slice ADDS no runtime implementation** (the project's existing Go metadata/model/SQL stay unchanged — see below); no new model, SQL, interface, ADR or architecture decision. This page records static facts and controlled-replay observations from the target's upload caller down to the selected PostgreSQL parameter-encoding boundary, as a **partial** resolution of the unpaired-UTF-16-actor UNKNOWN in the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md).
 
 ## 目标与证据身份 / Target and evidence identities
 
@@ -42,10 +42,10 @@ The replay passed BIN-137's Node actor abbreviation **independently** into the a
 | 案例 / Case | Node 值 / Node value | 参数字节 / Parameter bytes |
 |---|---|---|
 | null | null（保持 null） / stays null | NULL 标记，无 payload / NULL marker, no payload |
-| 空串 / empty | 空、非 null / empty, non-null | 空标记，长度 0 / non-null marker, length 0 |
-| 65 ASCII / 65 ASCII | 60×`A`+`...`（缩写）/ abbreviated | 60×`41`+`2e2e2e` |
-| 60 ASCII+emoji+尾 / 60 ASCII+emoji+tail（U+1F600 跨界拆分 / split at the boundary） | 60×`A`+**未配对高位 D83D**+`...`（编码**前**保留）/ 60×`A`+**unpaired high D83D**+`...` (kept BEFORE encoding) | 60×`41`+`3f`+`2e2e2e`（64 字节 / 64 bytes） |
-| 完整对在 `...` 前 / full pair before the dots | 61×`A`+完整对+`...` / pair survives | 60×`41`+`f09f9880`+`2e2e2e` |
+| 空串 / empty | 空、非 null / empty, non-null | 非 null 标记，零长度 payload / non-null marker, zero-length payload |
+| 65 ASCII / 65 ASCII | 61×`A`+`...`（缩写，64 UTF-16 单元）/ abbreviated, 64 UTF-16 units | 61×`41`+`2e2e2e`（64 字节 / 64 bytes） |
+| 60 ASCII+emoji+尾 / 60 ASCII+emoji+tail（U+1F600 跨界拆分 / split at the boundary） | 60×`A`+**未配对高位 D83D**+`...`（64 单元，编码**前**保留）/ 60×`A`+**unpaired high D83D**+`...` (64 units, kept BEFORE encoding) | 60×`41`+`3f`+`2e2e2e`（64 字节 / 64 bytes） |
+| 59 ASCII+emoji+tailtail（完整对在 `...` 前 / full pair before the dots） | 59×`A`+完整对+`...`（64 单元，对存活）/ 59×`A`+full pair+`...` (64 units, pair survives) | 59×`41`+`f09f9880`+`2e2e2e`（66 字节 / 66 bytes） |
 | 字面 `'?'` / literal `'?'` | 保留 / kept | `3f`（与未配对代理同字节；**不是** U+FFFD `efbfbd`）/ same byte as an unpaired surrogate; **NOT** U+FFFD `efbfbd` |
 | NUL `a\u0000b` | 保留 / kept | `610062`（只证明编码，**不**证明 DB 接受）/ proves encoding only, **not** DB acceptance |
 
@@ -58,8 +58,8 @@ The replay passed BIN-137's Node actor abbreviation **independently** into the a
 
 - `HttpArtifactoryRequest` 构造器调用 `RequestUtils`（取 `getRequestURI`、按长度剥除非空 contextPath 前缀，默认 `includeQuery=false`）→ `calculateRepoPath`。实际 servlet 容器/过滤器路由与被接受的 URI **未知**。
   The `HttpArtifactoryRequest` constructor calls `RequestUtils` (getRequestURI, strips a nonblank contextPath prefix by its length, default `includeQuery=false`) → `calculateRepoPath`. Actual servlet-container/filter routing and accepted URIs are **unknown**.
-- `calculateRepoPath` 在布尔参数 `InfoFactory.create` **之前**处理 repo 矩阵参数、UTF-8 URL 解码、字面加号保护及 repo 键/点段/归档/zip 辅助（有效设置/MIME 映射未知）。`normalizePathPart` 只处理 `/./`、结尾 `/.` 与精确 `./`，**不是**通用 RFC `..` 解析器。调用方归一化独立于工厂单串 `create`，也独立于既有纯检查器 `ValidateStoragePath`——请求归一化**不得**复制进纯检查器。
-  `calculateRepoPath` processes repo matrix params, UTF-8 URL decoding, literal-plus protection and the repo-key/dot-segment/archive/zip helpers (effective settings/MIME mapping unknown) BEFORE the boolean `InfoFactory.create`. `normalizePathPart` handles only `/./`, a trailing `/.`, and exact `./` — it is **NOT** a general RFC `..` resolver. Caller normalization is separate from the single-string factory `create` and from the existing pure `ValidateStoragePath` checker — request normalization must **not** be copied into the pure checker.
+- `calculateRepoPath` 在布尔参数 `InfoFactory.createRepoPath(String,String,boolean)` **之前**处理 repo 矩阵参数、UTF-8 URL 解码、字面加号保护及 repo 键/点段/归档/zip 辅助（有效设置/MIME 映射未知）。`normalizePathPart` 只处理 `/./`、结尾 `/.` 与精确 `./`，**不是**通用 RFC `..` 解析器。调用方归一化独立于工厂单串 `create`，也独立于既有纯检查器 `ValidateStoragePath`——请求归一化**不得**复制进纯检查器。
+  `calculateRepoPath` processes repo matrix params, UTF-8 URL decoding, literal-plus protection and the repo-key/dot-segment/archive/zip helpers (effective settings/MIME mapping unknown) BEFORE the boolean `InfoFactory.createRepoPath(String,String,boolean)`. `normalizePathPart` handles only `/./`, a trailing `/.`, and exact `./` — it is **NOT** a general RFC `..` resolver. Caller normalization is separate from the single-string factory `create` and from the existing pure `ValidateStoragePath` checker — request normalization must **not** be copied into the pure checker.
 - 工厂无统一策略：`InfoFactoryHolder` 静态默认经 `BasicFactory` 到 `JaxbInfoFactory`（对应 `RepoPathImpl` 2 参/3 参布尔构造器）；`UploadServiceImpl.validateRequestAndUpload` 用 `InternalRepoPathFactory` 3 参布尔；`DbStoringRepoMixin.saveResource` 以 2 参重建。BIN-137 的边界观察仅在匹配边界适用，不得假设所有路由共用一个工厂重载。
   No single factory policy: the `InfoFactoryHolder` static default goes through `BasicFactory` to `JaxbInfoFactory` (the `RepoPathImpl` 2-arg/3-arg-boolean constructors); `UploadServiceImpl.validateRequestAndUpload` uses the `InternalRepoPathFactory` 3-arg boolean form; `DbStoringRepoMixin.saveResource` reconstructs with 2 args. BIN-137's boundary observations apply only at matching boundaries — no one factory overload for all routes.
 - 实际 servlet/过滤器/安全服务/Spring/协议路由**从未执行**；本页不含 HTTP 示例接受断言。
@@ -67,8 +67,8 @@ The replay passed BIN-137's Node actor abbreviation **independently** into the a
 
 ## 静态 actor 来源与管理员头 / Static actor origin and admin headers
 
-`DbStoringRepoMixin.saveResource` 静态上：`securityService.currentUsername`→`setModifiedBy`，新文件另设 `setCreatedBy`（`ItemAdditionalInfo` 直接 setter 不截断；Node 映射/构造器缩写见[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)，服务本身**未执行**）。头 `X-Artifactory-Created-By`/`X-Artifactory-Modified-By` 的填充由 `populateItemInfoFromHeaders` 以 **isAdmin** 门控且仅复制非空值；`overrideFileDetailsFromRequest` **再次**检查 isAdmin，仅非空 actor 覆盖、created 时间仅 >0 生效。这两个门控必须与任何"头覆盖 actor"表述同时出现；这是静态守卫而非角色/鉴权测试，**不能**据此宣称普通用户可冒充他人。
-Statically, `DbStoringRepoMixin.saveResource`: `securityService.currentUsername`→`setModifiedBy`, a new file also gets `setCreatedBy` (the `ItemAdditionalInfo` raw setters do not truncate; the Node mapping/constructor abbreviation is in the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md) — the service itself **never ran**). Population of the `X-Artifactory-Created-By`/`X-Artifactory-Modified-By` headers is gated by **isAdmin** in `populateItemInfoFromHeaders` and copies nonblank values only; `overrideFileDetailsFromRequest` checks isAdmin **AGAIN**, overriding only nonblank actors and only a created time >0. Both guards must accompany any mention of header actor overrides; this is a static guard, not a role/auth-resolution test — it must **not** be read as ordinary users being able to impersonate.
+`DbStoringRepoMixin.saveResource` 静态上：`securityService.currentUsername`→`setModifiedBy`，新文件另设 `setCreatedBy`（`ItemAdditionalInfo` 直接 setter 不截断；Node 映射/构造器缩写见[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)，服务本身**未执行**）。头 `X-Artifactory-Created-By`/`X-Artifactory-Modified-By` 的填充由 `populateItemInfoFromHeaders` 以 **isAdmin** 门控且仅复制非空白值（`StringUtils.isNotBlank`）；`overrideFileDetailsFromRequest` **再次**检查 isAdmin，仅非空白 actor 覆盖、created 时间仅 >0 生效。这两个 isAdmin 守卫同属本链；角色评估/鉴权解析从未执行，本页**不**据此宣称普通用户可冒充他人。
+Statically, `DbStoringRepoMixin.saveResource`: `securityService.currentUsername`→`setModifiedBy`, a new file also gets `setCreatedBy` (the `ItemAdditionalInfo` raw setters do not truncate; the Node mapping/constructor abbreviation is in the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md) — the service itself **never ran**). Population of the `X-Artifactory-Created-By`/`X-Artifactory-Modified-By` headers is gated by **isAdmin** in `populateItemInfoFromHeaders` and copies nonblank values only (`StringUtils.isNotBlank`); `overrideFileDetailsFromRequest` checks isAdmin **AGAIN**, overriding only nonblank actors and only a created time >0. Both isAdmin guards belong to this chain; role evaluation/auth resolution was never executed, and this page does **not** claim ordinary users can impersonate others.
 
 ## 对既有 UNKNOWN 的部分消解与实现边界 / Partial resolution and implementation boundary
 
