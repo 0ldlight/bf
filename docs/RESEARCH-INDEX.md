@@ -107,6 +107,11 @@ A BIN-140 implementation slice (2026-10-22): with owner approval, the per-node m
 2026-10-23 BIN-142：已按所有者批准实现文件元数据七列投影、PostgreSQL 私有编码与显式升级/受保护回退。唯一规范、参考来源、独立复验及门禁边界见[文件元数据持久化记录](FILE-METADATA-PERSISTENCE.md)；主分支合并与发布由所有者另审。
 BIN-142 (2026-10-23) implements the owner-approved seven-column file-metadata projection, private PostgreSQL codec and explicit upgrade/guarded downgrade. The [file-metadata persistence note](FILE-METADATA-PERSISTENCE.md) owns the contract, reference provenance, independent replay and gate boundaries; main-branch merging and release require separate owner approval.
 
+## 普通更新消费者 / Ordinary-update consumer
+
+2026-10-23 BIN-153–159：复用同一目标 WAR 的保存链字节码，并定向补查上游调用方：服务方法使用调用方既有 ID、更新计数原样返回；上层构造时校验快照路径，实际 UPDATE 整体写回元数据。按所有者批准实现的薄消费者及本地策略见[普通更新记录](FILE-UPDATE.md)。本地真实 PostgreSQL 验证覆盖调用方回滚、延迟约束提交失败及非规范登记胜者拒绝；这些证据不证明目标有效 Spring 装配、数据库运行行为或完整上传/移动兼容。原始材料和逐项来源绑定保留在私有研究记录。
+BIN-153–159 (2026-10-23) reuse the same target WAR's save-chain bytecode and add focused caller inspection: the service uses a caller-supplied existing ID and returns the update count verbatim; upper construction validates the snapshot path and an actual UPDATE rewrites the metadata. The owner-approved thin consumer and local policies are described in the [ordinary-update note](FILE-UPDATE.md). Local real-PostgreSQL evidence covers caller rollback, deferred-constraint commit failure and rejection of a noncanonical registration winner. This does not establish effective target Spring wiring, target database execution or complete upload/move parity. Raw materials and individual provenance bindings remain private.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
