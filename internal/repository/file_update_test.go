@@ -78,11 +78,14 @@ func TestUpdateFileRejectsNilCallbackBeforeNilMetadata(t *testing.T) {
 	if rec.updateCalls != 0 {
 		t.Fatalf("delegate called %d times with nil callback", rec.updateCalls)
 	}
-	// nil 委托 + nil 快照：委托错误必须胜出（次序判别对）。
+	// nil 委托 + nil 快照：委托错误必须胜出（次序判别对）。err==nil 守卫
+	// 防止未来错误实现返回 nil 错误时把行为失败变成测试侧 panic。
 	// nil callback + nil snapshot: the callback error must win (order pair).
+	// The err==nil guard keeps a future faulty implementation returning a
+	// nil error from turning the behavioral failure into a test-side panic.
 	in := validUpdateInput()
 	in.Metadata = nil
-	if _, err := UpdateFile(context.Background(), in, nil); err.Error() != errNilUpdateDependency.Error() {
+	if _, err := UpdateFile(context.Background(), in, nil); err == nil || err.Error() != errNilUpdateDependency.Error() {
 		t.Fatalf("nil callback must precede nil snapshot, got %v", err)
 	}
 	// nil 快照单独拒绝：固定文本、零委托调用。
@@ -96,11 +99,12 @@ func TestUpdateFileRejectsNilCallbackBeforeNilMetadata(t *testing.T) {
 	if rec2.updateCalls != 0 {
 		t.Fatalf("delegate called %d times with nil snapshot", rec2.updateCalls)
 	}
-	// nil 快照 + 非法 UTF-8 路径：快照缺失胜出（次序判别对）。
+	// nil 快照 + 非法 UTF-8 路径：快照缺失胜出（次序判别对）；同上
+	// err==nil 守卫。
 	// nil snapshot + invalid UTF-8 path: the missing snapshot wins (order
-	// pair).
+	// pair); same err==nil guard as above.
 	in.Path = "a/\xffb"
-	if _, err := UpdateFile(context.Background(), in, rec2.doUpdate); err.Error() != errMissingUpdateSnapshot.Error() {
+	if _, err := UpdateFile(context.Background(), in, rec2.doUpdate); err == nil || err.Error() != errMissingUpdateSnapshot.Error() {
 		t.Fatalf("nil snapshot must precede raw profile, got %v", err)
 	}
 }
@@ -153,6 +157,24 @@ func TestUpdateFileRejectsRawProfileBeforeDelegate(t *testing.T) {
 	in.ID = 0
 	if _, err := UpdateFile(context.Background(), in, (&updateRecorder{}).doUpdate); !errors.Is(err, ErrInvalidPath) {
 		t.Fatalf("raw profile must precede the positive-ID guard, got %v", err)
+	}
+	// 相邻次序判别对（阶段 4>5）：原始名 NUL + 反斜杠在存储路径下同样非
+	// 法，但必须以原始画像的 ErrInvalidPath 拒绝而非 ErrInvalidStoragePath
+	// ——钉死 raw 画像先于 ValidateStoragePath；委托零调用。
+	// Adjacent order pair (stage 4>5): an original-name NUL plus a
+	// backslash is also storage-invalid, yet it must reject with the
+	// raw-profile ErrInvalidPath rather than ErrInvalidStoragePath —
+	// pinning the raw profile before ValidateStoragePath; zero delegate
+	// calls.
+	inNulBS := validUpdateInput()
+	inNulBS.Path = "a\x00\\b"
+	recNulBS := &updateRecorder{}
+	nulBSCount, nulBSErr := UpdateFile(context.Background(), inNulBS, recNulBS.doUpdate)
+	if nulBSCount != 0 || !errors.Is(nulBSErr, ErrInvalidPath) || errors.Is(nulBSErr, ErrInvalidStoragePath) {
+		t.Fatalf("raw NUL + backslash: got (%d, %v), want (0, ErrInvalidPath) without the storage-path error winning", nulBSCount, nulBSErr)
+	}
+	if recNulBS.updateCalls != 0 {
+		t.Fatalf("raw NUL + backslash: delegate called %d times", recNulBS.updateCalls)
 	}
 }
 
@@ -468,6 +490,9 @@ func TestUpdateFilePassesIDContentMetadataVerbatim(t *testing.T) {
 	}
 	if created := got.Metadata.CreatedBy().UTF16(); len(created) != 2 || created[0] != 'a' || created[1] != 0xD800 {
 		t.Errorf("created actor altered: %v", created)
+	}
+	if !got.Metadata.ModifiedBy().IsNull() {
+		t.Errorf("modified actor altered: %+v", got.Metadata.ModifiedBy())
 	}
 	if sha := got.Metadata.SHA1OriginalUTF16(); sha == nil || len(sha) != 0 {
 		t.Errorf("sha1 original must stay present-empty, got %v (nil=%v)", sha, sha == nil)
