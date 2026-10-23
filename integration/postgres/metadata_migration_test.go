@@ -77,15 +77,68 @@ const (
 		"bin_length = $6, sha1_actual = $7, md5_actual = $8, sha256 = $9 WHERE node_id = $1 AND node_type = 1"
 )
 
-// metadataColumnsOf 目录核实七列的存在性/非空性/默认值。
+// metadataColumn 记录一列的目录事实：NOT NULL、默认值与 format_type 的精确
+// 类型（含宽度）。
+// metadataColumn records a column's catalog facts: NOT NULL, default and the
+// exact type (width included) from format_type.
+type metadataColumn struct {
+	notNull    bool
+	hasDefault bool
+	typ        string
+}
+
+// metadataColumnTypes 七列的精确类型契约：fresh v2 与升级后的表都必须逐列
+// 相同——任何类型/宽度漂移（例如 md5_original 被改成 VARCHAR(32)）都必须
+// 失败。
+// The exact type contract of the seven columns: the fresh v2 table and the
+// upgraded table must match column by column — any type/width drift (for
+// example md5_original changed to VARCHAR(32)) must fail.
+var metadataColumnTypes = map[string]string{
+	"created":       "bigint",
+	"modified":      "bigint",
+	"updated":       "bigint",
+	"created_by":    "character varying(64)",
+	"modified_by":   "character varying(64)",
+	"sha1_original": "character varying(1024)",
+	"md5_original":  "character varying(1024)",
+}
+
+// assertMetadataColumns 核对七列：全部存在、可空、无默认值且类型/宽度与
+// 契约逐列精确一致。
+// assertMetadataColumns checks the seven columns: all present, nullable, no
+// default, with each column's type/width exactly matching the contract.
+func assertMetadataColumns(t *testing.T, label string, cols map[string]metadataColumn) {
+	t.Helper()
+	if len(cols) != 7 {
+		t.Fatalf("%s table has %d metadata columns (%v), want 7", label, len(cols), cols)
+	}
+	for name, want := range metadataColumnTypes {
+		col, ok := cols[name]
+		if !ok {
+			t.Errorf("%s nodes.%s missing from catalog", label, name)
+			continue
+		}
+		if col.notNull {
+			t.Errorf("%s nodes.%s must be nullable", label, name)
+		}
+		if col.hasDefault {
+			t.Errorf("%s nodes.%s must have no default", label, name)
+		}
+		if col.typ != want {
+			t.Errorf("%s nodes.%s type = %q, want %q", label, name, col.typ, want)
+		}
+	}
+}
+
+// metadataColumnsOf 目录核实七列的存在性/非空性/默认值与精确类型。
 // metadataColumnsOf verifies the seven columns' presence/nullability/
-// defaults through the catalog.
-func metadataColumnsOf(t *testing.T, adm *sql.DB, schema string) map[string][2]bool {
+// defaults and exact type through the catalog.
+func metadataColumnsOf(t *testing.T, adm *sql.DB, schema string) map[string]metadataColumn {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	rows, err := adm.QueryContext(ctx, `
-		SELECT a.attname, a.attnotnull, a.atthasdef
+		SELECT a.attname, a.attnotnull, a.atthasdef, format_type(a.atttypid, a.atttypmod)
 		FROM pg_attribute a
 		JOIN pg_class r ON r.oid = a.attrelid
 		JOIN pg_namespace n ON n.oid = r.relnamespace
@@ -96,14 +149,14 @@ func metadataColumnsOf(t *testing.T, adm *sql.DB, schema string) map[string][2]b
 		t.Fatalf("query nodes catalog: %v", err)
 	}
 	defer rows.Close()
-	cols := map[string][2]bool{}
+	cols := map[string]metadataColumn{}
 	for rows.Next() {
+		var col metadataColumn
 		var name string
-		var notNull, hasDefault bool
-		if err := rows.Scan(&name, &notNull, &hasDefault); err != nil {
+		if err := rows.Scan(&name, &col.notNull, &col.hasDefault, &col.typ); err != nil {
 			t.Fatalf("scan catalog row: %v", err)
 		}
-		cols[name] = [2]bool{notNull, hasDefault}
+		cols[name] = col
 	}
 	if err := rows.Err(); err != nil {
 		t.Fatalf("catalog iteration: %v", err)
@@ -134,11 +187,22 @@ func metadataShapeConstraintOf(t *testing.T, adm *sql.DB, schema string) string 
 	return contype
 }
 
-// metadataColumnsAbsent 断言七列已不存在（SELECT 报 42703）。
-// metadataColumnsAbsent asserts the seven columns are gone (SELECT fails
-// with 42703).
-func metadataColumnsAbsent(t *testing.T, db *sql.DB) {
+// metadataColumnsAbsent 断言目录中七个元数据列一个都不剩且 nodes_metadata_shape
+// 不存在：SELECT 报 42703 只能证明“至少一列”缺失（只删 created 的部分回退
+// 同样得到 42703），目录计数才能证明全部消失。行为面的 42703 直查仍保留。
+// metadataColumnsAbsent asserts the catalog holds zero of the seven metadata
+// columns and no nodes_metadata_shape constraint: a SELECT failing with 42703
+// proves only that at least one column is missing (a partial downgrade dropping
+// just created still yields 42703), so the catalog count is what proves full
+// removal. The behavioral 42703 probe stays as a complement.
+func metadataColumnsAbsent(t *testing.T, adm, db *sql.DB, schema string) {
 	t.Helper()
+	if cols := metadataColumnsOf(t, adm, schema); len(cols) != 0 {
+		t.Fatalf("%d metadata columns remain after downgrade/rollback (%v), want 0", len(cols), cols)
+	}
+	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "" {
+		t.Fatalf("nodes_metadata_shape contype = %q after downgrade/rollback, want absent", ct)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := db.ExecContext(ctx, "SELECT created, modified, updated, created_by, modified_by, sha1_original, md5_original FROM nodes WHERE false"); err == nil {
@@ -153,21 +217,13 @@ func TestMetadataMigrationFreshSchemaIsV2(t *testing.T) {
 	adm := adminPool(t)
 	ctx := nodeTestContext(t)
 
-	// 七列全部存在、可空、无默认值；形状约束以 CHECK 存在。
-	// All seven columns exist, nullable, with no defaults; the shape
-	// constraint exists as a CHECK.
+	// 七列全部存在、可空、无默认值且类型/宽度精确（bigint×3、varchar(64)×2、
+	// varchar(1024)×2）；形状约束以 CHECK 存在。
+	// All seven columns exist, nullable, with no defaults and exact types/
+	// widths (bigint×3, varchar(64)×2, varchar(1024)×2); the shape constraint
+	// exists as a CHECK.
 	cols := metadataColumnsOf(t, adm, schema)
-	if len(cols) != 7 {
-		t.Fatalf("fresh schema has %d metadata columns (%v), want 7", len(cols), cols)
-	}
-	for name, nd := range cols {
-		if nd[0] {
-			t.Errorf("fresh nodes.%s must be nullable", name)
-		}
-		if nd[1] {
-			t.Errorf("fresh nodes.%s must have no default", name)
-		}
-	}
+	assertMetadataColumns(t, "fresh", cols)
 	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
 		t.Fatalf("nodes_metadata_shape contype = %q, want CHECK ('c')", ct)
 	}
@@ -214,14 +270,7 @@ func TestMetadataMigrationUpgradeFromExactV1(t *testing.T) {
 		t.Fatalf("apply MetadataUpgradeSQL: %v", err)
 	}
 	cols := metadataColumnsOf(t, adm, schema)
-	if len(cols) != 7 {
-		t.Fatalf("upgraded table has %d metadata columns (%v), want 7", len(cols), cols)
-	}
-	for name, nd := range cols {
-		if nd[0] || nd[1] {
-			t.Errorf("upgraded nodes.%s must stay nullable without default", name)
-		}
-	}
+	assertMetadataColumns(t, "upgraded", cols)
 	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
 		t.Fatalf("upgraded nodes_metadata_shape contype = %q, want 'c'", ct)
 	}
@@ -251,14 +300,19 @@ func TestMetadataMigrationUpgradeFromExactV1(t *testing.T) {
 	if n, err := lookSt.Create(ctx, refNew); err != nil || n != 1 {
 		t.Fatalf("post-upgrade Create = (%d, %v), want (1, nil)", n, err)
 	}
-	// 旧投影 UPDATE（显式 v1 列清单，同事务）不覆盖新元数据；提交后旧投影
-	// INSERT 继续插入全 NULL 元数据行。
+	// 旧投影 UPDATE（显式 v1 列清单，同事务）不覆盖新元数据且恰好命中一行；
+	// 提交后旧投影 INSERT 继续插入全 NULL 元数据行。
 	// A legacy-projection UPDATE (the explicit v1 column list, same
-	// transaction) never touches the new metadata; after the commit a
-	// legacy INSERT keeps inserting all-NULL metadata rows.
-	if _, err := lookTx.ExecContext(qctx, oldProjectionUpdate,
-		802, "repoV1", "moved", "b.bin", 3, int64(22), sha1, strings.Repeat("3", 32), strings.Repeat("2", 64)); err != nil {
+	// transaction) never touches the new metadata and affects exactly one
+	// row; after the commit a legacy INSERT keeps inserting all-NULL metadata
+	// rows.
+	res, err := lookTx.ExecContext(qctx, oldProjectionUpdate,
+		802, "repoV1", "moved", "b.bin", 3, int64(22), sha1, strings.Repeat("3", 32), strings.Repeat("2", 64))
+	if err != nil {
 		t.Fatalf("legacy v1 update: %v", err)
+	}
+	if n, rerr := res.RowsAffected(); rerr != nil || n != 1 {
+		t.Fatalf("legacy v1 update rows = (%d, %v), want (1, nil)", n, rerr)
 	}
 	if err := lookTx.Commit(); err != nil {
 		t.Fatalf("commit: %v", err)
@@ -276,7 +330,8 @@ func TestMetadataMigrationUpgradeFromExactV1(t *testing.T) {
 }
 
 func TestMetadataMigrationUpgradeRollback(t *testing.T) {
-	db, _ := v1Fixture(t)
+	db, schema := v1Fixture(t)
+	adm := adminPool(t)
 	ctx := nodeTestContext(t)
 	// 升级在调用方事务内执行；回滚后 DDL 一并消失。
 	// The upgrade runs inside a caller transaction; the rollback removes
@@ -293,14 +348,24 @@ func TestMetadataMigrationUpgradeRollback(t *testing.T) {
 	if err := tx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-	metadataColumnsAbsent(t, db)
+	metadataColumnsAbsent(t, adm, db, schema)
 }
 
 func TestMetadataMigrationRepeatedUpgrade42701(t *testing.T) {
-	db, _ := v1Fixture(t)
+	db, schema := v1Fixture(t)
+	adm := adminPool(t)
 	ctx := nodeTestContext(t)
-	qctx, qcancel := context.WithTimeout(ctx, 10*time.Second)
+	sha1 := strings.Repeat("8", 40)
+	seedNodeBinary(t, adm, schema, sha1)
+	qctx, qcancel := context.WithTimeout(ctx, 15*time.Second)
 	defer qcancel()
+	// 一行既有 v1 数据先落库：重复升级失败后它必须原样幸存。
+	// One existing v1 row lands first: it must survive the repeated-upgrade
+	// failure untouched.
+	if _, err := db.ExecContext(qctx, oldProjectionInsert,
+		808, "repoRP", "d", "r.bin", 3, int64(21), sha1, strings.Repeat("3", 32), strings.Repeat("2", 64)); err != nil {
+		t.Fatalf("legacy v1 insert: %v", err)
+	}
 	if _, err := db.ExecContext(qctx, refpg.MetadataUpgradeSQL); err != nil {
 		t.Fatalf("first upgrade: %v", err)
 	}
@@ -310,6 +375,28 @@ func TestMetadataMigrationRepeatedUpgrade42701(t *testing.T) {
 	}
 	if code := pgCodeOf(t, err); code != "42701" {
 		t.Fatalf("repeated upgrade SQLSTATE = %s, want 42701", code)
+	}
+	// 失败不得造成任何部分漂移：七列、形状约束与既有数据全数保留。
+	// The failure must leave no partial drift: all seven columns, the shape
+	// constraint and the existing data stay intact.
+	assertMetadataColumns(t, "post-repeat-upgrade", metadataColumnsOf(t, adm, schema))
+	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
+		t.Fatalf("post-repeat nodes_metadata_shape contype = %q, want 'c'", ct)
+	}
+	if created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig := metadataRowOf(t, adm, schema, 808); created.Valid ||
+		modified.Valid || updated.Valid || createdBy.Valid || modifiedBy.Valid || sha1Orig.Valid || md5Orig.Valid {
+		t.Fatalf("repeated-upgrade failure disturbed the v1 row's unknown history: %v/%v/%v/%v/%v/%v/%v",
+			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
+	}
+	var repo, nodePath, nodeName string
+	var binLength sql.NullInt64
+	if err := adm.QueryRowContext(qctx, fmt.Sprintf(
+		"SELECT repo, node_path, node_name, bin_length FROM %s.nodes WHERE node_id = 808", schema)).
+		Scan(&repo, &nodePath, &nodeName, &binLength); err != nil {
+		t.Fatalf("row read after repeated upgrade: %v", err)
+	}
+	if repo != "repoRP" || nodePath != "d" || nodeName != "r.bin" || !binLength.Valid || binLength.Int64 != 21 {
+		t.Fatalf("v1 projection after repeated upgrade = %q/%q/%q/%v, want the original", repo, nodePath, nodeName, binLength)
 	}
 }
 
@@ -334,7 +421,7 @@ func TestMetadataMigrationDownAllNullKeepsRows(t *testing.T) {
 	if _, err := db.ExecContext(qctx, refpg.MetadataDowngradeSQL); err != nil {
 		t.Fatalf("all-null downgrade: %v", err)
 	}
-	metadataColumnsAbsent(t, db)
+	metadataColumnsAbsent(t, adm, db, schema)
 	var repo, nodePath, nodeName string
 	var binLength sql.NullInt64
 	if err := adm.QueryRowContext(qctx, fmt.Sprintf(
@@ -368,7 +455,9 @@ func TestMetadataMigrationDownPopulatedRefused(t *testing.T) {
 	snap := repository.NewFileMetadata(repository.FileMetadataInput{
 		CreatedMillis: 12, ModifiedMillis: 13, UpdatedMillis: 14,
 		CreatedBy:    repository.NewActor(mdUnits("keeper")),
+		ModifiedBy:   repository.NewActor(mdUnits("mkeeper")),
 		SHA1Original: mdUnits("keep"),
+		MD5Original:  mdUnits("keepmd5"),
 	})
 	tx, st := nodeTx(t, db)
 	ref := fileRefOf(t, 806, "repoD2", "d", "pop.bin", meta)
@@ -389,13 +478,16 @@ func TestMetadataMigrationDownPopulatedRefused(t *testing.T) {
 	if code := pgCodeOf(t, err); code != "55000" {
 		t.Fatalf("populated downgrade SQLSTATE = %s, want 55000", code)
 	}
-	// 列与数据原样保留（拒绝即无丢失）。
-	// Columns and data stay intact (refusal means no loss).
-	if created, modified, updated, createdBy, _, sha1Orig, _ := metadataRowOf(t, adm, schema, 806); !created.Valid ||
+	// 全部七列、形状约束与数据原样保留（拒绝即无丢失）。
+	// All seven columns, the shape constraint and the data stay intact
+	// (refusal means no loss).
+	assertMetadataColumns(t, "post-refused-downgrade", metadataColumnsOf(t, adm, schema))
+	if created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig := metadataRowOf(t, adm, schema, 806); !created.Valid ||
 		created.Int64 != 12 || !modified.Valid || modified.Int64 != 13 || !updated.Valid ||
-		updated.Int64 != 14 || createdBy.String != "keeper" || sha1Orig.String != "keep" {
-		t.Fatalf("refused downgrade must leave metadata intact, got %v/%v/%v/%v/%v",
-			created, modified, updated, createdBy, sha1Orig)
+		updated.Int64 != 14 || createdBy.String != "keeper" || modifiedBy.String != "mkeeper" ||
+		sha1Orig.String != "keep" || md5Orig.String != "keepmd5" {
+		t.Fatalf("refused downgrade must leave all seven metadata fields intact, got %v/%v/%v/%v/%v/%v/%v",
+			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
 	}
 	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
 		t.Fatalf("refused downgrade must keep the shape constraint, got %q", ct)
@@ -403,32 +495,57 @@ func TestMetadataMigrationDownPopulatedRefused(t *testing.T) {
 }
 
 func TestMetadataMigrationDownRefusesUnsafeIsolation(t *testing.T) {
-	db, _ := nodeFixture(t)
+	db, schema := nodeFixture(t)
+	adm := adminPool(t)
 	ctx := nodeTestContext(t)
+	sha1 := strings.Repeat("9", 40)
+	seedNodeBinary(t, adm, schema, sha1)
+	meta := nodeMeta(sha1)
+	snap := repository.NewFileMetadata(repository.FileMetadataInput{
+		CreatedMillis: 31, ModifiedMillis: 32, UpdatedMillis: 33,
+		CreatedBy: repository.NewActor(mdUnits("iso-keeper")),
+	})
+	tx, st := nodeTx(t, db)
+	ref := fileRefOf(t, 809, "repoISO", "d", "iso.bin", meta)
+	ref.Metadata = &snap
+	if n, err := st.Create(ctx, ref); err != nil || n != 1 {
+		t.Fatalf("Create with metadata = (%d, %v), want (1, nil)", n, err)
+	}
+	if err := tx.Commit(); err != nil {
+		t.Fatalf("commit: %v", err)
+	}
 	// 非 READ COMMITTED（旧快照可能漏看刚提交行）以固定 25000 拒绝。
 	// Non-READ-COMMITTED (an older snapshot could miss freshly committed
 	// rows) is rejected with the fixed 25000.
-	tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	rrtx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
 	if err != nil {
 		t.Fatalf("begin repeatable read: %v", err)
 	}
-	t.Cleanup(func() { _ = tx.Rollback() })
+	t.Cleanup(func() { _ = rrtx.Rollback() })
 	qctx, qcancel := context.WithTimeout(ctx, 10*time.Second)
 	defer qcancel()
-	_, err = tx.ExecContext(qctx, refpg.MetadataDowngradeSQL)
+	_, err = rrtx.ExecContext(qctx, refpg.MetadataDowngradeSQL)
 	if err == nil {
 		t.Fatal("non-READ-COMMITTED downgrade must be refused")
 	}
 	if code := pgCodeOf(t, err); code != "25000" {
 		t.Fatalf("unsafe isolation downgrade SQLSTATE = %s, want 25000", code)
 	}
-	// 回滚后列仍在。
-	// After the rollback the columns remain.
-	if err := tx.Rollback(); err != nil {
+	// 回滚后七列、形状约束与既有数据完整。
+	// After the rollback all seven columns, the shape constraint and the
+	// existing data are intact.
+	if err := rrtx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
-	if _, err := db.ExecContext(qctx, "SELECT created FROM nodes WHERE false"); err != nil {
-		t.Fatalf("columns must remain after the refused downgrade: %v", err)
+	assertMetadataColumns(t, "post-unsafe-isolation", metadataColumnsOf(t, adm, schema))
+	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
+		t.Fatalf("post-unsafe-isolation nodes_metadata_shape contype = %q, want 'c'", ct)
+	}
+	if created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig := metadataRowOf(t, adm, schema, 809); !created.Valid ||
+		created.Int64 != 31 || !modified.Valid || modified.Int64 != 32 || !updated.Valid ||
+		updated.Int64 != 33 || createdBy.String != "iso-keeper" || modifiedBy.Valid || sha1Orig.Valid || md5Orig.Valid {
+		t.Fatalf("unsafe-isolation refusal must leave all seven fields intact, got %v/%v/%v/%v/%v/%v/%v",
+			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
 	}
 }
 
@@ -436,8 +553,25 @@ func TestMetadataMigrationDownRefusesRLS(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
 	ctx := nodeTestContext(t)
+	sha1 := strings.Repeat("a", 40)
+	seedNodeBinary(t, adm, schema, sha1)
 	qctx, qcancel := context.WithTimeout(ctx, 15*time.Second)
 	defer qcancel()
+	// 一行合法旧投影（七列全 NULL）：与 populatedDown 测试分离——那个独立
+	// case 已覆盖非 NULL 拒绝，此处若带非 NULL 元数据，删除 RLS 守卫后
+	// populated 守卫仍会给出 55000，构成假阳性。全 NULL 数据确保 55000 只能
+	// 出自 RLS 守卫本身：移除该守卫时 down 将真正执行而令本测试失败。
+	// One legal legacy-projection row (seven columns all NULL), kept separate
+	// from the populatedDown case: that independent test already covers the
+	// non-NULL refusal, and carrying populated metadata here would keep
+	// yielding 55000 from the populated guard even with the RLS guard deleted
+	// — a false positive. All-NULL data ensures the 55000 can only come from
+	// the RLS guard itself: removing that guard lets the downgrade actually
+	// run, failing this test.
+	if _, err := db.ExecContext(qctx, oldProjectionInsert,
+		810, "repoRLS", "d", "rls.bin", 3, int64(21), sha1, strings.Repeat("3", 32), strings.Repeat("2", 64)); err != nil {
+		t.Fatalf("legacy all-NULL insert: %v", err)
+	}
 	// 启用 RLS（测试自身以 schema 限定名操作；产品语句保持受信任
 	// search_path 契约）→ 以固定 55000 拒绝，而非依赖策略恰好隐藏行。
 	// An RLS-enabled table (the test toggles it through the schema-qualified
@@ -454,8 +588,31 @@ func TestMetadataMigrationDownRefusesRLS(t *testing.T) {
 	if code := pgCodeOf(t, err); code != "55000" {
 		t.Fatalf("RLS downgrade SQLSTATE = %s, want 55000", code)
 	}
-	if _, err := db.ExecContext(qctx, "SELECT created FROM nodes WHERE false"); err != nil {
-		t.Fatalf("columns must remain after the refused downgrade: %v", err)
+	// 拒绝后逐列核对：七列仍全 NULL、目录列/形状约束完整、原行身份与内容
+	// 未变（目录/管理读不受 RLS 影响）。
+	// After the refusal, column by column: all seven stay NULL, the catalog
+	// columns and the shape constraint stay intact, and the original row's
+	// identity and content are unchanged (catalog/admin reads are unaffected
+	// by RLS).
+	assertMetadataColumns(t, "post-RLS-refusal", metadataColumnsOf(t, adm, schema))
+	if ct := metadataShapeConstraintOf(t, adm, schema); ct != "c" {
+		t.Fatalf("post-RLS-refusal nodes_metadata_shape contype = %q, want 'c'", ct)
+	}
+	if created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig := metadataRowOf(t, adm, schema, 810); created.Valid ||
+		modified.Valid || updated.Valid || createdBy.Valid || modifiedBy.Valid || sha1Orig.Valid || md5Orig.Valid {
+		t.Fatalf("RLS refusal must keep the legacy row's seven columns NULL, got %v/%v/%v/%v/%v/%v/%v",
+			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
+	}
+	var repo, nodePath, nodeName, sha1Actual string
+	var binLength sql.NullInt64
+	if err := adm.QueryRowContext(qctx, fmt.Sprintf(
+		"SELECT repo, node_path, node_name, sha1_actual, bin_length FROM %s.nodes WHERE node_id = 810", schema)).
+		Scan(&repo, &nodePath, &nodeName, &sha1Actual, &binLength); err != nil {
+		t.Fatalf("legacy row read after RLS refusal: %v", err)
+	}
+	if repo != "repoRLS" || nodePath != "d" || nodeName != "rls.bin" || sha1Actual != sha1 || !binLength.Valid || binLength.Int64 != 21 {
+		t.Fatalf("legacy projection after RLS refusal = %q/%q/%q/%q/%v, want the original",
+			repo, nodePath, nodeName, sha1Actual, binLength)
 	}
 }
 
@@ -495,6 +652,14 @@ func TestMetadataMigrationDownWaitsThenSeesCommittedMetadata(t *testing.T) {
 		807, int64(21), "late-writer"); err != nil {
 		t.Fatalf("A adds metadata in-tx: %v", err)
 	}
+	// A 的后端 PID：同一事务连接上读取，pg_blocking_pids 证据要按 PID 指认
+	// 阻塞者本人。
+	// Session A's backend PID, read on the same transaction connection so the
+	// pg_blocking_pids evidence can name the exact blocker.
+	var pidA int64
+	if err := txA.QueryRowContext(actx, "SELECT pg_backend_pid()").Scan(&pidA); err != nil {
+		t.Fatalf("read A pid: %v", err)
+	}
 	connB, err := db.Conn(ctx)
 	if err != nil {
 		t.Fatalf("dedicated conn B: %v", err)
@@ -509,26 +674,29 @@ func TestMetadataMigrationDownWaitsThenSeesCommittedMetadata(t *testing.T) {
 		_, err := connB.ExecContext(ctx, refpg.MetadataDowngradeSQL)
 		done <- err
 	}()
-	// 等待 B 确实阻塞在锁上（pg_stat_activity 证据），再提交 A：断言不依赖
-	// 睡眠时长，只依赖确定的锁序。
-	// Wait until B is genuinely blocked on the lock (pg_stat_activity
-	// evidence) before committing A: the assertion depends on the
-	// deterministic lock order, not on sleep durations.
+	// 等待 B 自己处于 Lock 等待且 pg_blocking_pids 明确指认 A 为阻塞者，再
+	// 提交 A：断言依赖确定的锁序与目录证据，不以睡眠时长推断。
+	// Wait until B itself reports a Lock wait AND pg_blocking_pids names A as
+	// its blocker before committing A: the assertion rests on the
+	// deterministic lock order and catalog evidence, never on sleep durations.
 	blocked := false
 	for i := 0; i < 200; i++ {
 		pctx, pcancel := context.WithTimeout(ctx, 2*time.Second)
-		var wait string
+		var wait sql.NullString
+		var byA bool
 		err := adm.QueryRowContext(pctx,
-			"SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1", pid).Scan(&wait)
+			"SELECT (SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1), "+
+				"EXISTS (SELECT 1 FROM unnest(pg_blocking_pids($1)) AS bp WHERE bp = $2)", pid, pidA).
+			Scan(&wait, &byA)
 		pcancel()
-		if err == nil && wait == "Lock" {
+		if err == nil && wait.Valid && wait.String == "Lock" && byA {
 			blocked = true
 			break
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	if !blocked {
-		t.Fatal("downgrade never blocked behind the uncommitted metadata writer")
+		t.Fatal("downgrade never blocked behind the uncommitted metadata writer (pg_blocking_pids evidence missing)")
 	}
 	if err := txA.Commit(); err != nil {
 		t.Fatalf("commit A: %v", err)
