@@ -18,25 +18,35 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/0ldlight/bf/internal/repository"
 	refpg "github.com/0ldlight/bf/internal/repository/postgres"
 )
 
-// mdUnits 构造 UTF-16 码元（星面字符成代理对），与纯值语义一致。
+// mdUnits 构造 UTF-16 码元（星面字符成代理对），与纯值语义一致；空串得到
+// 非 nil 空切片（保留 null≠空区分），代理对算术直接复用标准库。
 // mdUnits builds UTF-16 units (astral characters become surrogate pairs),
-// matching the pure-value semantics.
+// matching the pure-value semantics; the empty string yields a nonnil empty
+// slice (preserving the null-versus-empty distinction) and the surrogate
+// arithmetic reuses the standard library.
 func mdUnits(s string) []uint16 {
-	units := make([]uint16, 0, len(s))
-	for _, r := range s {
-		if r > 0xFFFF {
-			r -= 0x10000
-			units = append(units, uint16(0xD800+(r>>10)), uint16(0xDC00+(r&0x3FF)))
-			continue
-		}
-		units = append(units, uint16(r))
+	return utf16.Encode([]rune(s))
+}
+
+// nodeIDExists 独立核实给定节点 ID 是否存在（失败回滚后的缺席证明）。
+// nodeIDExists checks through independent SQL whether a node ID exists
+// (proving absence after a failed rollback).
+func nodeIDExists(t *testing.T, adm *sql.DB, schema string, id int64) bool {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var n int
+	if err := adm.QueryRowContext(ctx, fmt.Sprintf(
+		"SELECT count(*) FROM %s.nodes WHERE node_id = $1", schema), id).Scan(&n); err != nil {
+		t.Fatalf("independent node existence read: %v", err)
 	}
-	return units
+	return n != 0
 }
 
 func equalMDUnits(t *testing.T, label string, got, want []uint16) {
@@ -392,76 +402,124 @@ func TestFileMetadataOriginalLengthBoundaries(t *testing.T) {
 	seedNodeBinary(t, adm, schema, sha1)
 	meta := nodeMeta(sha1)
 
-	// 1024 个 emoji（2048 码元/4096 字节）恰可存；1025 个以 22001 拒绝；
-	// 超限部分仅为尾部空格时 PostgreSQL 截去超限空格（无 Go 侧预检）。
-	// Exactly 1024 emoji (2048 units/4096 bytes) fit; 1025 is rejected with
-	// 22001; an excess consisting only of trailing spaces is truncated by
-	// PostgreSQL (no Go-side pre-check).
-	ok1024 := repository.NewFileMetadata(repository.FileMetadataInput{
-		CreatedMillis: 1, ModifiedMillis: 1,
-		SHA1Original: mdUnits(strings.Repeat("\U0001F600", 1024)),
-	})
-	tx, st := nodeTx(t, db)
-	ref := fileRefOf(t, 741, "repoL", "", "ok.bin", meta)
-	ref.Metadata = &ok1024
-	if n, err := st.Create(ctx, ref); err != nil || n != 1 {
-		t.Fatalf("Create(1024 emoji) = (%d, %v), want (1, nil)", n, err)
+	// 两个 original 列共用同一 1024 字符边界契约：逐一表驱动覆盖，防任一列
+	// 宽度漂移（如 VARCHAR(32)）逃过回归。
+	// Both original columns share the same 1024-character boundary contract:
+	// each is covered by the table below so a width drift (for example
+	// VARCHAR(32)) in either column cannot slip past the regression.
+	cases := []struct {
+		name string
+		set  func(in repository.FileMetadataInput, units []uint16) repository.FileMetadataInput
+		row  func(sha1Orig, md5Orig sql.NullString) sql.NullString
+		snap func(m *repository.FileMetadata) []uint16
+	}{
+		{"sha1_original",
+			func(in repository.FileMetadataInput, units []uint16) repository.FileMetadataInput {
+				in.SHA1Original = units
+				return in
+			},
+			func(sha1Orig, _ sql.NullString) sql.NullString { return sha1Orig },
+			func(m *repository.FileMetadata) []uint16 { return m.SHA1OriginalUTF16() }},
+		{"md5_original",
+			func(in repository.FileMetadataInput, units []uint16) repository.FileMetadataInput {
+				in.MD5Original = units
+				return in
+			},
+			func(_, md5Orig sql.NullString) sql.NullString { return md5Orig },
+			func(m *repository.FileMetadata) []uint16 { return m.MD5OriginalUTF16() }},
 	}
-	tooLong := repository.NewFileMetadata(repository.FileMetadataInput{
-		CreatedMillis: 1, ModifiedMillis: 1,
-		SHA1Original: mdUnits(strings.Repeat("\U0001F600", 1025)),
-	})
-	refLong := fileRefOf(t, 742, "repoL", "", "long.bin", meta)
-	refLong.Metadata = &tooLong
-	_, err := st.Create(ctx, refLong)
-	if err == nil {
-		t.Fatal("Create(1025 emoji) must fail")
-	}
-	if code := pgCodeOf(t, err); code != "22001" {
-		t.Fatalf("overlong original SQLSTATE = %s, want 22001", code)
-	}
-	if s := err.Error(); s != "postgres nodes: create file reference" {
-		t.Fatalf("overlong Error() = %q, want fixed create stage text", s)
-	}
-	if err := tx.Rollback(); err != nil {
-		t.Fatalf("rollback: %v", err)
-	}
-	if n := countNodes(t, adm, schema); n != 0 {
-		t.Fatalf("count after rollback = %d, want 0", n)
-	}
+	for i, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			base := int64(740 + i*10)
+			repo := fmt.Sprintf("repoL%d", i)
+			// 1024 个 emoji（2048 码元/4096 字节）恰可存并完整回读；1025 个以
+			// 22001 拒绝；超限部分仅为尾部空格时 PostgreSQL 截去超限空格
+			//（无 Go 侧预检）。
+			// Exactly 1024 emoji (2048 units/4096 bytes) fit and read back in
+			// full; 1025 is rejected with 22001; an excess consisting only of
+			// trailing spaces is truncated by PostgreSQL (no Go-side pre-check).
+			ok1024 := repository.NewFileMetadata(tc.set(repository.FileMetadataInput{
+				CreatedMillis: 1, ModifiedMillis: 1,
+			}, mdUnits(strings.Repeat("\U0001F600", 1024))))
+			tx, st := nodeTx(t, db)
+			ref := fileRefOf(t, base+1, repo, "", "ok.bin", meta)
+			ref.Metadata = &ok1024
+			if n, err := st.Create(ctx, ref); err != nil || n != 1 {
+				t.Fatalf("Create(1024 emoji) = (%d, %v), want (1, nil)", n, err)
+			}
+			if err := tx.Commit(); err != nil {
+				t.Fatalf("commit: %v", err)
+			}
+			_, _, _, _, _, s1row, m5row := metadataRowOf(t, adm, schema, base+1)
+			if got := tc.row(s1row, m5row); got.String != strings.Repeat("\U0001F600", 1024) {
+				t.Fatalf("stored 1024-emoji %s length = %d, want 1024 characters", tc.name, len(got.String))
+			}
+			lookTx, lookSt := nodeTx(t, db)
+			got, err := lookSt.Lookup(ctx, fileRefOf(t, 0, repo, "", "ok.bin", meta).Path)
+			if err != nil {
+				t.Fatalf("Lookup(1024 emoji): %v", err)
+			}
+			equalMDUnits(t, "read-back 1024-emoji "+tc.name, tc.snap(got.Metadata), mdUnits(strings.Repeat("\U0001F600", 1024)))
+			if err := lookTx.Rollback(); err != nil {
+				t.Fatalf("rollback: %v", err)
+			}
 
-	// 1020 'a' + 10 空格 = 1030 字符：存为 1024 字符（1020 'a' + 4 空格）。
-	// 1020 'a' + 10 spaces = 1030 characters: stored as 1024 (1020 'a' plus
-	// 4 spaces).
-	spaced := repository.NewFileMetadata(repository.FileMetadataInput{
-		CreatedMillis: 1, ModifiedMillis: 1,
-		SHA1Original: mdUnits(strings.Repeat("a", 1020) + strings.Repeat(" ", 10)),
-	})
-	tx2, st2 := nodeTx(t, db)
-	refSp := fileRefOf(t, 743, "repoL", "", "spaces.bin", meta)
-	refSp.Metadata = &spaced
-	if n, err := st2.Create(ctx, refSp); err != nil || n != 1 {
-		t.Fatalf("Create(trailing spaces) = (%d, %v), want (1, nil)", n, err)
-	}
-	if err := tx2.Commit(); err != nil {
-		t.Fatalf("commit: %v", err)
-	}
-	_, _, _, _, _, sha1Orig, _ := metadataRowOf(t, adm, schema, 743)
-	wantStored := strings.Repeat("a", 1020) + strings.Repeat(" ", 4)
-	if sha1Orig.String != wantStored {
-		t.Fatalf("stored spaced original len = %d, want %d (trailing spaces truncated by PostgreSQL)",
-			len(sha1Orig.String), len(wantStored))
-	}
-	lookTx, lookSt := nodeTx(t, db)
-	got, err := lookSt.Lookup(ctx, fileRefOf(t, 0, "repoL", "", "spaces.bin", meta).Path)
-	if err != nil {
-		t.Fatalf("Lookup(spaces): %v", err)
-	}
-	if s1 := got.Metadata.SHA1OriginalUTF16(); len(s1) != 1024 {
-		t.Fatalf("read-back spaced original = %d units, want 1024", len(s1))
-	}
-	if err := lookTx.Rollback(); err != nil {
-		t.Fatalf("rollback: %v", err)
+			tooLong := repository.NewFileMetadata(tc.set(repository.FileMetadataInput{
+				CreatedMillis: 1, ModifiedMillis: 1,
+			}, mdUnits(strings.Repeat("\U0001F600", 1025))))
+			tx2, st2 := nodeTx(t, db)
+			refLong := fileRefOf(t, base+2, repo, "", "long.bin", meta)
+			refLong.Metadata = &tooLong
+			_, err = st2.Create(ctx, refLong)
+			if err == nil {
+				t.Fatal("Create(1025 emoji) must fail")
+			}
+			if code := pgCodeOf(t, err); code != "22001" {
+				t.Fatalf("overlong %s SQLSTATE = %s, want 22001", tc.name, code)
+			}
+			if s := err.Error(); s != "postgres nodes: create file reference" {
+				t.Fatalf("overlong Error() = %q, want fixed create stage text", s)
+			}
+			if err := tx2.Rollback(); err != nil {
+				t.Fatalf("rollback: %v", err)
+			}
+			if nodeIDExists(t, adm, schema, base+2) {
+				t.Fatalf("overlong %s row must not exist after rollback", tc.name)
+			}
+
+			// 1020 'a' + 10 空格 = 1030 字符：存为 1024 字符（1020 'a' + 4 空格）。
+			// 1020 'a' + 10 spaces = 1030 characters: stored as 1024 (1020 'a'
+			// plus 4 spaces).
+			spaced := repository.NewFileMetadata(tc.set(repository.FileMetadataInput{
+				CreatedMillis: 1, ModifiedMillis: 1,
+			}, mdUnits(strings.Repeat("a", 1020)+strings.Repeat(" ", 10))))
+			tx3, st3 := nodeTx(t, db)
+			refSp := fileRefOf(t, base+3, repo, "", "spaces.bin", meta)
+			refSp.Metadata = &spaced
+			if n, err := st3.Create(ctx, refSp); err != nil || n != 1 {
+				t.Fatalf("Create(trailing spaces) = (%d, %v), want (1, nil)", n, err)
+			}
+			if err := tx3.Commit(); err != nil {
+				t.Fatalf("commit: %v", err)
+			}
+			_, _, _, _, _, s1sp, m5sp := metadataRowOf(t, adm, schema, base+3)
+			wantStored := strings.Repeat("a", 1020) + strings.Repeat(" ", 4)
+			if got := tc.row(s1sp, m5sp); got.String != wantStored {
+				t.Fatalf("stored spaced %s length = %d, want %d (trailing spaces truncated by PostgreSQL)",
+					tc.name, len(got.String), len(wantStored))
+			}
+			lookTx2, lookSt2 := nodeTx(t, db)
+			gotSp, err := lookSt2.Lookup(ctx, fileRefOf(t, 0, repo, "", "spaces.bin", meta).Path)
+			if err != nil {
+				t.Fatalf("Lookup(spaces): %v", err)
+			}
+			if u := tc.snap(gotSp.Metadata); len(u) != 1024 {
+				t.Fatalf("read-back spaced %s = %d units, want 1024", tc.name, len(u))
+			}
+			if err := lookTx2.Rollback(); err != nil {
+				t.Fatalf("rollback: %v", err)
+			}
+		})
 	}
 }
 
@@ -473,34 +531,49 @@ func TestFileMetadataNULRejected22021(t *testing.T) {
 	seedNodeBinary(t, adm, schema, sha1)
 	meta := nodeMeta(sha1)
 
-	// NUL 逐字送达数据库并以 22021 拒绝（不预截断/替换）；错误有界，原因经
-	// pgCodeOf 的 errors.As 可达；调用方回滚后无残留行。
+	// NUL 逐字送达数据库并以 22021 拒绝（不预截断/替换）；两个 original 槽
+	// 各自覆盖（表驱动，防任一槽的 NUL 预检漏网）；错误有界，原因经 pgCodeOf
+	// 的 errors.As 可达；调用方回滚后无残留行。
 	// NUL reaches the database verbatim and is rejected with 22021 (no
-	// pre-truncation/replacement); the error stays bounded, the cause stays
-	// reachable (pgCodeOf asserts errors.As), and no row survives the
-	// caller rollback.
-	nulMeta := repository.NewFileMetadata(repository.FileMetadataInput{
-		CreatedMillis: 1, ModifiedMillis: 1,
-		SHA1Original: []uint16{'a', 0, 'b'},
-	})
-	tx, st := nodeTx(t, db)
-	ref := fileRefOf(t, 751, "repoN", "", "nul.bin", meta)
-	ref.Metadata = &nulMeta
-	_, err := st.Create(ctx, ref)
-	if err == nil {
-		t.Fatal("Create with NUL original must fail")
-	}
-	if code := pgCodeOf(t, err); code != "22021" {
-		t.Fatalf("NUL SQLSTATE = %s, want 22021", code)
-	}
-	if s := err.Error(); s != "postgres nodes: create file reference" || len(s) > 200 {
-		t.Fatalf("NUL Error() = %q, want bounded create stage text", s)
-	}
-	if err := tx.Rollback(); err != nil {
-		t.Fatalf("rollback: %v", err)
-	}
-	if n := countNodes(t, adm, schema); n != 0 {
-		t.Fatalf("count after NUL rollback = %d, want 0", n)
+	// pre-truncation/replacement); both original slots are covered
+	// table-driven so a NUL pre-check added to either slot cannot slip
+	// through; the error stays bounded, the cause stays reachable (pgCodeOf
+	// asserts errors.As), and no row survives the caller rollback.
+	for i, tc := range []struct {
+		name string
+		set  func(in repository.FileMetadataInput) repository.FileMetadataInput
+	}{
+		{"sha1_original", func(in repository.FileMetadataInput) repository.FileMetadataInput {
+			in.SHA1Original = []uint16{'a', 0, 'b'}
+			return in
+		}},
+		{"md5_original", func(in repository.FileMetadataInput) repository.FileMetadataInput {
+			in.MD5Original = []uint16{'x', 0, 'y'}
+			return in
+		}},
+	} {
+		nulMeta := repository.NewFileMetadata(tc.set(repository.FileMetadataInput{
+			CreatedMillis: 1, ModifiedMillis: 1,
+		}))
+		tx, st := nodeTx(t, db)
+		ref := fileRefOf(t, int64(751+i*10), "repoN", "", fmt.Sprintf("nul%d.bin", i), meta)
+		ref.Metadata = &nulMeta
+		_, err := st.Create(ctx, ref)
+		if err == nil {
+			t.Fatalf("Create with NUL in %s must fail", tc.name)
+		}
+		if code := pgCodeOf(t, err); code != "22021" {
+			t.Fatalf("NUL %s SQLSTATE = %s, want 22021", tc.name, code)
+		}
+		if s := err.Error(); s != "postgres nodes: create file reference" || len(s) > 200 {
+			t.Fatalf("NUL %s Error() = %q, want bounded create stage text", tc.name, s)
+		}
+		if err := tx.Rollback(); err != nil {
+			t.Fatalf("rollback %s: %v", tc.name, err)
+		}
+		if n := countNodes(t, adm, schema); n != 0 {
+			t.Fatalf("count after %s NUL rollback = %d, want 0", tc.name, n)
+		}
 	}
 }
 
@@ -549,52 +622,95 @@ func TestFileMetadataUpdateNilPreservesNonNilReplaces(t *testing.T) {
 			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
 	}
 
-	// 非 nil Metadata 更新：同一 UPDATE 原子替换七列，包括把既有值替换为
-	// NULL（null actor / nil original）。
+	// 非 nil Metadata 更新：同一 UPDATE 原子替换七列。两个互补方向各做一次：
+	// B 把 created_by/sha1_original 清成 NULL、modified_by/md5_original 置空串；
+	// C 反向把 modified_by/md5_original 清成 NULL、created_by/sha1_original 置
+	// 空串——COALESCE 式合并无论藏在哪一侧都无法同时骗过两个方向。
 	// A nonnil-Metadata update atomically replaces all seven columns in one
-	// UPDATE, including replacing existing values with NULL (null actors
-	// and nil originals).
-	snapB := repository.NewFileMetadata(repository.FileMetadataInput{
-		CreatedMillis: -7, ModifiedMillis: 0, UpdatedMillis: 7,
-		CreatedBy:    repository.NewActor(nil),
-		ModifiedBy:   repository.NewActor(mdUnits("")),
-		SHA1Original: nil,
-		MD5Original:  []uint16{},
-	})
-	tx3, st3 := nodeTx(t, db)
-	updB := fileRefOf(t, 761, "repoU", "new", "a.bin", meta)
-	updB.Metadata = &snapB
-	if n, err := st3.Update(ctx, updB); err != nil || n != 1 {
-		t.Fatalf("Update(nonnil metadata) = (%d, %v), want (1, nil)", n, err)
+	// UPDATE. Two complementary profiles: B clears created_by/sha1_original to
+	// NULL while modified_by/md5_original become empty strings; C is the
+	// reverse (modified_by/md5_original NULL, created_by/sha1_original empty) —
+	// a COALESCE-style merge cannot hide on either side.
+	for _, rep := range []struct {
+		name                          string
+		snap                          repository.FileMetadata
+		wantCreatedBy, wantModifiedBy sql.NullString
+		wantSHA1Orig, wantMD5Orig     sql.NullString
+	}{
+		{
+			name: "created-and-sha1-to-null",
+			snap: repository.NewFileMetadata(repository.FileMetadataInput{
+				CreatedMillis: -7, ModifiedMillis: 0, UpdatedMillis: 7,
+				CreatedBy:    repository.NewActor(nil),
+				ModifiedBy:   repository.NewActor(mdUnits("")),
+				SHA1Original: nil,
+				MD5Original:  mdUnits(""),
+			}),
+			wantCreatedBy:  sql.NullString{},
+			wantModifiedBy: sql.NullString{String: "", Valid: true},
+			wantSHA1Orig:   sql.NullString{},
+			wantMD5Orig:    sql.NullString{String: "", Valid: true},
+		},
+		{
+			name: "modified-and-md5-to-null",
+			snap: repository.NewFileMetadata(repository.FileMetadataInput{
+				CreatedMillis: -8, ModifiedMillis: 1, UpdatedMillis: 8,
+				CreatedBy:    repository.NewActor(mdUnits("")),
+				ModifiedBy:   repository.NewActor(nil),
+				SHA1Original: mdUnits(""),
+				MD5Original:  nil,
+			}),
+			wantCreatedBy:  sql.NullString{String: "", Valid: true},
+			wantModifiedBy: sql.NullString{},
+			wantSHA1Orig:   sql.NullString{String: "", Valid: true},
+			wantMD5Orig:    sql.NullString{},
+		},
+	} {
+		s := rep.snap
+		tx3, st3 := nodeTx(t, db)
+		upd := fileRefOf(t, 761, "repoU", "new", "a.bin", meta)
+		upd.Metadata = &s
+		if n, err := st3.Update(ctx, upd); err != nil || n != 1 {
+			t.Fatalf("Update(%s) = (%d, %v), want (1, nil)", rep.name, n, err)
+		}
+		if err := tx3.Commit(); err != nil {
+			t.Fatalf("commit %s: %v", rep.name, err)
+		}
+		c, m, u, createdBy, modifiedBy, sha1Orig, md5Orig :=
+			metadataRowOf(t, adm, schema, 761)
+		if !c.Valid || c.Int64 != rep.snap.CreatedMillis() || !m.Valid ||
+			m.Int64 != rep.snap.ModifiedMillis() || !u.Valid || u.Int64 != rep.snap.UpdatedMillis() {
+			t.Fatalf("%s did not replace the timestamps: %v/%v/%v", rep.name, c, m, u)
+		}
+		if createdBy.Valid != rep.wantCreatedBy.Valid || createdBy.String != rep.wantCreatedBy.String ||
+			modifiedBy.Valid != rep.wantModifiedBy.Valid || modifiedBy.String != rep.wantModifiedBy.String ||
+			sha1Orig.Valid != rep.wantSHA1Orig.Valid || sha1Orig.String != rep.wantSHA1Orig.String ||
+			md5Orig.Valid != rep.wantMD5Orig.Valid || md5Orig.String != rep.wantMD5Orig.String {
+			t.Fatalf("%s stored NULL/empty mix = %v/%v/%v/%v, want %v/%v/%v/%v",
+				rep.name, createdBy, modifiedBy, sha1Orig, md5Orig,
+				rep.wantCreatedBy, rep.wantModifiedBy, rep.wantSHA1Orig, rep.wantMD5Orig)
+		}
+		lookTx, lookSt := nodeTx(t, db)
+		got, err := lookSt.Lookup(ctx, fileRefOf(t, 0, "repoU", "new", "a.bin", meta).Path)
+		if err != nil {
+			t.Fatalf("Lookup(%s): %v", rep.name, err)
+		}
+		equalSnapshot(t, got.Metadata, s)
+		if err := lookTx.Rollback(); err != nil {
+			t.Fatalf("rollback %s: %v", rep.name, err)
+		}
 	}
-	if err := tx3.Commit(); err != nil {
-		t.Fatalf("commit: %v", err)
-	}
-	created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig =
-		metadataRowOf(t, adm, schema, 761)
-	if !created.Valid || created.Int64 != -7 || !modified.Valid || modified.Int64 != 0 ||
-		!updated.Valid || updated.Int64 != 7 || createdBy.Valid ||
-		!modifiedBy.Valid || modifiedBy.String != "" || sha1Orig.Valid ||
-		!md5Orig.Valid || md5Orig.String != "" {
-		t.Fatalf("nonnil update did not replace all seven: %v/%v/%v/%v/%v/%v/%v",
-			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
-	}
-	lookTx, lookSt := nodeTx(t, db)
-	got, err := lookSt.Lookup(ctx, fileRefOf(t, 0, "repoU", "new", "a.bin", meta).Path)
-	if err != nil {
-		t.Fatalf("Lookup: %v", err)
-	}
-	equalSnapshot(t, got.Metadata, snapB)
 
 	// 缺失 ID 的元数据更新：0 行、不创建、不影响既有行。
 	// A metadata update on a missing ID: zero rows, no create, no effect on
 	// existing rows.
+	missTx, missSt := nodeTx(t, db)
 	missing := fileRefOf(t, 762, "repoU", "x", "y.bin", meta)
 	missing.Metadata = &snapA
-	if n, err := lookSt.Update(ctx, missing); err != nil || n != 0 {
+	if n, err := missSt.Update(ctx, missing); err != nil || n != 0 {
 		t.Fatalf("Update(missing id) = (%d, %v), want (0, nil)", n, err)
 	}
-	if err := lookTx.Rollback(); err != nil {
+	if err := missTx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
 	if n := countNodes(t, adm, schema); n != 1 {
@@ -625,20 +741,26 @@ func TestFileMetadataFailedUpdateRollbackPreservesOriginal(t *testing.T) {
 		t.Fatalf("commit: %v", err)
 	}
 
-	// 同一事务：一次成功写入 + 一次超长 original 的失败元数据更新；调用方
-	// 回滚后两者全部消失，原行元数据保持。
-	// One transaction: a successful write plus a failing metadata update
-	// with an overlong original; the caller rollback discards both and the
-	// original row keeps its metadata.
+	// 同一事务：一次成功写入 + 一次失败的复合更新（合法新路径 + 合法新
+	// binary/content + 非法超长 original 元数据）；调用方回滚后事务内写入
+	// 全部消失，原行的路径、内容与七列元数据保持原样，新路径不存在。
+	// One transaction: a successful write plus a failing composite update
+	// (a legal new path + a legal new binary/content + illegal overlong
+	// original metadata); the caller rollback discards everything written
+	// in the transaction, the original row keeps its path, content and all
+	// seven metadata columns, and the new path stays absent.
 	tx2, st2 := nodeTx(t, db)
 	if n, err := st2.Create(ctx, fileRefOf(t, 772, "repoR", "dir", "b.bin", meta)); err != nil || n != 1 {
 		t.Fatalf("in-tx Create = (%d, %v), want (1, nil)", n, err)
 	}
+	sha1B := strings.Repeat("9", 40)
+	seedNodeBinary(t, adm, schema, sha1B)
+	metaB := nodeMeta(sha1B)
 	bad := repository.NewFileMetadata(repository.FileMetadataInput{
 		CreatedMillis: 1, ModifiedMillis: 1,
 		SHA1Original: mdUnits(strings.Repeat("\U0001F600", 1025)),
 	})
-	updBad := fileRefOf(t, 771, "repoR", "dir", "a.bin", meta)
+	updBad := fileRefOf(t, 771, "repoR", "moved", "c.bin", metaB)
 	updBad.Metadata = &bad
 	_, err := st2.Update(ctx, updBad)
 	if err == nil {
@@ -647,18 +769,52 @@ func TestFileMetadataFailedUpdateRollbackPreservesOriginal(t *testing.T) {
 	if code := pgCodeOf(t, err); code != "22001" {
 		t.Fatalf("failed update SQLSTATE = %s, want 22001", code)
 	}
+	if s := err.Error(); s != "postgres nodes: update file reference" {
+		t.Fatalf("failed update Error() = %q, want fixed update stage text", s)
+	}
 	if err := tx2.Rollback(); err != nil {
 		t.Fatalf("caller rollback: %v", err)
 	}
 	if n := countNodes(t, adm, schema); n != 1 {
 		t.Fatalf("count after rollback = %d, want 1 (earlier write rolled back)", n)
 	}
+	var repo, nodePath, nodeName, sha1Actual string
+	var binLength sql.NullInt64
+	rctx, rcancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer rcancel()
+	if err := adm.QueryRowContext(rctx, fmt.Sprintf(
+		"SELECT repo, node_path, node_name, sha1_actual, bin_length FROM %s.nodes WHERE node_id = 771", schema)).
+		Scan(&repo, &nodePath, &nodeName, &sha1Actual, &binLength); err != nil {
+		t.Fatalf("original row read after rollback: %v", err)
+	}
+	if repo != "repoR" || nodePath != "dir" || nodeName != "a.bin" || sha1Actual != sha1 || !binLength.Valid || binLength.Int64 != 21 {
+		t.Fatalf("original projection after rollback = %q/%q/%q/%q/%v, want the original",
+			repo, nodePath, nodeName, sha1Actual, binLength)
+	}
+	if created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig := metadataRowOf(t, adm, schema, 771); !created.Valid ||
+		created.Int64 != 11 || !modified.Valid || modified.Int64 != 22 || !updated.Valid ||
+		updated.Int64 != 33 || createdBy.String != "keeper" || modifiedBy.Valid || sha1Orig.String != "keep-orig" || md5Orig.Valid {
+		t.Fatalf("original metadata after rollback = %v/%v/%v/%v/%v/%v/%v, want the created snapshot",
+			created, modified, updated, createdBy, modifiedBy, sha1Orig, md5Orig)
+	}
 	lookTx, lookSt := nodeTx(t, db)
 	got, err := lookSt.Lookup(ctx, fileRefOf(t, 0, "repoR", "dir", "a.bin", meta).Path)
 	if err != nil {
 		t.Fatalf("Lookup: %v", err)
 	}
+	if got.ID != 771 || got.Content != meta {
+		t.Fatalf("Lookup after rollback = (%d, %+v), want (771, original content)", got.ID, got.Content)
+	}
 	equalSnapshot(t, got.Metadata, snapA)
+	// 新路径不存在（固定文案 + sql.ErrNoRows 可达）。
+	// The new path stays absent (fixed text with sql.ErrNoRows reachable).
+	_, err = lookSt.Lookup(ctx, fileRefOf(t, 0, "repoR", "moved", "c.bin", metaB).Path)
+	if err == nil {
+		t.Fatal("Lookup on the attempted new path must miss after the rollback")
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		t.Fatalf("new-path Lookup error = %v, want sql.ErrNoRows reachable", err)
+	}
 	if err := lookTx.Rollback(); err != nil {
 		t.Fatalf("rollback: %v", err)
 	}
