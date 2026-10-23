@@ -102,6 +102,11 @@ A BIN-139 implementation slice (2026-10-22): with owner approval, the already-bo
 2026-10-22 BIN-140 实现切片：按所有者批准，把[文件节点保存契约](FILE-NODE-SAVE-CONTRACT.md)的逐节点元数据表示实现为 `internal/repository` 的显式快照纯值 `FileMetadata`（三个独立 signed int64 毫秒逐字复制、复用既有 `Actor`、两个可空原始 UTF-16 original 构造与读取各复制、任意长度不缩写不归一化）。契约与边界见[文件元数据记录](FILE-METADATA.md)。仅纯值：消费者/SQL/迁移/传输/保存编排/HTTP 仍开放；根独立验证 68721 组冻结七字段参考、481047 次字段比较通过，所有权/竞态和两项故障回归通过；详见规范记录。
 A BIN-140 implementation slice (2026-10-22): with owner approval, the per-node metadata representation from the [file-node save contract](FILE-NODE-SAVE-CONTRACT.md) landed as the explicit-snapshot pure value `FileMetadata` in `internal/repository` (three independent signed int64 milliseconds copied verbatim, reuse of the existing `Actor`, two nullable raw-UTF-16 originals defensively copied on construction and on every read, no abbreviation or normalization at any length). The [file-metadata note](FILE-METADATA.md) owns the contract and boundaries. Pure value only: consumers/SQL/migration/transport/save orchestration/HTTP remain open; independent verification passed for 68721 frozen seven-field cases and 481047 field comparisons, plus ownership/race checks and two fault regressions; see the canonical note.
 
+## 文件元数据持久化 / File metadata persistence
+
+2026-10-23 BIN-142：已按所有者批准实现文件元数据七列投影、PostgreSQL 私有编码与显式升级/受保护回退。唯一规范、参考来源、独立复验及门禁边界见[文件元数据持久化记录](FILE-METADATA-PERSISTENCE.md)；主分支合并与发布由所有者另审。
+BIN-142 (2026-10-23) implements the owner-approved seven-column file-metadata projection, private PostgreSQL codec and explicit upgrade/guarded downgrade. The [file-metadata persistence note](FILE-METADATA-PERSISTENCE.md) owns the contract, reference provenance, independent replay and gate boundaries; main-branch merging and release require separate owner approval.
+
 ## 证据规则 / Evidence rules
 
 1. 私有 manifest 记录来源、获取时间、父制品、工具/版本、摘要、证据 ID 和限制；原始输出保持私有。
