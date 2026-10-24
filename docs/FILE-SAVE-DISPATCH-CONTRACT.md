@@ -1,7 +1,7 @@
 # 文件保存分派契约 / File-save dispatch contract
 
-状态：目标静态调查与本地接缝盘点；首个已批准实现切片——原始 `FileInfoSnapshot` 纯值与 `IsIdentical`（见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)）——已实现，待审阅合并，完整保存分派器与变化判断门仍未实现。本页不批准新的锁或会话设计。
-State: target static research and local seam inventory. The first approved implementation slice — the raw `FileInfoSnapshot` pure value with `IsIdentical` (see the [file-info snapshot note](FILE-INFO-SNAPSHOT.md)) — is implemented, pending review and merge, while a complete save dispatcher and dirty-check gate remain unimplemented. This page approves no new lock or session design.
+状态：目标静态调查与本地接缝盘点；首个已批准实现切片——原始 `FileInfoSnapshot` 纯值与 `IsIdentical`（见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)）——已实现，完整保存分派器与变化判断门仍未实现。本页不批准新的锁或会话设计。
+State: target static research and local seam inventory. The first approved implementation slice — the raw `FileInfoSnapshot` pure value with `IsIdentical` (see the [file-info snapshot note](FILE-INFO-SNAPSHOT.md)) — is implemented, while a complete save dispatcher and dirty-check gate remain unimplemented. This page approves no new lock or session design.
 
 ## 来源 / Provenance
 
@@ -30,8 +30,8 @@ The created flag is registered as false, including created in comparison by defa
 [FileMetadata](FILE-METADATA.md) 表示映射后的节点值，Actor 已经过持久化边界的缩写。它缺少完整原始 FileInfo、校验和图空性和 MIME，不能直接承担原版完整变化判断；纯值获批也不等于批准删除上层判断。节点未更新时，目标属性/关注操作仍可能执行。
 FileMetadata represents mapped node values whose actors are already abbreviated at the persistence boundary. It lacks the complete raw FileInfo, checksum-map presence and MIME, so it cannot directly implement the complete target dirty check. Pure-value approval does not authorize deleting that gate. Property/watch work may still execute when the node update is skipped.
 
-已批准的原始快照表示与比较器契约（含显式 `ignoreCreated` 布尔）见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)；该切片已实现，待审阅合并，仅纯值，不接 SQL、属性/关注或分派。
-The approved raw-snapshot representation and comparator contract (with the explicit `ignoreCreated` boolean) live in the [file-info snapshot note](FILE-INFO-SNAPSHOT.md); that slice is implemented, pending review and merge, pure value only, wired to no SQL, properties/watches or dispatch.
+已批准的原始快照表示与比较器契约（含显式 `ignoreCreated` 布尔）见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)；该切片已实现，仅纯值，不接 SQL、属性/关注或分派。
+The approved raw-snapshot representation and comparator contract (with the explicit `ignoreCreated` boolean) live in the [file-info snapshot note](FILE-INFO-SNAPSHOT.md); that slice is implemented, pure value only, wired to no SQL, properties/watches or dispatch.
 
 ## 路径重新映射 / Path remapping
 
@@ -48,3 +48,6 @@ Local Lookup returns Metadata=nil for legacy rows with all seven columns NULL. U
 
 下一实现提案须说明比较状态的完整表示、加载/请求路径映射、旧记录策略及尚未表示的锁/会话范围。消费者回归只新增接缝场景，复用已有适配器、编码、号段和真实 PostgreSQL 回归；大型重复语料不能替代边界设计。权限、HTTP 与正式发布仍按独立范围推进。
 The next implementation proposal must define complete comparison state, loaded/request path mapping, legacy-row policy and unrepresented lock/session scope. Consumer regressions should add new seam scenarios and reuse existing adapter, codec, reservation and real-PostgreSQL tests. Repeated large corpora cannot replace boundary design. Authorization, HTTP and release remain separate scopes.
+
+七字段写侧转换现由[NodeMetadata 纯投影](FILE-SNAPSHOT-MAPPING.md)提供。投影成功不验证完整保存接受条件，不重建旧行，也不提供节点身份或内容 actual 参数；分派器仍须明确这些边界。
+The [NodeMetadata pure projection](FILE-SNAPSHOT-MAPPING.md) supplies seven write-side fields. Success validates no full-save acceptance, reconstructs no legacy row and supplies neither identity nor content actuals. Dispatch still needs explicit contracts for those boundaries.

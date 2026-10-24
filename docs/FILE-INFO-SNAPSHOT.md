@@ -1,7 +1,7 @@
 # 文件信息原始快照 / File-info raw snapshot
 
-状态 / State: 已实现所有者批准的原始快照纯值与受限比较器，等待 PR 审阅及合并。完整保存分派器与变化门接线仍未实现。
-State: the approved raw-snapshot pure value and restricted comparator are implemented, pending PR review and merge. Full save dispatch and dirty-gate wiring remain unimplemented.
+状态 / State: 已实现所有者批准的原始快照纯值与受限比较器，核心已合并；写侧投影见[七字段映射](FILE-SNAPSHOT-MAPPING.md)。完整保存分派器与变化门接线仍未实现。
+State: the approved raw-snapshot pure value and restricted comparator are implemented; the core is merged; see the [seven-field projection](FILE-SNAPSHOT-MAPPING.md) for write-side mapping. Full save dispatch and dirty-gate wiring remain unimplemented.
 
 ## 范围与来源 / Scope and provenance
 
@@ -38,6 +38,7 @@ type FileInfoSnapshot struct { /* private immutable state */ }
 
 func NewFileInfoSnapshot(FileInfoSnapshotInput) (FileInfoSnapshot, error)
 func (s FileInfoSnapshot) Fields() FileInfoSnapshotInput
+func (s FileInfoSnapshot) NodeMetadata() (FileMetadata, error)
 func (s FileInfoSnapshot) IsIdentical(
     other FileInfoSnapshot, ignoreCreated bool,
 ) (bool, error)
@@ -56,6 +57,9 @@ func (s FileInfoSnapshot) IsIdentical(
   Nil and empty input slices both denote an empty map inside a valid nonnull container, never a Java null container. A missing entry differs from a present null actual; matching is keyed by kind, order is irrelevant and each known kind appears at most once; the frozen universe is sha1/md5/sha256.
 - `ignoreCreated` 必须显式传入：true 跳过 created，false 比较 created；不读配置、环境或时钟，注册默认值不视为部署生效值。ID 与 folder 标志不参与比较；比较结果本身不直接控制 SQL、属性/关注、锁或会话行为。
   `ignoreCreated` is supplied explicitly — true skips created, false compares it — with no configuration, environment or clock reads, and the registered default is not a deployed value. ID and folder flags are excluded; the result does not itself control SQL, properties/watches, locks or sessions.
+
+写侧 `NodeMetadata()` 的七字段规则、本地缺席策略与目标成功域以[映射记录](FILE-SNAPSHOT-MAPPING.md)为准；投影相等不替代变化判断。
+The [mapping note](FILE-SNAPSHOT-MAPPING.md) owns NodeMetadata rules, local absent-entry policy and target-success scope. Projection equality does not replace dirty checking.
 
 ## 原始捕获 vs 既有映射值 / Raw capture vs existing mapped values
 
