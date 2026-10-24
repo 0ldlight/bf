@@ -125,3 +125,8 @@ BIN-153–159 (2026-10-23) reuse the same target WAR's save-chain bytecode and a
 Further dependency/frontend/platform analysis and behavioral sampling remain open; this inventory is not completed reverse engineering or parity.
 
 - [本地 provider / Local provider](LOCAL-FILESTORE.md)：内部 Put/Open 及故障/并发/路径验证；HTTP、数据库引用、GC 与 HA 仍待接入。
+
+## 文件保存分派与变化判断 / File-save dispatch and dirty checking
+
+2026-10-24 BIN-160/161/162 复用同一目标冻结字节码，定向补查两个比较链直接依赖，区分加载行与请求身份、完整原始快照比较、条件性路径再映射及本地遗留元数据策略。来源、结论与未观察项以[文件保存分派契约](FILE-SAVE-DISPATCH-CONTRACT.md)为准。新增导出已按父制品条目和类 SHA-256 独立复核；本轮无新目标运行或数据库探针，不预设新的 API 或分派实现。
+BIN-160/161/162 reuse frozen bytecode from the same target and inspect two direct comparison dependencies, separating loaded/request identity, raw-snapshot comparison, conditional path remapping and local legacy-metadata policy. The [file-save dispatch contract](FILE-SAVE-DISPATCH-CONTRACT.md) owns the findings and unknowns. New exports were independently checked against parent artifact entries and class SHA-256 digests. No new target runtime or database probe was performed, and no new API or dispatcher implementation is implied.
