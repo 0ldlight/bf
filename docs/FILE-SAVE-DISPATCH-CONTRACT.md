@@ -1,7 +1,7 @@
 # 文件保存分派契约 / File-save dispatch contract
 
-状态：目标静态调查与本地接缝盘点；新的保存分派器、完整文件快照与变化判断尚未实现。本页不批准新的 API、锁或会话设计。
-State: target static research and local seam inventory. A save dispatcher, full file snapshot and dirty check remain unimplemented. This page approves no new API, lock or session design.
+状态：目标静态调查与本地接缝盘点；首个已批准实现切片——原始 `FileInfoSnapshot` 纯值与 `IsIdentical`（见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)）——已实现，待审阅合并，完整保存分派器与变化判断门仍未实现。本页不批准新的锁或会话设计。
+State: target static research and local seam inventory. The first approved implementation slice — the raw `FileInfoSnapshot` pure value with `IsIdentical` (see the [file-info snapshot note](FILE-INFO-SNAPSHOT.md)) — is implemented, pending review and merge, while a complete save dispatcher and dirty-check gate remain unimplemented. This page approves no new lock or session design.
 
 ## 来源 / Provenance
 
@@ -29,6 +29,9 @@ The created flag is registered as false, including created in comparison by defa
 
 [FileMetadata](FILE-METADATA.md) 表示映射后的节点值，Actor 已经过持久化边界的缩写。它缺少完整原始 FileInfo、校验和图空性和 MIME，不能直接承担原版完整变化判断；纯值获批也不等于批准删除上层判断。节点未更新时，目标属性/关注操作仍可能执行。
 FileMetadata represents mapped node values whose actors are already abbreviated at the persistence boundary. It lacks the complete raw FileInfo, checksum-map presence and MIME, so it cannot directly implement the complete target dirty check. Pure-value approval does not authorize deleting that gate. Property/watch work may still execute when the node update is skipped.
+
+已批准的原始快照表示与比较器契约（含显式 `ignoreCreated` 布尔）见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)；该切片已实现，待审阅合并，仅纯值，不接 SQL、属性/关注或分派。
+The approved raw-snapshot representation and comparator contract (with the explicit `ignoreCreated` boolean) live in the [file-info snapshot note](FILE-INFO-SNAPSHOT.md); that slice is implemented, pending review and merge, pure value only, wired to no SQL, properties/watches or dispatch.
 
 ## 路径重新映射 / Path remapping
 
