@@ -77,3 +77,6 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
   Per approved ADR-003 direction; begins only when an actual UI slice starts. No scaffold exists.
 - **文档边界 / Documentation boundary**: 本仓库 `docs/` 只放工程文档；使用文档在 Fern（见 [DOCUMENTATION.md](DOCUMENTATION.md)）。
   Engineering documents only in this repository's `docs/`; usage documentation lives in Fern.
+
+- **快照读取来源 / Snapshot read source**：[FileSnapshotSource](FILE-SNAPSHOT-SOURCE.md) 与适配器 LookupSnapshotSource 从同次扫描保留三个 Actual 的空性；旧 Lookup 行为保持不变，加载组装仍另行设计。
+  The nullable source retains three Actual validity bits from one scan; loaded-state assembly remains separate.

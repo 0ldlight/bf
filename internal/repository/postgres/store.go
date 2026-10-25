@@ -243,51 +243,11 @@ func (s *Store) Update(ctx context.Context, ref repository.FileReference) (int64
 // checksum projections); the FK proves only SHA-1 registration, never
 // cross-checksum/length agreement or physical integrity.
 func (s *Store) Lookup(ctx context.Context, path repository.Path) (repository.FileReference, error) {
-	if err := validateIdentity(path); err != nil {
+	src, err := s.lookupFile(ctx, path)
+	if err != nil {
 		return repository.FileReference{}, err
 	}
-	if err := ctx.Err(); err != nil {
-		return repository.FileReference{}, &opError{op: stageCancelled, cause: err}
-	}
-	row := s.tx.QueryRowContext(ctx,
-		"SELECT node_id, node_type, repo, node_path, node_name, bin_length, sha1_actual, md5_actual, sha256, "+
-			"created, modified, updated, created_by, modified_by, sha1_original, md5_original "+
-			"FROM nodes WHERE repo = $1 AND node_path = $2 AND node_name = $3",
-		path.Repo(), dotIfEmpty(path.Parent()), dotIfEmpty(path.Name()))
-	var id int64
-	var nodeType int16
-	var repo, nodePath, nodeName sql.NullString
-	var binSHA1, binMD5, binSHA256 sql.NullString
-	var length sql.NullInt64
-	var sm storedMetadata
-	if err := row.Scan(&id, &nodeType, &repo, &nodePath, &nodeName,
-		&length, &binSHA1, &binMD5, &binSHA256,
-		&sm.created, &sm.modified, &sm.updated,
-		&sm.createdBy, &sm.modifiedBy, &sm.sha1Original, &sm.md5Original); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return repository.FileReference{}, &opError{op: stageLookup, cause: sql.ErrNoRows}
-		}
-		return repository.FileReference{}, &opError{op: stageLookup, cause: err}
-	}
-	if nodeType != 1 {
-		return repository.FileReference{}, &opError{op: stageLookup, cause: ErrNotFile}
-	}
-	stored, nerr := repository.NewPath(rowComponent(repo), rowComponent(nodePath),
-		rowComponent(nodeName), true)
-	if nerr != nil {
-		return repository.FileReference{}, &opError{op: stageLookup,
-			cause: fmt.Errorf("postgres nodes: stored path components: %w", ErrInvalidReference)}
-	}
-	meta, metaErr := sm.snapshot()
-	if metaErr != nil {
-		return repository.FileReference{}, &opError{op: stageLookup, cause: metaErr}
-	}
-	return repository.FileReference{
-		ID:       id,
-		Path:     stored,
-		Content:  content.Metadata{SHA1: binSHA1.String, SHA256: binSHA256.String, MD5: binMD5.String, Size: length.Int64},
-		Metadata: meta,
-	}, nil
+	return src.Reference, nil
 }
 
 // validateWriteRef 及全部校验出口都返回 opError{stageInvalid}：公开

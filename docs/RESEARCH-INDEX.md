@@ -145,3 +145,8 @@ BIN-168–171 (2026-10-25): the approved pure projection bridges raw snapshots a
 
 BIN-172–175 将原始比较与七字段投影接入已有文件更新；写操作数仅由同一个 Desired 产生。固定包内身份与既有静态锚点已复核，本轮无新增目标执行；20 项独立公共 API 场景、三种可编译故障及三项真实 PostgreSQL 接缝已验证。原始历史逆推不等于加载域构造；后者及完整保存生命周期仍开放。规范见[快照更新](FILE-SNAPSHOT-UPDATE.md)，最终单元/CI 状态见 PR。
 The explicit seam connects raw comparison and metadata projection to the existing updater using one Desired state. Package identity and prior static anchors were rechecked without new target execution. Independent API, fault and real-database seams were validated; loaded-state construction and full save lifecycle remain open. The canonical note and final PR checks own the implementation contract and validation state.
+
+## 2026-10-26 — 加载域与空性读取 / Loaded domain and nullable reads
+
+BIN-176/177 核实固定目标的 Node 读取与复制链，根有限参考十次调用（九成功、一目录拒绝），十四实际 JAR/十一类来源经核对；另有十个冻结类摘要复核。观察到三个条目保留 null/empty、lastModified 非正回退 created、Original 的长度与受控 Locale 规则；MIME getter/copy 的源写回仅作静态结论。未执行 JDBC 或完整保存。根以现有更新门复现 NULL→空串导致 false-clean，先保留 SQL 空性再设计加载组装。新读接口实现/验证状态见[规范记录](FILE-SNAPSHOT-SOURCE.md)及 PR，原始资料私有。
+Bounded real-class observations and prior static copy evidence identify the NULL-preservation prerequisite. Controlled Locale and immediate MIME observations do not establish deployment values or full save parity; the canonical source note and PR own implementation status.
