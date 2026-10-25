@@ -1,7 +1,7 @@
 # 文件信息原始快照 / File-info raw snapshot
 
-状态 / State: 已实现所有者批准的原始快照纯值与受限比较器，核心已合并；写侧投影见[七字段映射](FILE-SNAPSHOT-MAPPING.md)。完整保存分派器与变化门接线仍未实现。
-State: the approved raw-snapshot pure value and restricted comparator are implemented; the core is merged; see the [seven-field projection](FILE-SNAPSHOT-MAPPING.md) for write-side mapping. Full save dispatch and dirty-gate wiring remain unimplemented.
+状态 / State: 已实现所有者批准的原始快照纯值与受限比较器，核心已合并；写侧投影见[七字段映射](FILE-SNAPSHOT-MAPPING.md)。完整保存分派器仍未实现；首个[快照更新接缝](FILE-SNAPSHOT-UPDATE.md)单独记录。
+State: the approved raw-snapshot pure value and restricted comparator are implemented; the core is merged; see the [seven-field projection](FILE-SNAPSHOT-MAPPING.md) for write-side mapping. Full save dispatch remains unimplemented; the first [snapshot update seam](FILE-SNAPSHOT-UPDATE.md) is documented separately.
 
 ## 范围与来源 / Scope and provenance
 

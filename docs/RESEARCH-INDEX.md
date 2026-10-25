@@ -140,3 +140,8 @@ BIN-163–167 (2026-10-24): the owner-approved raw `FileInfoSnapshot` pure value
 
 2026-10-25 BIN-168–171：已批准从原始快照到既有 FileMetadata 的纯投影，规则与验证限制见[映射记录](FILE-SNAPSHOT-MAPPING.md)。受控真实 mapper 对 34 组输入返回 28 个 Node、拒绝 6 组缺失/空白 SHA1；仅成功行作七字段参考。13 个 JAR 对齐固定 WAR、14 类摘要核对；独立 Go 对照 28 组真实成功结果及 34 组本地投影策略。缺 SHA1→nil 是明确的本地投影扩展，不是原版保存成功行为。原始语料保持私有；完整分派/旧行重建/HTTP 仍开放。
 BIN-168–171 (2026-10-25): the approved pure projection bridges raw snapshots and FileMetadata; the [mapping note](FILE-SNAPSHOT-MAPPING.md) owns rules and limits. Controlled real mapping returned 28 Nodes and rejected six absent/blank-SHA1 inputs. Only successful rows supply seven-field references. Thirteen JARs match the pinned WAR, 14 class digests were checked, and independent Go comparison covers both successful target rows and 34 local-policy fixtures. Absent-SHA1-to-nil is a local projection extension, never a target-save success claim. Raw data stays private; full dispatch, legacy reconstruction and HTTP remain open.
+
+## 2026-10-25 — 显式快照更新 / Explicit snapshot update
+
+BIN-172–175 将原始比较与七字段投影接入已有文件更新；写操作数仅由同一个 Desired 产生。固定包内身份与既有静态锚点已复核，本轮无新增目标执行；20 项独立公共 API 场景、三种可编译故障及三项真实 PostgreSQL 接缝已验证。原始历史逆推不等于加载域构造；后者及完整保存生命周期仍开放。规范见[快照更新](FILE-SNAPSHOT-UPDATE.md)，最终单元/CI 状态见 PR。
+The explicit seam connects raw comparison and metadata projection to the existing updater using one Desired state. Package identity and prior static anchors were rechecked without new target execution. Independent API, fault and real-database seams were validated; loaded-state construction and full save lifecycle remain open. The canonical note and final PR checks own the implementation contract and validation state.

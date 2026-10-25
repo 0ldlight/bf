@@ -99,3 +99,6 @@ direct injection; the domain depends on no PostgreSQL adapter.
 [FILE-METADATA.md](FILE-METADATA.md)（快照透传）、
 [NODE-REFERENCES.md](NODE-REFERENCES.md)（FileReference）、
 [FILE-NODE-SAVE-CONTRACT.md](FILE-NODE-SAVE-CONTRACT.md)（上层保存契约）。
+
+[快照更新门 / Snapshot update gate](FILE-SNAPSHOT-UPDATE.md) 是本核心的首个显式原始状态消费者；本核心自身仍不拥有变化判断。
+The snapshot gate is the first explicit raw-state consumer; this helper itself still owns no dirty checking.
