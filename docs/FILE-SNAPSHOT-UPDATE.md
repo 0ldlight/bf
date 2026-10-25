@@ -77,3 +77,6 @@ Transactions stay caller-owned: no begin/commit/rollback, retry, compensation or
 [FILE-METADATA-PERSISTENCE.md](FILE-METADATA-PERSISTENCE.md)（七列 SQL 边界）、
 [FILE-SAVE-DISPATCH-CONTRACT.md](FILE-SAVE-DISPATCH-CONTRACT.md)（分派契约）、
 [NODE-REFERENCES.md](NODE-REFERENCES.md)（FileReference 与 Store）。
+
+[快照读取来源](FILE-SNAPSHOT-SOURCE.md)为未来加载组装保留 Actual 空性，仍不直接生成本门需要的 Existing。
+The read source preserves nullness for future loaded-state assembly; it does not yet construct this gate's Existing operand.
