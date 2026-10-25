@@ -1,7 +1,7 @@
 # 文件快照元数据投影 / File-snapshot metadata projection
 
-状态：已实现并完成本地验证，等待 PR 审阅及合并。本页记录七字段纯投影；完整保存分派及接线仍开放。
-State: implemented with local verification complete, pending PR review and merge. This note describes the seven-field projection; full save dispatch and wiring remain open.
+状态：纯投影核心已合并。本页记录七字段规则；首个消费者见[快照更新](FILE-SNAPSHOT-UPDATE.md)，完整保存分派仍开放。
+State: the pure projection core is merged. This note owns its seven-field rules; see the first consumer in [snapshot update](FILE-SNAPSHOT-UPDATE.md). Full save dispatch remains open.
 
 ## 接口与用途 / Interface and purpose
 

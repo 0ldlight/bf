@@ -1,7 +1,7 @@
 # 文件保存分派契约 / File-save dispatch contract
 
-状态：目标静态调查与本地接缝盘点；首个已批准实现切片——原始 `FileInfoSnapshot` 纯值与 `IsIdentical`（见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)）——已实现，完整保存分派器与变化判断门仍未实现。本页不批准新的锁或会话设计。
-State: target static research and local seam inventory. The first approved implementation slice — the raw `FileInfoSnapshot` pure value with `IsIdentical` (see the [file-info snapshot note](FILE-INFO-SNAPSHOT.md)) — is implemented, while a complete save dispatcher and dirty-check gate remain unimplemented. This page approves no new lock or session design.
+状态：目标静态调查与本地接缝盘点；首个已批准实现切片——原始 `FileInfoSnapshot` 纯值与 `IsIdentical`（见[文件信息原始快照](FILE-INFO-SNAPSHOT.md)）——已实现；首个[快照更新门](FILE-SNAPSHOT-UPDATE.md)已有显式调用方接缝，完整保存分派器仍未实现。本页不批准新的锁或会话设计。
+State: target static research and local seam inventory. The first approved implementation slice — the raw `FileInfoSnapshot` pure value with `IsIdentical` (see the [file-info snapshot note](FILE-INFO-SNAPSHOT.md)) — is implemented; the first [snapshot update gate](FILE-SNAPSHOT-UPDATE.md) supplies an explicit caller seam, while the complete dispatcher remains unimplemented. This page approves no new lock or session design.
 
 ## 来源 / Provenance
 
