@@ -165,3 +165,6 @@ Controlled real-class references justify an explicit bounded profile rather than
 
 固定 WAR 配置 JAR 经 REA inventory 与条目摘要绑定，四类 javap/默认资源留证；22个同包 JAR、8个运行类来源核对。真实 reader/路径/表组合18查找中15个符合明确支持域，xsl冲突及2个非ASCII原查询单独排除；默认73个无冲突缓存值匹配，xsl不猜覆盖赢家。真实 getter 的缓存/无点5样本成功，2个Home依赖缺口不计目标拒绝。另4组真实扩展名adapter调用核对15个token，区分Java trim/blank与通用空白规则。没有执行复制/数据库/部署，完整范围见[文件 MIME 目录与物化](FILE-MIME-MATERIALIZATION.md)及最终PR。
 Actual component observations, explicit local exclusions and dependency-blocked probes remain separate; a materialized MIME value is not a copied dirty-check baseline.
+
+BIN-185/186：目标有序复制链的有限真实观察与稳定 created=false 值等价，接入加载侧 MIME/路径校验和既有更新门，范围与限制见[加载文件更新](LOADED-FILE-UPDATE.md)。14 条成功链含 12 条预置缓存、2 条 null/no-dot；另 2 条 unbound Home 失败单列，不视为完整 wrapper 或部署验证。
+BIN-185/186: bounded real ordered-copy observations and stable-false value equivalence feed the existing update gate; see the linked contract. Fourteen successful chains include twelve preseeded-cache and two null/no-dot cases, with two unbound-Home failures excluded from wrapper/deployment claims.

@@ -88,3 +88,5 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 
 - [文件 MIME 目录与物化 / File MIME catalog and materialization](FILE-MIME-MATERIALIZATION.md)：真实配置目录与显式 ASCII 查询画像，只转换 MIME 状态，不建立复制基线。
   Concrete configuration catalog and bounded MIME state transition; copied baselines remain separate.
+
+加载状态更新接入 / Loaded-state update consumer: [契约与支持域 / Contract and profile](LOADED-FILE-UPDATE.md)，`internal/repository/file_loaded_update.go`；独立单元与真实数据库接缝分别在 repository 与 integration/postgres 的同名测试。
