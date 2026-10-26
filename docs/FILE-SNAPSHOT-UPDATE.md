@@ -80,3 +80,6 @@ Transactions stay caller-owned: no begin/commit/rollback, retry, compensation or
 
 [快照读取来源](FILE-SNAPSHOT-SOURCE.md)为未来加载组装保留 Actual 空性，仍不直接生成本门需要的 Existing。
 The read source preserves nullness for future loaded-state assembly; it does not yet construct this gate's Existing operand.
+
+从真实读取状态派生基线和 ID 的受限消费者见[加载文件更新接入](LOADED-FILE-UPDATE.md)；原始 Desired 及本门语义不变。
+The bounded loaded-file consumer derives the baseline and ID from real read state; raw Desired and this gate retain their contract.
