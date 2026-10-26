@@ -168,3 +168,6 @@ Actual component observations, explicit local exclusions and dependency-blocked 
 
 BIN-185/186：目标有序复制链的有限真实观察与稳定 created=false 值等价，接入加载侧 MIME/路径校验和既有更新门，范围与限制见[加载文件更新](LOADED-FILE-UPDATE.md)。14 条成功链含 12 条预置缓存、2 条 null/no-dot；另 2 条 unbound Home 失败单列，不视为完整 wrapper 或部署验证。
 BIN-185/186: bounded real ordered-copy observations and stable-false value equivalence feed the existing update gate; see the linked contract. Fourteen successful chains include twelve preseeded-cache and two null/no-dot cases, with two unbound-Home failures excluded from wrapper/deployment claims.
+
+BIN-187/188：[已发布 binary 信息接入](LOADED-FILE-BINARY.md)区分直接赋值与普通上传 client 前缀。12 输入真实值重放 direct 全成功，no-client 四例旧 Actual 失败；同 WAR 静态调用顺序与运行值观察分开，不声明完整上传或部署兼容。
+BIN-187/188: published-binary integration distinguishes direct assignment from upload client prefixes; twelve direct successes and four client-prefix failures are bounded real-value observations, separate from static order and full upload/deployment claims.

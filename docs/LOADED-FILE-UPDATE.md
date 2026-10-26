@@ -42,3 +42,6 @@ Local tests cover raw differences, competing-error order and ownership; real Pos
 
 本层不承诺 Java 异常时源 MIME 缓存副作用，不返回可变/original/virgin 生命周期。锁、属性/关注、resetAfterSave、六参构造、XML 部署配置、完整 Unicode、HTTP/权限和完整保存分派仍独立推进；节点跳过不表示这些工作完成。
 This layer promises no Java failure-side source-cache effects or mutable/original/virgin lifecycle. Locks, properties/watches, reset, six-argument construction, XML deployment configuration, full Unicode, HTTP/auth and full save dispatch remain separate; skipping a node update does not complete them.
+
+仅替换已发布 size/三 Actual、内部生产 Desired 的消费者见[已发布 binary 信息接入](LOADED-FILE-BINARY.md)。两者共用私有准备函数，本页 raw Desired 契约不变。
+The published-binary consumer builds its own size/Actual-only Desired. Both share private preparation; this raw-Desired contract is unchanged.

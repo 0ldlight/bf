@@ -50,38 +50,48 @@ type LoadedFileUpdateInput struct {
 // errors return zero. Transactions, locks, properties/watches, copy resets and
 // Java failure-side source-cache effects are outside this one-shot seam.
 func UpdateLoadedFileIfChanged(ctx context.Context, in LoadedFileUpdateInput, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
-	if err := ctx.Err(); err != nil {
-		return FileDirtyUpdateResult{}, &updateOpError{op: "repository: loaded file update cancelled", cause: err}
-	}
-	if update == nil {
-		return FileDirtyUpdateResult{}, errNilDirtyUpdateDependency
-	}
-	if in.Source.Reference.ID <= 0 {
-		return FileDirtyUpdateResult{}, &updateOpError{op: "repository: loaded file update invalid id", cause: ErrInvalidUpdateID}
-	}
-	if in.CreatedPolicy != PreserveLoadedFileCreated {
-		return FileDirtyUpdateResult{}, ErrUnsupportedLoadedFileCreatedPolicy
-	}
-	loaded, err := LoadedFileSnapshot(in.Source)
+	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, catalog, update)
 	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	baseline, err := MaterializeFileMime(loaded, catalog)
-	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	repo, err := fileDirtyUpdateString(baseline.repoKey)
-	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	path, err := fileDirtyUpdateString(baseline.repoPath)
-	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	if err := ValidateStoragePath(repo + "/" + path); err != nil {
 		return FileDirtyUpdateResult{}, err
 	}
 	return UpdateFileIfChanged(ctx, FileDirtyUpdateInput{
 		Existing: baseline, Desired: in.Desired, IgnoreCreated: false, ID: in.Source.Reference.ID,
 	}, update)
+}
+
+// 两个实际消费者共用同一准备顺序；不公开独立基线出口。
+// Both consumers share the same ordered preparation, with no public baseline API.
+func prepareLoadedFileUpdate(ctx context.Context, source FileSnapshotSource, policy LoadedFileCreatedPolicy, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileInfoSnapshot, error) {
+	if err := ctx.Err(); err != nil {
+		return FileInfoSnapshot{}, &updateOpError{op: "repository: loaded file update cancelled", cause: err}
+	}
+	if update == nil {
+		return FileInfoSnapshot{}, errNilDirtyUpdateDependency
+	}
+	if source.Reference.ID <= 0 {
+		return FileInfoSnapshot{}, &updateOpError{op: "repository: loaded file update invalid id", cause: ErrInvalidUpdateID}
+	}
+	if policy != PreserveLoadedFileCreated {
+		return FileInfoSnapshot{}, ErrUnsupportedLoadedFileCreatedPolicy
+	}
+	loaded, err := LoadedFileSnapshot(source)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	baseline, err := MaterializeFileMime(loaded, catalog)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	repo, err := fileDirtyUpdateString(baseline.repoKey)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	path, err := fileDirtyUpdateString(baseline.repoPath)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	if err := ValidateStoragePath(repo + "/" + path); err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	return baseline, nil
 }
