@@ -155,3 +155,8 @@ Bounded real-class observations and prior static copy evidence identify the NULL
 
 固定目标真实 Node→FileInfo 的 22 组限定路径参考：18 成功、4 分阶段拒绝。显式 file 三参构造保留 slash 剥离后暴露的空白，cached name 通过 getter 单次剥离 metadata，与节点名字独立；repo trim 与路径 getter 的 NUL 规则分开。没有执行 JDBC、MIME getter、复制或保存。原创行为契约见[加载态文件身份](LOADED-FILE-IDENTITY.md)，实现验证以对应 PR 为准，不将本地零值/畸形 UTF-8 政策冒充原版观察。
 Twenty-two bounded real-class path references establish identity construction only; local API policies and complete loader/save parity remain distinct.
+
+## 2026-10-26：即时组装与 Original 画像 / Immediate assembly and Original profile
+
+23 次固定真实 Node→FileInfo Original 回放全部成功，11 类来源经核对；受控 ROOT/tr-TR/az-AZ/lt-LT 与 JVM 26.0.2.1 不代表部署配置。有效 UTF-16 的30个恰长字段中，Go 简单小写与目标产生10处差异；2个孤立代理字段不纳入字符串近似对照。新组装画像选择 nil/非目标长度 raw 保留、恰长 ASCII hex A–F 小写，其余显式 unsupported；23行中12支持/11目标成功但本地不支持。原始资料与私有模型不冒充 Go 实施验证；范围及生命周期见[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)。未执行 JDBC、MIME getter、复制或保存。
+Controlled real-class references justify an explicit bounded profile rather than a simple-lowercase compatibility claim. Research, local exclusions and implementation validation remain distinct.

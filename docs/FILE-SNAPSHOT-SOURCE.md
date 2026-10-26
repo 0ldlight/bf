@@ -61,3 +61,6 @@ A real-database behavioral RED precedes the three passing GREEN scenarios. Entry
 
 加载身份字段的独立转换见[加载态文件身份](LOADED-FILE-IDENTITY.md)；该接口不消费 Source 或隐式构造完整快照。
 See [loaded file identity](LOADED-FILE-IDENTITY.md) for the separate identity conversion, which neither consumes Source nor silently assembles a snapshot.
+
+Source 的即时字段组装见[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)，其 Original 支持域与 MIME 生命周期限制独立于 reader。
+See [immediate loaded snapshot](IMMEDIATE-FILE-SNAPSHOT.md) for assembly; its Original profile and MIME phase do not change the reader's domain.

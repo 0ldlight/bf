@@ -82,3 +82,6 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
   The nullable source retains three Actual validity bits from one scan; loaded-state assembly remains separate.
 - [加载态文件身份 / Loaded file identity](LOADED-FILE-IDENTITY.md)：显式 file 路径与独立缓存名字转换；完整快照组装仍另行定案。
   Explicit-file path and independent cached-name conversion; complete snapshot assembly remains separate.
+
+- [即时加载快照 / Immediate loaded snapshot](IMMEDIATE-FILE-SNAPSHOT.md)：从 Source 装齐即时字段，明确 Original 的受限支持域；复制基线和保存接线仍另行定案。
+  Source-to-snapshot assembly with an explicit Original profile; copy-baseline and save wiring remain separate.

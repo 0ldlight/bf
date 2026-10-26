@@ -1,0 +1,111 @@
+package repository
+
+import (
+	"errors"
+	"unicode/utf16"
+	"unicode/utf8"
+)
+
+// ErrInvalidFileSnapshotSource 表示缺少元数据、Actual 空性矛盾或畸形 UTF-8。
+// ErrInvalidFileSnapshotSource marks missing metadata, inconsistent Actual
+// nullness or malformed UTF-8 in a snapshot source.
+var ErrInvalidFileSnapshotSource = errors.New("repository: invalid file snapshot source")
+
+// ErrUnsupportedLoadedOriginal 表示恰长 Original 超出本地 ASCII hex 画像；
+// 它不是目标校验和校验错误。
+// ErrUnsupportedLoadedOriginal marks an exact-length Original outside the
+// local ASCII-hex profile; it is not a target checksum-validation error.
+var ErrUnsupportedLoadedOriginal = errors.New("repository: unsupported loaded original")
+
+// LoadedFileSnapshot 从唯一 Source 组装即时加载快照，保留 Actual 的 NULL/空
+// 区别；只对恰长 ASCII hex Original 小写化。MIME 为 null，不取时钟、配置
+// 或复制基线，也不接保存门。失败返回零快照及固定错误，不回显输入。
+// LoadedFileSnapshot assembles an immediate loaded snapshot from one source,
+// preserving NULL versus empty Actuals and lowercasing only exact-length
+// ASCII-hex Originals. MIME is null; no clock, configuration, copied baseline
+// or save gate is involved. Failures return a zero snapshot and a fixed error
+// without echoing inputs.
+func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
+	repoKey, repoPath, name, err := LoadedFileIdentity(source.Reference.Path)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	if source.Reference.Metadata == nil {
+		return FileInfoSnapshot{}, ErrInvalidFileSnapshotSource
+	}
+	slots := [...]struct {
+		value string
+		valid bool
+	}{
+		{source.Reference.Content.SHA1, source.SHA1ActualValid},
+		{source.Reference.Content.MD5, source.MD5ActualValid},
+		{source.Reference.Content.SHA256, source.SHA256ActualValid},
+	}
+	for _, slot := range slots {
+		if !slot.valid && slot.value != "" {
+			return FileInfoSnapshot{}, ErrInvalidFileSnapshotSource
+		}
+		if !utf8.ValidString(slot.value) {
+			return FileInfoSnapshot{}, ErrInvalidFileSnapshotSource
+		}
+	}
+
+	metadata := *source.Reference.Metadata
+	created := metadata.CreatedMillis()
+	modified := metadata.ModifiedMillis()
+	if modified <= 0 {
+		modified = created
+	}
+	updated := metadata.UpdatedMillis()
+	createdBy := metadata.CreatedBy().UTF16()
+	modifiedBy := metadata.ModifiedBy().UTF16()
+	size := source.Reference.Content.Size
+	sha1Original, err := loadedSnapshotOriginal(metadata.SHA1OriginalUTF16(), 40)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	md5Original, err := loadedSnapshotOriginal(metadata.MD5OriginalUTF16(), 32)
+	if err != nil {
+		return FileInfoSnapshot{}, err
+	}
+	var actuals [3][]uint16
+	for i, slot := range slots {
+		if slot.valid {
+			actuals[i] = utf16.Encode([]rune(slot.value))
+		}
+	}
+	return NewFileInfoSnapshot(FileInfoSnapshotInput{
+		RepoKeyUTF16: repoKey, RepoPathUTF16: repoPath, NameUTF16: name,
+		CreatedMillis: created, LastModifiedMillis: modified, LastUpdatedMillis: updated,
+		CreatedByUTF16: createdBy, ModifiedByUTF16: modifiedBy,
+		SizeBytes: size, MimeTypeUTF16: nil,
+		Checksums: []ChecksumEntryInput{
+			{Kind: ChecksumSHA1, Actual: actuals[0], Original: sha1Original},
+			{Kind: ChecksumMD5, Actual: actuals[1], Original: md5Original},
+			{Kind: ChecksumSHA256, Actual: actuals[2], Original: []uint16{'N', 'O', '_', 'O', 'R', 'I', 'G'}},
+		},
+	})
+}
+
+// loadedSnapshotOriginal 按 UTF-16 码元长度选择分支，不猜测 Locale；非恰长
+// 原样保留，恰长只支持 ASCII hex，输出不修改传入码元。
+// loadedSnapshotOriginal branches on UTF-16 unit length without assuming a
+// locale. Other lengths remain verbatim; exact lengths support ASCII hex
+// only, without modifying the supplied units.
+func loadedSnapshotOriginal(units []uint16, length int) ([]uint16, error) {
+	if len(units) != length {
+		return units, nil
+	}
+	normalized := make([]uint16, len(units))
+	for i, unit := range units {
+		switch {
+		case unit >= '0' && unit <= '9', unit >= 'a' && unit <= 'f':
+			normalized[i] = unit
+		case unit >= 'A' && unit <= 'F':
+			normalized[i] = unit + ('a' - 'A')
+		default:
+			return nil, ErrUnsupportedLoadedOriginal
+		}
+	}
+	return normalized, nil
+}
