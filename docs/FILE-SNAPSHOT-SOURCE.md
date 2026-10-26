@@ -58,3 +58,6 @@ This source is not a FileInfoSnapshot or reconstructed upload history. Loaded-st
 
 私有错误覆盖层在真实 PostgreSQL 上因空串的 Valid 推断失败，随后正确实现的三个主场景通过（六组 Actual 行、元数据形状及错误画像）；两个入口守卫单元、race 与共享检查通过。共享查询的 AST 对照确认旧 SQL/参数、16 列扫描及两个包装器同指一个查询 helper。定向故障与完整真实 PostgreSQL CI 的最终提交记录以 PR 为准。
 A real-database behavioral RED precedes the three passing GREEN scenarios. Entry guards, race and shared checks pass; an AST audit checks the original SQL/parameters and one shared 16-column scan. Fault and complete CI evidence are bound to final PR revisions.
+
+加载身份字段的独立转换见[加载态文件身份](LOADED-FILE-IDENTITY.md)；该接口不消费 Source 或隐式构造完整快照。
+See [loaded file identity](LOADED-FILE-IDENTITY.md) for the separate identity conversion, which neither consumes Source nor silently assembles a snapshot.

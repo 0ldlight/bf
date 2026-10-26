@@ -80,3 +80,5 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 
 - **快照读取来源 / Snapshot read source**：[FileSnapshotSource](FILE-SNAPSHOT-SOURCE.md) 与适配器 LookupSnapshotSource 从同次扫描保留三个 Actual 的空性；旧 Lookup 行为保持不变，加载组装仍另行设计。
   The nullable source retains three Actual validity bits from one scan; loaded-state assembly remains separate.
+- [加载态文件身份 / Loaded file identity](LOADED-FILE-IDENTITY.md)：显式 file 路径与独立缓存名字转换；完整快照组装仍另行定案。
+  Explicit-file path and independent cached-name conversion; complete snapshot assembly remains separate.
