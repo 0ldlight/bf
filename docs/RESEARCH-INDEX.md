@@ -150,3 +150,8 @@ The explicit seam connects raw comparison and metadata projection to the existin
 
 BIN-176/177 核实固定目标的 Node 读取与复制链，根有限参考十次调用（九成功、一目录拒绝），十四实际 JAR/十一类来源经核对；另有十个冻结类摘要复核。观察到三个条目保留 null/empty、lastModified 非正回退 created、Original 的长度与受控 Locale 规则；MIME getter/copy 的源写回仅作静态结论。未执行 JDBC 或完整保存。根以现有更新门复现 NULL→空串导致 false-clean，先保留 SQL 空性再设计加载组装。新读接口实现/验证状态见[规范记录](FILE-SNAPSHOT-SOURCE.md)及 PR，原始资料私有。
 Bounded real-class observations and prior static copy evidence identify the NULL-preservation prerequisite. Controlled Locale and immediate MIME observations do not establish deployment values or full save parity; the canonical source note and PR own implementation status.
+
+## 2026-10-26：加载态身份边界 / Loaded identity boundary
+
+固定目标真实 Node→FileInfo 的 22 组限定路径参考：18 成功、4 分阶段拒绝。显式 file 三参构造保留 slash 剥离后暴露的空白，cached name 通过 getter 单次剥离 metadata，与节点名字独立；repo trim 与路径 getter 的 NUL 规则分开。没有执行 JDBC、MIME getter、复制或保存。原创行为契约见[加载态文件身份](LOADED-FILE-IDENTITY.md)，实现验证以对应 PR 为准，不将本地零值/畸形 UTF-8 政策冒充原版观察。
+Twenty-two bounded real-class path references establish identity construction only; local API policies and complete loader/save parity remain distinct.
