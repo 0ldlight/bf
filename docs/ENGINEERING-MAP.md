@@ -85,3 +85,6 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 
 - [即时加载快照 / Immediate loaded snapshot](IMMEDIATE-FILE-SNAPSHOT.md)：从 Source 装齐即时字段，明确 Original 的受限支持域；复制基线和保存接线仍另行定案。
   Source-to-snapshot assembly with an explicit Original profile; copy-baseline and save wiring remain separate.
+
+- [文件 MIME 目录与物化 / File MIME catalog and materialization](FILE-MIME-MATERIALIZATION.md)：真实配置目录与显式 ASCII 查询画像，只转换 MIME 状态，不建立复制基线。
+  Concrete configuration catalog and bounded MIME state transition; copied baselines remain separate.

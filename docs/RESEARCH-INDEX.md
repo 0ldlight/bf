@@ -160,3 +160,8 @@ Twenty-two bounded real-class path references establish identity construction on
 
 23 次固定真实 Node→FileInfo Original 回放全部成功，11 类来源经核对；受控 ROOT/tr-TR/az-AZ/lt-LT 与 JVM 26.0.2.1 不代表部署配置。有效 UTF-16 的30个恰长字段中，Go 简单小写与目标产生10处差异；2个孤立代理字段不纳入字符串近似对照。新组装画像选择 nil/非目标长度 raw 保留、恰长 ASCII hex A–F 小写，其余显式 unsupported；23行中12支持/11目标成功但本地不支持。原始资料与私有模型不冒充 Go 实施验证；范围及生命周期见[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)。未执行 JDBC、MIME getter、复制或保存。
 Controlled real-class references justify an explicit bounded profile rather than a simple-lowercase compatibility claim. Research, local exclusions and implementation validation remain distinct.
+
+## 2026-10-26：MIME 配置目录与物化 / MIME catalog and materialization
+
+固定 WAR 配置 JAR 经 REA inventory 与条目摘要绑定，四类 javap/默认资源留证；22个同包 JAR、8个运行类来源核对。真实 reader/路径/表组合18查找中15个符合明确支持域，xsl冲突及2个非ASCII原查询单独排除；默认73个无冲突缓存值匹配，xsl不猜覆盖赢家。真实 getter 的缓存/无点5样本成功，2个Home依赖缺口不计目标拒绝。另4组真实扩展名adapter调用核对15个token，区分Java trim/blank与通用空白规则。没有执行复制/数据库/部署，完整范围见[文件 MIME 目录与物化](FILE-MIME-MATERIALIZATION.md)及最终PR。
+Actual component observations, explicit local exclusions and dependency-blocked probes remain separate; a materialized MIME value is not a copied dirty-check baseline.

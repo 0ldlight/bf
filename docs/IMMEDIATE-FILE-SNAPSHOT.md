@@ -49,3 +49,6 @@ The bounded class references establish observations within controlled runtime pr
 
 本地 Go 组合差分覆盖两批33个既有实际类参考：18个支持行的全部即时字段一致、14个目标成功行按本地画像返回 unsupported、1个目标目录拒绝对应既有身份守卫。七个顶层单元测试与 race 通过；行为 RED 先捕获 NULL 被错误折为空切片。故障、共享检查与完整 CI 的最终提交记录以 PR 为准。
 The local Go comparison separates eighteen full-field matches, fourteen local exclusions and one folder rejection. Unit/race and behavioral RED evidence precede final PR checks.
+
+后续 MIME 状态转换见[目录与物化](FILE-MIME-MATERIALIZATION.md)：需显式调用，不改变此即时组装器的 nil MIME，也不等于完成 copy 基线。
+See [catalog and materialization](FILE-MIME-MATERIALIZATION.md) for the explicit next transition; immediate assembly still produces nil MIME and no copied baseline.
