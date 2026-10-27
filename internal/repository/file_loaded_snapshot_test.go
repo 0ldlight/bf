@@ -176,7 +176,7 @@ func TestLoadedFileSnapshotOriginalSupportedProfile(t *testing.T) {
 // Target-success states outside the local profile, not target checksum rejection.
 func TestLoadedFileSnapshotExactLengthUnsupportedOriginal(t *testing.T) {
 	for slot, n := range []int{40, 32} {
-		for _, bad := range []uint16{'G', 'I', 0, 0x0130, 0xd800} {
+		for _, bad := range []uint16{128, 'I', 0xdc00, 0x0130, 0xd800} {
 			src := loadedSnapshotTestSource(t, nil, nil)
 			m := FileMetadataInput{CreatedMillis: 11, ModifiedMillis: 22, UpdatedMillis: 33}
 			units := append(loadedSnapshotTestRepeat('A', n-1), bad)

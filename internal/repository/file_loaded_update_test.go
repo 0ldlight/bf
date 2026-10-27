@@ -177,7 +177,7 @@ func TestUpdateLoadedFileFailurePrecedence(t *testing.T) {
 				s.SHA1ActualValid = false
 			case "unsupported Original":
 				m := *s.Reference.Metadata
-				m.sha1Original = loadedUpdateUnits(strings.Repeat("Z", 40))
+				m.sha1Original = loadedUpdateUnits(strings.Repeat("I", 40))
 				s.Reference.Metadata = &m
 				want = ErrUnsupportedLoadedOriginal
 			case "bad catalog":

@@ -11,18 +11,18 @@ import (
 // nullness or malformed UTF-8 in a snapshot source.
 var ErrInvalidFileSnapshotSource = errors.New("repository: invalid file snapshot source")
 
-// ErrUnsupportedLoadedOriginal 表示恰长 Original 超出本地 ASCII hex 画像；
+// ErrUnsupportedLoadedOriginal 表示恰长 Original 超出不含大写 I 的 ASCII 画像；
 // 它不是目标校验和校验错误。
 // ErrUnsupportedLoadedOriginal marks an exact-length Original outside the
-// local ASCII-hex profile; it is not a target checksum-validation error.
+// local ASCII-without-capital-I profile; it is not a target checksum-validation error.
 var ErrUnsupportedLoadedOriginal = errors.New("repository: unsupported loaded original")
 
 // LoadedFileSnapshot 从唯一 Source 组装即时加载快照，保留 Actual 的 NULL/空
-// 区别；只对恰长 ASCII hex Original 小写化。MIME 为 null，不取时钟、配置
+// 区别；对不含大写 I 的恰长 ASCII Original 小写化。MIME 为 null，不取时钟、配置
 // 或复制基线，也不接保存门。失败返回零快照及固定错误，不回显输入。
 // LoadedFileSnapshot assembles an immediate loaded snapshot from one source,
 // preserving NULL versus empty Actuals and lowercasing only exact-length
-// ASCII-hex Originals. MIME is null; no clock, configuration, copied baseline
+// ASCII Originals without capital I. MIME is null; no clock, configuration, copied baseline
 // or save gate is involved. Failures return a zero snapshot and a fixed error
 // without echoing inputs.
 func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
@@ -88,24 +88,23 @@ func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
 }
 
 // loadedSnapshotOriginal 按 UTF-16 码元长度选择分支，不猜测 Locale；非恰长
-// 原样保留，恰长只支持 ASCII hex，输出不修改传入码元。
+// 原样保留；恰长支持不含大写 I 的 ASCII，输出不修改传入码元。
 // loadedSnapshotOriginal branches on UTF-16 unit length without assuming a
-// locale. Other lengths remain verbatim; exact lengths support ASCII hex
-// only, without modifying the supplied units.
+// locale. Other lengths remain verbatim; exact lengths support ASCII without
+// capital I (whose lowercase is locale-sensitive), without modifying supplied units.
 func loadedSnapshotOriginal(units []uint16, length int) ([]uint16, error) {
 	if len(units) != length {
 		return units, nil
 	}
 	normalized := make([]uint16, len(units))
 	for i, unit := range units {
-		switch {
-		case unit >= '0' && unit <= '9', unit >= 'a' && unit <= 'f':
-			normalized[i] = unit
-		case unit >= 'A' && unit <= 'F':
-			normalized[i] = unit + ('a' - 'A')
-		default:
+		if unit > 127 || unit == 'I' {
 			return nil, ErrUnsupportedLoadedOriginal
 		}
+		if unit >= 'A' && unit <= 'Z' {
+			unit += 'a' - 'A'
+		}
+		normalized[i] = unit
 	}
 	return normalized, nil
 }

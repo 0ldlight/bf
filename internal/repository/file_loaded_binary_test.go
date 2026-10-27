@@ -185,7 +185,7 @@ func TestUpdateLoadedFileBinaryPreparationPrecedesPublished(t *testing.T) {
 				s.SHA1ActualValid = false
 			case "loaded Original":
 				m := *s.Reference.Metadata
-				m.sha1Original = loadedUpdateUnits(strings.Repeat("Z", 40))
+				m.sha1Original = loadedUpdateUnits(strings.Repeat("I", 40))
 				s.Reference.Metadata = &m
 				want = ErrUnsupportedLoadedOriginal
 			case "catalog":

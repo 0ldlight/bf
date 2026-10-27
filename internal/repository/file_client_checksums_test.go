@@ -201,7 +201,7 @@ func TestLocalClientChecksumsPrefixErrorsBeatMismatch(t *testing.T) {
 				in.Source.SHA1ActualValid = false
 			case "Original":
 				m := *s.Reference.Metadata
-				m.sha1Original = loadedUpdateUnits(strings.Repeat("Z", 40))
+				m.sha1Original = loadedUpdateUnits(strings.Repeat("I", 40))
 				in.Source.Reference.Metadata = &m
 				want = ErrUnsupportedLoadedOriginal
 			case "catalog":
