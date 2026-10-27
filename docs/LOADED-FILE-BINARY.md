@@ -44,3 +44,6 @@ Same-WAR static bytecode and REA evidence bind the target. Twelve two-branch rea
 
 独立单元与故障回归保护精确字段替换、Original 保留、旧 Actual 修复、Published/源错误顺序和输入所有权；原加载消费者回归继续执行。真实 PostgreSQL 使用实际 binary 服务、真实 Lookup/Store，覆盖提交、同 binary 跳过、回滚与未登记 SHA1 拒绝。最终执行结果绑定 PR 提交，不以测试文件存在代替通过证明。
 Independent unit/mutation checks protect field replacement, Original preservation, old-Actual repair, guard order and ownership, alongside the original consumer regressions. Real PostgreSQL uses the actual binary service, Lookup and Store for commit, skip, rollback and unregistered-SHA1 rejection. Passing results must bind the final PR commit.
+
+无客户端摘要的本地写入组合见[独立消费者](LOCAL-FILE-NO-CLIENT.md)：它先校验旧 Actual 并清空 Original；本页直接赋值的旧 Actual 修复与 Original 保留契约不变。两个消费者仅共享私有 Published 校验和内容字段构造。
+The local no-client consumer validates old Actuals and clears Originals. Direct assignment retains its repair/preservation contract; only private Published validation and content-field construction are shared.

@@ -46,24 +46,10 @@ func UpdateLoadedFileBinary(ctx context.Context, in LoadedFileBinaryInput, catal
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
 	}
-	if !publishedFileHex(in.Published.SHA1, 40) || !publishedFileHex(in.Published.SHA256, 64) ||
-		!publishedFileHex(in.Published.MD5, 32) || in.Published.Size < 0 {
+	if !validPublishedFileMetadata(in.Published) {
 		return FileDirtyUpdateResult{}, ErrInvalidPublishedFileMetadata
 	}
-	fields := baseline.Fields()
-	fields.SizeBytes = in.Published.Size
-	for i := range fields.Checksums {
-		var actual string
-		switch fields.Checksums[i].Kind {
-		case ChecksumSHA1:
-			actual = in.Published.SHA1
-		case ChecksumSHA256:
-			actual = in.Published.SHA256
-		case ChecksumMD5:
-			actual = in.Published.MD5
-		}
-		fields.Checksums[i].Actual = utf16.Encode([]rune(actual))
-	}
+	fields := publishedBinaryFields(baseline, in.Published)
 	desired, err := NewFileInfoSnapshot(fields)
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
@@ -71,6 +57,31 @@ func UpdateLoadedFileBinary(ctx context.Context, in LoadedFileBinaryInput, catal
 	return UpdateFileIfChanged(ctx, FileDirtyUpdateInput{
 		Existing: baseline, Desired: desired, IgnoreCreated: false, ID: in.Source.Reference.ID,
 	}, update)
+}
+
+func validPublishedFileMetadata(meta content.Metadata) bool {
+	return publishedFileHex(meta.SHA1, 40) && publishedFileHex(meta.SHA256, 64) &&
+		publishedFileHex(meta.MD5, 32) && meta.Size >= 0
+}
+
+// 两个实际消费者共享内容字段赋值，不修改 Original 或其他原始字段。
+// Both consumers share content assignment, preserving Originals and other fields.
+func publishedBinaryFields(baseline FileInfoSnapshot, published content.Metadata) FileInfoSnapshotInput {
+	fields := baseline.Fields()
+	fields.SizeBytes = published.Size
+	for i := range fields.Checksums {
+		var actual string
+		switch fields.Checksums[i].Kind {
+		case ChecksumSHA1:
+			actual = published.SHA1
+		case ChecksumSHA256:
+			actual = published.SHA256
+		case ChecksumMD5:
+			actual = published.MD5
+		}
+		fields.Checksums[i].Actual = utf16.Encode([]rune(actual))
+	}
+	return fields
 }
 
 func publishedFileHex(value string, length int) bool {

@@ -171,3 +171,6 @@ BIN-185/186: bounded real ordered-copy observations and stable-false value equiv
 
 BIN-187/188：[已发布 binary 信息接入](LOADED-FILE-BINARY.md)区分直接赋值与普通上传 client 前缀。12 输入真实值重放 direct 全成功，no-client 四例旧 Actual 失败；同 WAR 静态调用顺序与运行值观察分开，不声明完整上传或部署兼容。
 BIN-187/188: published-binary integration distinguishes direct assignment from upload client prefixes; twelve direct successes and four client-prefix failures are bounded real-value observations, separate from static order and full upload/deployment claims.
+
+BIN-189：[本地无客户端摘要写入](LOCAL-FILE-NO-CLIENT.md)绑定 Local CLIENT/SERVER 的全 null Original 策略域：8 场景、136 断言、7 运行类/26 依赖；结合既有真实值重放保留旧 Actual 前置校验、Original 清空和时间/用户顺序，不扩大为完整上传或部署证明。
+BIN-189: eight actual local-policy cases and 136 assertions support the all-null Original domain; prior value replay supports validation/clearing/stamping order, separately from whole-upload or deployment claims.
