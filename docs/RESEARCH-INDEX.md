@@ -177,3 +177,9 @@ BIN-189: eight actual local-policy cases and 136 assertions support the all-null
 
 BIN-190：[客户端摘要与本地校验](LOCAL-FILE-CLIENT-CHECKSUMS.md)绑定两阶段ChecksumInfo构造与真实Local策略，16输入×2策略/32结果/515断言，区分新旧Actual、UTF16 blank、marker与SHA256 mismatch；不扩展为原HTTP header信任或完整上传/部署结论。
 BIN-190: the same-WAR matrix separates new versus old Actuals, raw normalization, UTF-16 blank/marker and SHA256 policy behavior; component evidence does not establish HTTP trust or full upload/deployment.
+
+
+## ASCII Original 回读扩展 / ASCII Original read-back extension
+
+2026-10-27 BIN-191：复用固定 WAR 的 ChecksumInfo 清单与既有 Node→FileInfo 静态/运行证据；新增 3,072 行真实组件参考（全部 ASCII×三位置×SHA1/MD5×ROOT/tr/az/lt），6,144 次构造、24,582 项独立断言；两个实际类和 26 个 JAR 均对齐 WAR。无 I 的 3,048 行一致，I 的 24 行显示 Locale 差异。按[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)扩展无 I 的 ASCII 回读，SERVER 写侧 raw 与加载侧 lowercase 保持区别，直接 binary 后续构造保持 Original 的证明仍成立。受控 JVM 26.0.2.1 不证明部署运行时；非 ASCII/完整 Locale 仍由 BIN-191 追踪，HTTP、鉴权与完整保存生命周期未完成。
+BIN-191 extends only locale-invariant ASCII loading, supported by a bounded real-component matrix and independently checked provenance. Original write/load phases remain distinct. Full Unicode/Locale and broader upload behavior remain open; private raw evidence stays outside source control.
