@@ -94,3 +94,5 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 已发布 binary 节点消费者 / Published-binary node consumer: [契约 / Contract](LOADED-FILE-BINARY.md)，`internal/repository/file_loaded_binary.go`；单元及真实数据库测试位于对应测试目录。
 
 已有本地文件无客户端摘要节点消费者 / Existing local no-client node consumer: [契约 / Contract](LOCAL-FILE-NO-CLIENT.md)，`internal/repository/file_no_client.go`；对应独立单元与真实数据库接缝在同名测试。
+
+客户端摘要本地节点消费者 / Local client-checksum node consumer: [契约 / Contract](LOCAL-FILE-CLIENT-CHECKSUMS.md)，`internal/repository/file_client_checksums.go`；旧无客户端入口以nil事实委托，共享单一算法。

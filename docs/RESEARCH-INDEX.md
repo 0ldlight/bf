@@ -174,3 +174,6 @@ BIN-187/188: published-binary integration distinguishes direct assignment from u
 
 BIN-189：[本地无客户端摘要写入](LOCAL-FILE-NO-CLIENT.md)绑定 Local CLIENT/SERVER 的全 null Original 策略域：8 场景、136 断言、7 运行类/26 依赖；结合既有真实值重放保留旧 Actual 前置校验、Original 清空和时间/用户顺序，不扩大为完整上传或部署证明。
 BIN-189: eight actual local-policy cases and 136 assertions support the all-null Original domain; prior value replay supports validation/clearing/stamping order, separately from whole-upload or deployment claims.
+
+BIN-190：[客户端摘要与本地校验](LOCAL-FILE-CLIENT-CHECKSUMS.md)绑定两阶段ChecksumInfo构造与真实Local策略，16输入×2策略/32结果/515断言，区分新旧Actual、UTF16 blank、marker与SHA256 mismatch；不扩展为原HTTP header信任或完整上传/部署结论。
+BIN-190: the same-WAR matrix separates new versus old Actuals, raw normalization, UTF-16 blank/marker and SHA256 policy behavior; component evidence does not establish HTTP trust or full upload/deployment.
