@@ -40,3 +40,6 @@ The exact domain needs no verifier callback or always-true placeholder, without 
 
 独立单元/故障回归验证顺序、Original 清空、重复 dirty、字段/时间/用户与输入所有权。真实 PostgreSQL 覆盖 CLIENT 提交、SERVER fresh 相同内容重复写、调用方回滚和未登记 binary 的实际 FK 拒绝，并独立检查两个已发布 binary 的记录/字节保留。原两个消费者回归继续运行，具体通过结果绑定提交。
 Independent unit/mutation checks cover ordering, clearing, repeated dirty writes, fields/time/user and ownership. Real PostgreSQL covers CLIENT commit, SERVER fresh same-content repeated writes, caller rollback and actual unregistered-binary FK rejection, preserving both published binaries/bytes. Both existing consumers retain their regressions; passing results are commit-bound.
+
+通用[客户端摘要消费者](LOCAL-FILE-CLIENT-CHECKSUMS.md)现承载本算法；本入口传全nil，旧定义类型与本页始终dirty契约保持。中性 LocalFileWriteInput 只是旧类型别名，不生成另一个DTO版本。
+The generic consumer now owns the algorithm; this entry passes nil facts and retains its defined type/always-dirty contract. The neutral input name is only an alias.

@@ -25,11 +25,11 @@ var ErrUnsupportedLocalFileChecksumPolicy = errors.New("repository: unsupported 
 // ErrInvalidLoadedActual marks old nonnull Actual rejected by client-setter validation.
 var ErrInvalidLoadedActual = errors.New("repository: invalid loaded actual")
 
-// LocalFileNoClientInput 表示已有本地文件、无客户端摘要、无管理员覆盖的
+// LocalFileNoClientInput 携带已有本地文件写入的共享事实，无管理员覆盖的
 // 选定路线。时间与原始 UTF-16 用户为调用方已捕获事实，不产生 HTTP/权限
 // 或当前用户默认值。Source、Published 与事务责任沿用既有消费者。
-// LocalFileNoClientInput selects an existing local file with no client
-// checksums/admin overrides. Times and raw UTF-16 user are captured caller
+// LocalFileNoClientInput carries shared existing-local-file facts without
+// admin overrides. Times and raw UTF-16 user are captured caller
 // facts, not HTTP/auth/current-user defaults. Existing provenance and
 // transaction responsibilities remain with the caller.
 type LocalFileNoClientInput struct {
@@ -41,6 +41,10 @@ type LocalFileNoClientInput struct {
 	CreatedPolicy          LoadedFileCreatedPolicy
 	ChecksumPolicy         LocalFileChecksumPolicy
 }
+
+// LocalFileWriteInput 为通用客户端摘要消费者提供中性事实名称；保持旧定义类型不变。
+// LocalFileWriteInput names the shared facts without changing the old defined type.
+type LocalFileWriteInput = LocalFileNoClientInput
 
 // UpdateLocalFileWithoutClientChecksums 按既有准备、旧 Actual、Published、
 // 显式 local policy 的顺序校验，再清空三 Original 并设置内容/元数据事实。
@@ -60,41 +64,7 @@ type LocalFileNoClientInput struct {
 // upload/interceptor/Jar/auth/properties/stats/notification/lock/session scope
 // is excluded. See docs/LOCAL-FILE-NO-CLIENT.md.
 func UpdateLocalFileWithoutClientChecksums(ctx context.Context, in LocalFileNoClientInput, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
-	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, catalog, update)
-	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	for _, slot := range [...]struct {
-		kind   ChecksumKind
-		length int
-	}{{ChecksumSHA1, 40}, {ChecksumSHA256, 64}, {ChecksumMD5, 32}} {
-		if actual := baseline.checksums[slot.kind].actual; actual != nil && !loadedActualHex(actual, slot.length) {
-			return FileDirtyUpdateResult{}, ErrInvalidLoadedActual
-		}
-	}
-	if !validPublishedFileMetadata(in.Published) {
-		return FileDirtyUpdateResult{}, ErrInvalidPublishedFileMetadata
-	}
-	if in.ChecksumPolicy != LocalFileChecksumClient && in.ChecksumPolicy != LocalFileChecksumServer {
-		return FileDirtyUpdateResult{}, ErrUnsupportedLocalFileChecksumPolicy
-	}
-	fields := publishedBinaryFields(baseline, in.Published)
-	for i := range fields.Checksums {
-		fields.Checksums[i].Original = nil
-	}
-	fields.LastModifiedMillis = in.ResourceModifiedMillis
-	if fields.LastModifiedMillis <= 0 {
-		fields.LastModifiedMillis = fields.CreatedMillis
-	}
-	fields.LastUpdatedMillis = in.UpdatedMillis
-	fields.ModifiedByUTF16 = in.CurrentUserUTF16
-	desired, err := NewFileInfoSnapshot(fields)
-	if err != nil {
-		return FileDirtyUpdateResult{}, err
-	}
-	return UpdateFileIfChanged(ctx, FileDirtyUpdateInput{
-		Existing: baseline, Desired: desired, IgnoreCreated: false, ID: in.Source.Reference.ID,
-	}, update)
+	return UpdateLocalFileWithClientChecksums(ctx, in, ClientFileChecksums{}, catalog, update)
 }
 
 func loadedActualHex(actual []uint16, length int) bool {
