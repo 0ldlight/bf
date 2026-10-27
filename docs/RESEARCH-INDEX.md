@@ -183,3 +183,9 @@ BIN-190: the same-WAR matrix separates new versus old Actuals, raw normalization
 
 2026-10-27 BIN-191：复用固定 WAR 的 ChecksumInfo 清单与既有 Node→FileInfo 静态/运行证据；新增 3,072 行真实组件参考（全部 ASCII×三位置×SHA1/MD5×ROOT/tr/az/lt），6,144 次构造、24,582 项独立断言；两个实际类和 26 个 JAR 均对齐 WAR。无 I 的 3,048 行一致，I 的 24 行显示 Locale 差异。按[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)扩展无 I 的 ASCII 回读，SERVER 写侧 raw 与加载侧 lowercase 保持区别，直接 binary 后续构造保持 Original 的证明仍成立。受控 JVM 26.0.2.1 不证明部署运行时；非 ASCII/完整 Locale 仍由 BIN-191 追踪，HTTP、鉴权与完整保存生命周期未完成。
 BIN-191 extends only locale-invariant ASCII loading, supported by a bounded real-component matrix and independently checked provenance. Original write/load phases remain distinct. Full Unicode/Locale and broader upload behavior remain open; private raw evidence stays outside source control.
+
+
+## 显式 Original casing / Explicit Original casing
+
+2026-10-28 BIN-193：沿用固定 WAR，真实 ChecksumInfo false→true→false 的 3,224 行、9,672 次构造与 32,190 项独立断言，核对两实际类和 26 个同 WAR JAR。选定域 3,168 行；其余 56 行是目标成功但本地不支持的非 ASCII/上下文输入。52 行的恰长 U+0131 输出保持三阶段闭包，因此显式 Turkic 域纳入 U+0131。运行仍属本机 JVM 26.0.2.1，包内 Temurin 25.0.4.1/Unicode16 仅有静态字节证据，部署有效 Locale 未观察。接口、阶段差异、真实 PG 与限制统一见[加载规则](LOADED-ORIGINAL-CASING.md)，完整域继续 BIN-191。
+The bounded real-component reference supports explicit casing and dotless-i read-back closure. It establishes neither packaged-JDK execution nor deployed Locale or full Unicode behavior; product tests and CI remain separate gates.

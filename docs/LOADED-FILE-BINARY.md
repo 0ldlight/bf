@@ -8,6 +8,7 @@ type LoadedFileBinaryInput struct {
     Source        FileSnapshotSource
     Published     content.Metadata
     CreatedPolicy LoadedFileCreatedPolicy
+    OriginalCase  LoadedOriginalCase
 }
 func UpdateLoadedFileBinary(ctx context.Context, in LoadedFileBinaryInput,
     catalog FileMimeCatalog,
@@ -31,8 +32,8 @@ Published must come from the actual binary-service published/registered winner. 
 
 ## 目标路线与 Original / Target route and Original
 
-对应目标 `setFileBinaryInfo` 在成功通知变更之后的值变换，使用 raw `getOriginalOrNoOrig`，不能把 NO_ORIG 替成 Actual。当前成功加载域的恰长 hex 已小写；其他长度保持原样；新支持的不含大写 I 的恰长 ASCII 非 hex 已在 loader 小写，验证型构造器对非法 hex 原样保留；其余恰长 I/非 ASCII 仍拒绝，SHA256 Original 固定 NO_ORIG。因此该域中目标验证型构造器对 Original 是恒等变换，可以原样保留，不扩大 Original/Locale 支持域。
-This models setFileBinaryInfo's value transformation after successful change notification, using raw getOriginalOrNoOrig rather than substituting Actual for NO_ORIG. In the successful loaded domain, exact-length hex is already lowercase, other lengths stay raw, supported exact-length ASCII nonhex without capital I is already lowercase and remains verbatim under the validating constructor; exact-length I/non-ASCII is still unsupported, and SHA256 Original is NO_ORIG. The target validating constructor therefore preserves Original in this domain; no Original/locale expansion follows.
+对应目标 `setFileBinaryInfo` 在成功通知变更之后的值变换，使用 raw `getOriginalOrNoOrig`，不能把 NO_ORIG 替成 Actual。`OriginalCase=Invariant` 保留旧的 ASCII 无大写 I 加载域；两个显式规则及 U+0131 回读闭包见[加载规则](LOADED-ORIGINAL-CASING.md)。所有成功加载域中，恰长合法 hex 已小写；非 hex（包括显式规则输出的 i/U+0131）在目标验证型构造器中保持原样；其他长度也不再归一化，SHA256 Original 固定 NO_ORIG。因此 binary 阶段可以逐码元保留 Original，不逆造请求原值或替换为 Actual。
+This models setFileBinaryInfo after successful notification, using raw getOriginalOrNoOrig rather than substituting Actual. Invariant retains the legacy ASCII-without-capital-I domain; see [loading rules](LOADED-ORIGINAL-CASING.md) for explicit modes and dotless-i closure. Across supported loaded states, valid exact-length hex is already lowercase, while nonhex (including explicit i/U+0131 outputs) and other lengths remain unchanged under the target validating constructor. SHA256 Original stays NO_ORIG, so the binary stage preserves raw loaded units.
 
 普通上传 `saveResource` 是另一条组合路线：先 client setters（缺条目清空 Original，并校验旧 Actual），再填 binary、仓库 checksum policy、时间/用户及管理员覆盖和拦截器。直接赋值不能替代这些阶段；导入/移动 fillInfo 也不是普通上传。本片不盖章元数据，不执行 notifyChanges、锁/CAS/session、属性/stats、reset、HTTP 或权限流程。
 Ordinary saveResource separately runs client setters (clearing absent-request Originals and validating old Actuals), binary assignment, checksum policy, metadata/admin overrides and interceptors. Direct assignment does not replace them; import/move fillInfo is another route. This slice performs no stamping, notification, locking/CAS/session, properties/stats, reset, HTTP or authorization.
@@ -47,3 +48,7 @@ Independent unit/mutation checks protect field replacement, Original preservatio
 
 无客户端摘要的本地写入组合见[独立消费者](LOCAL-FILE-NO-CLIENT.md)：它先校验旧 Actual 并清空 Original；本页直接赋值的旧 Actual 修复与 Original 保留契约不变。两个消费者仅共享私有 Published 校验和内容字段构造。
 The local no-client consumer validates old Actuals and clears Originals. Direct assignment retains its repair/preservation contract; only private Published validation and content-field construction are shared.
+
+
+输入的 `OriginalCase` 仅选择[加载基线规则](LOADED-ORIGINAL-CASING.md)，零值保持旧行为；显式 I/U+0131 支持、未知值错误顺序与回读闭包见该规范。请求值、raw Desired 与本消费者的事务/生命周期责任不变。
+Input OriginalCase selects only the [loaded-baseline rules](LOADED-ORIGINAL-CASING.md); zero retains existing behavior. Request values, raw Desired and transaction/lifecycle responsibilities remain unchanged.

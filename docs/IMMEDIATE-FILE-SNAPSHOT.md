@@ -63,3 +63,7 @@ SERVER writes preserve raw nonhex capitals. Lookup preserves SQL values; loading
 
 单元覆盖全部 128 ASCII 码元在两长度、三位置上的真实组装出口，以及非 ASCII、代理、错误顺序和所有权。PostgreSQL 回归覆盖上述 SERVER/CLIENT 闭环及 I/非 ASCII 成功写入后的明确加载拒绝。执行证据与最终 CI 绑定对应 PR 提交；完整 Locale/Unicode、HTTP 与保存生命周期继续开放。
 Unit and real-PostgreSQL seams protect the expanded domain and remaining exclusions. Final execution evidence binds the PR revision; full Locale/Unicode, HTTP and save lifecycle remain open.
+
+
+显式 Original 规则及 I/U+0131 回读闭包见[加载大小写规则](LOADED-ORIGINAL-CASING.md)。旧无参入口继续使用本页 invariant 域；显式入口复用同一组装器。
+See [explicit loading rules](LOADED-ORIGINAL-CASING.md) for I/dotless-i closure; the existing entry point retains this page's invariant domain.

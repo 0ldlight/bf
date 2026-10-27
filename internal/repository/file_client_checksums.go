@@ -34,7 +34,7 @@ var ErrClientChecksumMismatch = errors.New("repository: client checksum mismatch
 // view; this is no HTTP trust boundary. User stays raw until write projection.
 // Context must be nonnil; errors return zero. See the contract for scope.
 func UpdateLocalFileWithClientChecksums(ctx context.Context, in LocalFileWriteInput, checksums ClientFileChecksums, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
-	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, catalog, update)
+	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, in.OriginalCase, catalog, update)
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
 	}

@@ -39,6 +39,7 @@ type LocalFileNoClientInput struct {
 	UpdatedMillis          int64
 	CurrentUserUTF16       []uint16
 	CreatedPolicy          LoadedFileCreatedPolicy
+	OriginalCase           LoadedOriginalCase
 	ChecksumPolicy         LocalFileChecksumPolicy
 }
 

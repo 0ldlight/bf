@@ -45,3 +45,7 @@ This layer promises no Java failure-side source-cache effects or mutable/origina
 
 仅替换已发布 size/三 Actual、内部生产 Desired 的消费者见[已发布 binary 信息接入](LOADED-FILE-BINARY.md)。两者共用私有准备函数，本页 raw Desired 契约不变。
 The published-binary consumer builds its own size/Actual-only Desired. Both share private preparation; this raw-Desired contract is unchanged.
+
+
+输入的 `OriginalCase` 仅选择[加载基线规则](LOADED-ORIGINAL-CASING.md)，零值保持旧行为；显式 I/U+0131 支持、未知值错误顺序与回读闭包见该规范。请求值、raw Desired 与本消费者的事务/生命周期责任不变。
+Input OriginalCase selects only the [loaded-baseline rules](LOADED-ORIGINAL-CASING.md); zero retains existing behavior. Request values, raw Desired and transaction/lifecycle responsibilities remain unchanged.
