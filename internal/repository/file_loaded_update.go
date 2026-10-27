@@ -30,6 +30,7 @@ type LoadedFileUpdateInput struct {
 	Source        FileSnapshotSource
 	Desired       FileInfoSnapshot
 	CreatedPolicy LoadedFileCreatedPolicy
+	OriginalCase  LoadedOriginalCase
 }
 
 // UpdateLoadedFileIfChanged 在稳定保留 created 画像中装配加载基线并立即
@@ -50,7 +51,7 @@ type LoadedFileUpdateInput struct {
 // errors return zero. Transactions, locks, properties/watches, copy resets and
 // Java failure-side source-cache effects are outside this one-shot seam.
 func UpdateLoadedFileIfChanged(ctx context.Context, in LoadedFileUpdateInput, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
-	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, catalog, update)
+	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, in.OriginalCase, catalog, update)
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
 	}
@@ -59,9 +60,9 @@ func UpdateLoadedFileIfChanged(ctx context.Context, in LoadedFileUpdateInput, ca
 	}, update)
 }
 
-// 两个实际消费者共用同一准备顺序；不公开独立基线出口。
-// Both consumers share the same ordered preparation, with no public baseline API.
-func prepareLoadedFileUpdate(ctx context.Context, source FileSnapshotSource, policy LoadedFileCreatedPolicy, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileInfoSnapshot, error) {
+// 加载消费者共用同一准备顺序；不公开独立基线出口。
+// Loaded consumers share ordered preparation without a public baseline API.
+func prepareLoadedFileUpdate(ctx context.Context, source FileSnapshotSource, policy LoadedFileCreatedPolicy, originalCase LoadedOriginalCase, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileInfoSnapshot, error) {
 	if err := ctx.Err(); err != nil {
 		return FileInfoSnapshot{}, &updateOpError{op: "repository: loaded file update cancelled", cause: err}
 	}
@@ -74,7 +75,7 @@ func prepareLoadedFileUpdate(ctx context.Context, source FileSnapshotSource, pol
 	if policy != PreserveLoadedFileCreated {
 		return FileInfoSnapshot{}, ErrUnsupportedLoadedFileCreatedPolicy
 	}
-	loaded, err := LoadedFileSnapshot(source)
+	loaded, err := LoadedFileSnapshotWithOriginalCase(source, originalCase)
 	if err != nil {
 		return FileInfoSnapshot{}, err
 	}

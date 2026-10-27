@@ -100,3 +100,7 @@ BINFLOW_TEST_POSTGRES_DISPOSABLE=1 ./scripts/check-postgres.sh
 
 Original 回读画像与真实写入/回读/再次更新边界统一见[即时加载快照](IMMEDIATE-FILE-SNAPSHOT.md)；ASCII 扩展复用原加载器，未增加目录、接口或数据库列。
 See [immediate loaded snapshot](IMMEDIATE-FILE-SNAPSHOT.md) for Original loading and write/read/update boundaries; the ASCII extension reuses the existing loader without new modules, APIs or columns.
+
+
+显式 Original casing 复用 `internal/repository` 既有加载器与准备链，接口、有限域和真实回读出口见[规范](LOADED-ORIGINAL-CASING.md)，不新增配置目录或 SQL 列。
+Explicit Original casing reuses the existing loader/preparation chain; see its [contract](LOADED-ORIGINAL-CASING.md), with no new configuration module or SQL column.

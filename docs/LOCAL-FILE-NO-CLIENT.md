@@ -43,3 +43,7 @@ Independent unit/mutation checks cover ordering, clearing, repeated dirty writes
 
 通用[客户端摘要消费者](LOCAL-FILE-CLIENT-CHECKSUMS.md)现承载本算法；本入口传全nil，旧定义类型与本页始终dirty契约保持。中性 LocalFileWriteInput 只是旧类型别名，不生成另一个DTO版本。
 The generic consumer now owns the algorithm; this entry passes nil facts and retains its defined type/always-dirty contract. The neutral input name is only an alias.
+
+
+输入的 `OriginalCase` 仅选择[加载基线规则](LOADED-ORIGINAL-CASING.md)，零值保持旧行为；显式 I/U+0131 支持、未知值错误顺序与回读闭包见该规范。请求值、raw Desired 与本消费者的事务/生命周期责任不变。
+Input OriginalCase selects only the [loaded-baseline rules](LOADED-ORIGINAL-CASING.md); zero retains existing behavior. Request values, raw Desired and transaction/lifecycle responsibilities remain unchanged.

@@ -23,6 +23,7 @@ type LoadedFileBinaryInput struct {
 	Source        FileSnapshotSource
 	Published     content.Metadata
 	CreatedPolicy LoadedFileCreatedPolicy
+	OriginalCase  LoadedOriginalCase
 }
 
 // UpdateLoadedFileBinary 内部生成 Desired，只替换 size/三 Actual，再消费
@@ -42,7 +43,7 @@ type LoadedFileBinaryInput struct {
 // auth, stamping, notification or lifecycle. Context must be nonnil; errors
 // return zero.
 func UpdateLoadedFileBinary(ctx context.Context, in LoadedFileBinaryInput, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
-	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, catalog, update)
+	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, in.OriginalCase, catalog, update)
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
 	}

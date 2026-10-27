@@ -11,11 +11,28 @@ import (
 // nullness or malformed UTF-8 in a snapshot source.
 var ErrInvalidFileSnapshotSource = errors.New("repository: invalid file snapshot source")
 
-// ErrUnsupportedLoadedOriginal 表示恰长 Original 超出不含大写 I 的 ASCII 画像；
+// ErrUnsupportedLoadedOriginal 表示恰长 Original 超出所选有限画像；
 // 它不是目标校验和校验错误。
 // ErrUnsupportedLoadedOriginal marks an exact-length Original outside the
-// local ASCII-without-capital-I profile; it is not a target checksum-validation error.
+// selected bounded profile; it is not a target checksum-validation error.
 var ErrUnsupportedLoadedOriginal = errors.New("repository: unsupported loaded original")
+
+// LoadedOriginalCase 选择有限的 Original 加载规则；零值保留旧入口的
+// Locale 无关范围。显式规则接受 ASCII 和闭包码元 U+0131，不推断部署 Locale。
+// LoadedOriginalCase selects bounded Original loading rules. Zero preserves
+// the legacy locale-invariant domain; explicit modes accept ASCII and U+0131
+// for read-back closure, without inferring a deployed locale.
+type LoadedOriginalCase uint8
+
+const (
+	LoadedOriginalCaseInvariant LoadedOriginalCase = iota
+	LoadedOriginalCaseNonTurkic
+	LoadedOriginalCaseTurkic
+)
+
+// ErrUnsupportedLoadedOriginalCase 拒绝未知规则，不包含输入。
+// ErrUnsupportedLoadedOriginalCase rejects unknown modes without input details.
+var ErrUnsupportedLoadedOriginalCase = errors.New("repository: unsupported loaded original case")
 
 // LoadedFileSnapshot 从唯一 Source 组装即时加载快照，保留 Actual 的 NULL/空
 // 区别；对不含大写 I 的恰长 ASCII Original 小写化。MIME 为 null，不取时钟、配置
@@ -26,6 +43,17 @@ var ErrUnsupportedLoadedOriginal = errors.New("repository: unsupported loaded or
 // or save gate is involved. Failures return a zero snapshot and a fixed error
 // without echoing inputs.
 func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
+	return LoadedFileSnapshotWithOriginalCase(source, LoadedOriginalCaseInvariant)
+}
+
+// LoadedFileSnapshotWithOriginalCase 使用调用方显式选择的有限规则组装，
+// 不读取系统 Locale。未知规则在身份/Metadata/Actual 检查后、Original 前拒绝。
+// 非恰长 Original 原样保留；显式规则的恰长支持域为 ASCII 加 U+0131。
+// LoadedFileSnapshotWithOriginalCase assembles using a caller-selected bounded
+// mode, never the host locale. Reject unknown modes after identity/metadata/
+// Actual guards, before Originals. Non-exact lengths remain raw; explicit
+// exact-length support covers ASCII plus U+0131.
+func LoadedFileSnapshotWithOriginalCase(source FileSnapshotSource, originalCase LoadedOriginalCase) (FileInfoSnapshot, error) {
 	repoKey, repoPath, name, err := LoadedFileIdentity(source.Reference.Path)
 	if err != nil {
 		return FileInfoSnapshot{}, err
@@ -50,6 +78,10 @@ func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
 		}
 	}
 
+	if originalCase != LoadedOriginalCaseInvariant && originalCase != LoadedOriginalCaseNonTurkic && originalCase != LoadedOriginalCaseTurkic {
+		return FileInfoSnapshot{}, ErrUnsupportedLoadedOriginalCase
+	}
+
 	metadata := *source.Reference.Metadata
 	created := metadata.CreatedMillis()
 	modified := metadata.ModifiedMillis()
@@ -60,11 +92,11 @@ func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
 	createdBy := metadata.CreatedBy().UTF16()
 	modifiedBy := metadata.ModifiedBy().UTF16()
 	size := source.Reference.Content.Size
-	sha1Original, err := loadedSnapshotOriginal(metadata.SHA1OriginalUTF16(), 40)
+	sha1Original, err := loadedSnapshotOriginal(metadata.SHA1OriginalUTF16(), 40, originalCase)
 	if err != nil {
 		return FileInfoSnapshot{}, err
 	}
-	md5Original, err := loadedSnapshotOriginal(metadata.MD5OriginalUTF16(), 32)
+	md5Original, err := loadedSnapshotOriginal(metadata.MD5OriginalUTF16(), 32, originalCase)
 	if err != nil {
 		return FileInfoSnapshot{}, err
 	}
@@ -88,20 +120,24 @@ func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
 }
 
 // loadedSnapshotOriginal 按 UTF-16 码元长度选择分支，不猜测 Locale；非恰长
-// 原样保留；恰长支持不含大写 I 的 ASCII，输出不修改传入码元。
+// 原样保留；恰长按已验证规则处理，输出不修改传入码元。
 // loadedSnapshotOriginal branches on UTF-16 unit length without assuming a
-// locale. Other lengths remain verbatim; exact lengths support ASCII without
-// capital I (whose lowercase is locale-sensitive), without modifying supplied units.
-func loadedSnapshotOriginal(units []uint16, length int) ([]uint16, error) {
+// locale. Other lengths remain verbatim; exact lengths use the validated
+// bounded mode without modifying supplied units.
+func loadedSnapshotOriginal(units []uint16, length int, originalCase LoadedOriginalCase) ([]uint16, error) {
 	if len(units) != length {
 		return units, nil
 	}
 	normalized := make([]uint16, len(units))
 	for i, unit := range units {
-		if unit > 127 || unit == 'I' {
+		switch {
+		case unit > 127 && unit != 0x0131:
 			return nil, ErrUnsupportedLoadedOriginal
-		}
-		if unit >= 'A' && unit <= 'Z' {
+		case originalCase == LoadedOriginalCaseInvariant && (unit == 'I' || unit == 0x0131):
+			return nil, ErrUnsupportedLoadedOriginal
+		case unit == 'I' && originalCase == LoadedOriginalCaseTurkic:
+			unit = 0x0131
+		case unit >= 'A' && unit <= 'Z':
 			unit += 'a' - 'A'
 		}
 		normalized[i] = unit
