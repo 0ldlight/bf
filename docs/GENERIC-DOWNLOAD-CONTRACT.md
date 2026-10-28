@@ -87,3 +87,6 @@ go build -o /tmp/binflow-contract ./cmd/binflow-contract
   Exit codes: 0 all pass; 1 network/assertion failure (structured report still written); 2 rejected configuration/inputs (no report created). Stdout carries counts only; errors are static categories without URLs, credentials, paths or bodies; reports keep allowlisted headers and hashes only, with credential/URL redaction.
 - 无代理、无重定向、无 TLS 降级参数；仅 Linux/macOS 支持防符号链接竞态的输入打开。选择 profile 不证明目标版本。
   No proxy, redirect or TLS-weakening flags; race-free non-symlink input opening supports Linux/macOS. Profile selection does not attest the target version.
+
+下一条普通 GET/HEAD 接入的25组补充观察、有限路径域、HEAD 内容打开差异及验收见[下载接入契约](GENERIC-DOWNLOAD-INTEGRATION.md)；该契约尚未实现产品下载路由。
+See the [integration contract](GENERIC-DOWNLOAD-INTEGRATION.md) for additional observations, finite paths, HEAD opening behavior and acceptance; no product download route is implemented.
