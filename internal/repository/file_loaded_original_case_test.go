@@ -97,7 +97,7 @@ func TestLoadedOriginalCaseLengthAndUnsupportedBoundaries(t *testing.T) {
 				}
 				loadedSnapshotTestCheck(t, got, loadedASCIIWant(slot, u))
 			}
-			for _, bad := range []uint16{128, 0x0130, 0x03a3, 0xd800, 0xdc00} {
+			for _, bad := range []uint16{0x0100, 0x0128, 0x03a3, 0xd800, 0xdc00} {
 				u := loadedSnapshotTestRepeat('G', length)
 				u[length-1] = bad
 				originalCaseCheckError(t, loadedASCIISource(t, slot, u), profile, ErrUnsupportedLoadedOriginal)

@@ -104,3 +104,7 @@ See [immediate loaded snapshot](IMMEDIATE-FILE-SNAPSHOT.md) for Original loading
 
 显式 Original casing 复用 `internal/repository` 既有加载器与准备链，接口、有限域和真实回读出口见[规范](LOADED-ORIGINAL-CASING.md)，不新增配置目录或 SQL 列。
 Explicit Original casing reuses the existing loader/preparation chain; see its [contract](LOADED-ORIGINAL-CASING.md), with no new configuration module or SQL column.
+
+
+BIN-194 的有限 Latin-1 扩展仍在既有 Original normalizer，具体接受域与 Lithuanian 排除见[统一规范](LOADED-ORIGINAL-CASING.md)，四消费者和数据库列不分叉。
+The bounded Latin-1 extension reuses the existing normalizer and consumers; see the [single contract](LOADED-ORIGINAL-CASING.md), with no new schema or interface branch.

@@ -189,3 +189,9 @@ BIN-191 extends only locale-invariant ASCII loading, supported by a bounded real
 
 2026-10-28 BIN-193：沿用固定 WAR，真实 ChecksumInfo false→true→false 的 3,224 行、9,672 次构造与 32,190 项独立断言，核对两实际类和 26 个同 WAR JAR。选定域 3,168 行；其余 56 行是目标成功但本地不支持的非 ASCII/上下文输入。52 行的恰长 U+0131 输出保持三阶段闭包，因此显式 Turkic 域纳入 U+0131。运行仍属本机 JVM 26.0.2.1，包内 Temurin 25.0.4.1/Unicode16 仅有静态字节证据，部署有效 Locale 未观察。接口、阶段差异、真实 PG 与限制统一见[加载规则](LOADED-ORIGINAL-CASING.md)，完整域继续 BIN-191。
 The bounded real-component reference supports explicit casing and dotless-i read-back closure. It establishes neither packaged-JDK execution nor deployed Locale or full Unicode behavior; product tests and CI remain separate gates.
+
+
+## 有限 Latin-1 Original / Bounded Latin-1 Original
+
+2026-10-28 BIN-194：依据 Lithuanian 的无条件扩长规则保留 NonTurkic CC/CD 排除；新增真实三阶段参考及官方 UCD16/实际 CCC 核对，包含 compact/UTF-16 路径与输出闭包。来源、精确范围、计数与限制统一见[加载规则](LOADED-ORIGINAL-CASING.md#latin-1-扩展证据--latin-1-extension-evidence)。本机 JVM26 观察不等价包内 JDK25 或部署行为；原始采样和源码保持私有。完整 Unicode/Locale 继续 BIN-191。
+BIN-194 corrects the Lithuanian boundary and extends the existing normalizer through a bounded real-component and UCD-backed contract. Full-domain/deployment claims remain open; raw evidence stays private.
