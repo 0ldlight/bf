@@ -195,3 +195,8 @@ The bounded real-component reference supports explicit casing and dotless-i read
 
 2026-10-28 BIN-194：依据 Lithuanian 的无条件扩长规则保留 NonTurkic CC/CD 排除；新增真实三阶段参考及官方 UCD16/实际 CCC 核对，包含 compact/UTF-16 路径与输出闭包。来源、精确范围、计数与限制统一见[加载规则](LOADED-ORIGINAL-CASING.md#latin-1-扩展证据--latin-1-extension-evidence)。本机 JVM26 观察不等价包内 JDK25 或部署行为；原始采样和源码保持私有。完整 Unicode/Locale 继续 BIN-191。
 BIN-194 corrects the Lithuanian boundary and extends the existing normalizer through a bounded real-component and UCD-backed contract. Full-domain/deployment claims remain open; raw evidence stays private.
+
+## 普通已发布本地保存 / Ordinary published-local save
+
+2026-10-28 BIN-195：[保存命令契约](LOCAL-FILE-SAVE-PUBLISHED.md)结合既有读取/创建/客户端策略与真实 fresh 值参考：60 输入、51 Node、9 CLIENT false、2,201 独立断言；26 依赖 JAR/18 运行类与固定 WAR 核对。另 36 路径组合参考要求 raw/forced 相等与 parent fixed-point 两个守卫；10 个身份准入样本中，8 个对齐既有 Go 创建映射，2 个由现有存储校验拒绝。真实构造器/盖章/投影组合不等于完整 saveResource、SQL 或上传；本机 JVM26 不证明包内 JDK25/部署。产品单元、真实 PostgreSQL、故障回归与最终 CI 尚待完成，原始证据私有。
+BIN-195 combines bounded actual fresh-value/path observations with existing node seams. Provenance and phase-specific observations support the finite command contract, not complete wrapper/save/upload or deployment parity. Product tests and final CI remain separate pending gates; raw evidence stays private.

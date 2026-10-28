@@ -71,3 +71,6 @@ Each case records identity, environment, input, outputs/effects, commit, command
 
 基线来源由[研究索引](RESEARCH-INDEX.md)管理，实施依赖由[P0 计划](P0-PLAN.md)及 Linear 管理。
 The research index owns provenance; the P0 plan and Linear own implementation dependencies.
+
+BIN-195 的[已发布本地文件保存](LOCAL-FILE-SAVE-PUBLISHED.md)是 REP-001/STO-001 内部普通单写者节点切片：真实查询分派、内部新建元数据和既有命中更新；有限路径与参考证据已记录，产品单元/真实 PostgreSQL/故障与共享检查已通过，交付按精确提交核验 CI。它不缩小父项范围，也不使 Generic/REST/权限/完整上传变为已验证。
+BIN-195 is a bounded internal node-save slice under REP-001/STO-001. Its contract records actual lookup dispatch, fresh metadata production, existing updates and finite evidence; local unit/database/mutation/shared gates passed, with CI verified against exact delivery commits. Parent scope and unverified Generic/REST/auth/full-upload status remain unchanged.
