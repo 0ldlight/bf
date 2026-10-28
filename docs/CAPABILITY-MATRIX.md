@@ -74,3 +74,6 @@ The research index owns provenance; the P0 plan and Linear own implementation de
 
 BIN-195 的[已发布本地文件保存](LOCAL-FILE-SAVE-PUBLISHED.md)是 REP-001/STO-001 内部普通单写者节点切片：真实查询分派、内部新建元数据和既有命中更新；有限路径与参考证据已记录，产品单元/真实 PostgreSQL/故障与共享检查已通过，交付按精确提交核验 CI。它不缩小父项范围，也不使 Generic/REST/权限/完整上传变为已验证。
 BIN-195 is a bounded internal node-save slice under REP-001/STO-001. Its contract records actual lookup dispatch, fresh metadata production, existing updates and finite evidence; local unit/database/mutation/shared gates passed, with CI verified against exact delivery commits. Parent scope and unverified Generic/REST/auth/full-upload status remain unchanged.
+
+BIN-196 的[普通流式本地保存](LOCAL-STREAM-SAVE.md)冻结真实 reader→binary 发布/登记→节点保存的有限契约；90 项真实组件参考/523 断言仅支持局部 header/stream 语义，本地产品单元/race、真实 PostgreSQL、故障与共享检查通过，交付独立核验精确 CI，不提升父项兼容状态。
+BIN-196 freezes the bounded real-stream publication-to-node contract. Ninety component references/523 assertions establish local header/stream semantics only; local unit/race/database/fault/shared gates passed, with exact-commit CI verified separately at delivery and parent compatibility stays unverified.
