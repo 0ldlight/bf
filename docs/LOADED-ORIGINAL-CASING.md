@@ -1,6 +1,6 @@
 # 加载 Original 的显式大小写规则 / Explicit loaded-Original casing
 
-关联 / Tracking: BIN-193、父 BIN-191、STO-001。
+关联 / Tracking: BIN-193、BIN-194、父 BIN-191、STO-001。
 
 ## 接口与事实 / Interface and facts
 
@@ -18,11 +18,14 @@ Select the length branch before conversion. Null, nonnull empty and non-target l
 | LoadedOriginalCase | 恰长输入域 / Exact-length units | 大写 I / Capital I | U+0131 |
 |---|---|---|---|
 | Invariant = 0 | ASCII，不含大写 I / ASCII excluding capital I | unsupported | unsupported |
-| NonTurkic = 1 | ASCII 加 U+0131 / ASCII plus dotless i | i | 原样 / unchanged |
-| Turkic = 2 | ASCII 加 U+0131 / ASCII plus dotless i | U+0131 | 原样 / unchanged |
+| NonTurkic = 1 | U+0000–00FF，排除 U+00CC/U+00CD，加 U+0131 / Latin-1 excluding CC/CD, plus dotless i | i | 原样 / unchanged |
+| Turkic = 2 | U+0000–00FF 加 U+0130/U+0131 / Latin-1 plus dotted/dotless I | U+0131 | 原样 / unchanged |
 
-其余 ASCII 大写转对应小写，其余接受码元逐字保留。显式画像的 U+0131 是输出闭包：Turkic I 加载后变成它，后续保存与再次读取不能拒绝自己产生的值；两显式规则均保留已有 U+0131，不尝试逆造历史 I。恰长的其他非 ASCII（含 U+0130、组合点、Sigma、代理）仍为 `ErrUnsupportedLoadedOriginal`。这不是原版拒绝，而是未完成支持域。NUL 纯快照接受不代表 PostgreSQL text 可存。
-Lowercase other ASCII capitals and preserve other accepted units. Dotless i closes the explicit modes' output domain after persistence and reloading; never reconstruct historical capitals. Other exact-length non-ASCII remains explicitly unsupported rather than target-invalid. Pure-value NUL support establishes no SQL text acceptance.
+Invariant 仍只转换 ASCII 大写。两个显式规则同时转换 A–Z、U+00C0–00D6 与 U+00D8–00DE（对应小写），Turkic 另将 U+0130→i；其余接受码元逐字保留，包括 ×、÷、ß、µ、ÿ。NonTurkic 排除 Ì/Í 是必要的：ROOT 转为 ì/í，但 Lithuanian 无条件展开为三个码元，不能把所有 NonTurkic 当 ROOT。U+0130 在 NonTurkic 仍不支持，不返回近似结果。
+Invariant still lowercases ASCII capitals only. Explicit modes also lowercase the two Latin-1 capital ranges; Turkic additionally maps dotted capital I to i. Other accepted units remain verbatim. NonTurkic excludes CC/CD because Lithuanian expands them while ROOT maps them to EC/ED; it also excludes U+0130 rather than approximating its mapping.
+
+输出闭包包含原有 U+0131，以及新增 Latin-1 小写与 ASCII i；二次加载不会拒绝自己产生的值，不逆造历史大写。超出所选域的恰长码元（如 U+0100、U+0128、组合点、Sigma、代理）仍返回 `ErrUnsupportedLoadedOriginal`。这不是原版拒绝，而是未完成支持域。非恰长继续 raw，不把上述排除应用到旁路长度。NUL 纯快照接受不代表 PostgreSQL text 可存。
+The output domains remain closed under reloading and never reconstruct historical capitals. Exact-length values outside the selected domain remain explicitly unsupported rather than target-invalid; other lengths remain raw. Pure-value NUL support establishes no SQL text acceptance.
 
 ## 顺序与消费者 / Order and consumers
 
@@ -37,7 +40,7 @@ SERVER stores raw I; lookup preserves it and the explicit loader normalizes it. 
 
 ## 证据与未完成项 / Evidence and remaining work
 
-参考实际 ChecksumInfo 的 false→true→false 三阶段：3,224 行、9,672 次构造、32,190 项独立断言；3,168 行符合本片画像，56 行是目标成功而本地仍 unsupported 的上下文/非 ASCII 输入。52 行恰长输出含 U+0131，后两阶段保持。两个实际类与 26 个 JAR 均核对同一固定 WAR。本机受控 JVM **26.0.2.1** 的运行不能改称包内 **25.0.4.1** 或部署行为；包内源码的 Unicode **16.0**、上下文与 Locale 词边界来源另存私有证据。
+初始 ASCII+U+0131 阶段参考实际 ChecksumInfo 的 false→true→false：3,224 行、9,672 次构造、32,190 项独立断言；3,168 行符合初始画像，56 行是目标成功而本地仍 unsupported 的上下文/非 ASCII 输入。52 行恰长输出含 U+0131，后两阶段保持。两个实际类与 26 个 JAR 均核对同一固定 WAR。本机受控 JVM **26.0.2.1** 的运行不能改称包内 **25.0.4.1** 或部署行为；包内源码的 Unicode **16.0**、上下文与 Locale 词边界来源另存私有证据。
 The actual-component matrix independently verifies three constructor stages and read-back closure. It does not enumerate every string combination. Controlled host-JVM observations, bundled-JDK static identity and deployment settings remain separate evidence scopes.
 
 独立单元保护两显式规则、全 ASCII+U+0131、邻界、所有权、未知规则、错误顺序及四入口透传。真实 PostgreSQL 通过实际 binary/Lookup/Store 和调用方事务检查写入、二次回读、跳过、提交、回滚和错误无修改；行为 RED/GREEN、race、故障回归、共享检查与最终完整 CI 绑定对应 PR 提交。
@@ -45,3 +48,19 @@ Independent unit and real-PostgreSQL seams cover the selected domain, wiring and
 
 父 BIN-191 继续完整 Unicode/Locale/JDK 算法：Sigma 等依赖上下文与 Locale word-break，不能用 Go 简单小写或四个大小写类别代替。部署有效 Locale、配置生产者、HTTP/header/marker 来源、鉴权/管理员覆盖和完整保存生命周期仍未完成。本片不发布或部署。
 Full Unicode/Locale, effective configuration, HTTP/provenance/auth/admin behavior and complete save lifecycle remain open. No release or deployment is included.
+
+
+## Latin-1 扩展证据 / Latin-1 extension evidence
+
+BIN-194 增加 6,360 行真实 ChecksumInfo 三阶段参考、19,080 次构造、82,660 项独立断言；6,232 行符合此有限域，其余 128 行是目标成功但本地明确不支持（含 NonTurkic CC/CD 等）。运行观察覆盖 String 的 compact 与 UTF-16 路径及两方向转换；它没有穷举所有字符串组合。
+BIN-194 adds a bounded real-component matrix across both String storage paths and output closure. Supported and target-success-but-locally-unsupported rows are counted separately, without claiming all string combinations were enumerated.
+
+[官方 Unicode 16 UnicodeData](https://www.unicode.org/Public/16.0.0/ucd/UnicodeData.txt) 的冻结原始字节核对全部 258 个候选码元的 canonical combining class=0 与 Latin-1 simple-lower 映射，真实参考 JVM 也直接采样 CCC 全为 0。这支持在所选域内排除组合上下文条件；**不能消除 lt 的无条件 CC/CD 特例**。包内 JDK25 静态来源、本机 JVM26 运行及部署未知事实保持区分，原始语料保持私有。
+Pinned UCD16 data and direct reference-JVM CCC observations support the bounded context argument. They do not remove Lithuanian's unconditional mappings, prove packaged-JDK execution or establish deployed configuration.
+
+新增独立单元矩阵与四入口回归，以及实际 PostgreSQL 的 Latin-1/dotted-I 写入→Lookup→加载→跳过/提交→二次 Lookup→回滚闭环；请求非 hex Original 与 raw Desired 继续原样，未引入新 API、schema、依赖或默认规则推断。旧拒绝测试用仍不支持的值替换新接受值，断言数量保留；最终结果绑定 PR 提交。
+Independent unit and PostgreSQL seams verify real write/read consumers while preserving request phases and legacy behavior. No new API, schema, dependency or inferred default is introduced; final results bind the PR revision.
+
+
+本地定向数据库验收按三个完整顶层测试名独立执行，每次仍使用原五分钟、race 与 count=1；不计入初次累计超时运行的部分通过。完整 PostgreSQL 模块继续由未改动的 CI 脚本组合验证，合并前必须通过。
+Local focused database acceptance uses three exact top-level selections with unchanged five-minute/race/count=1 limits. The initial cumulative-timeout package contributes no passing gate. The unchanged full-module CI remains required before merge.

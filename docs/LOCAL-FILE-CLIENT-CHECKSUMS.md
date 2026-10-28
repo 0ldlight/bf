@@ -40,8 +40,8 @@ After policy success retain the existing content/stamping flow: preserve created
 客户端 SHA256 Original=NO_ORIG 可以保留加载基线，若其他 raw 字段均相同则真正 no-op。原无客户端路径仍把它清为 null，因此 fresh 相同内容仍 dirty。新域中若仅 raw user 尾部不同，即使 Actor 投影相同，也必须更新；提前缩写会误跳过，该错误现有独立回归。
 A client SHA256 marker can preserve the baseline and permit a genuine no-op when all other raw fields match. No-client writes still clear it and remain dirty after fresh load. Raw user-tail differences must update even if the Actor projection is equal; early abbreviation can now cause a tested false-clean skip.
 
-SERVER 接受 invalid/nonhex Original 不等于任意值都能通过 SQL 编码/列约束或后续加载。`OriginalCase=Invariant` 的[加载器](IMMEDIATE-FILE-SNAPSHOT.md)保留不含大写 I 的恰长 ASCII 域；显式规则支持 I 与 U+0131 闭包，其他恰长非 ASCII 仍不支持，详见[规则规范](LOADED-ORIGINAL-CASING.md)。本片允许真实资源写侧的 raw 值而不默默扩大加载域、丢弃或小写化它。SHA256 Original 没有 SQL 列，不宣称持久化该字段。
-SERVER policy acceptance guarantees neither SQL encoding/column acceptance nor later loader support. The [invariant loader](IMMEDIATE-FILE-SNAPSHOT.md) retains exact-length ASCII without capital I; explicit modes add I/dotless-i closure, with other exact-length non-ASCII still unsupported under the [selected rules](LOADED-ORIGINAL-CASING.md); this write side does not widen that domain, discard values or lowercase them silently. SHA256 Original has no SQL column.
+SERVER 接受 invalid/nonhex Original 不等于任意值都能通过 SQL 编码/列约束或后续加载。`OriginalCase=Invariant` 的[加载器](IMMEDIATE-FILE-SNAPSHOT.md)保留不含大写 I 的恰长 ASCII 域；显式规则支持有限 Latin-1/dotted-I 域和回读闭包，超出选定域的恰长码元仍不支持，详见[规则规范](LOADED-ORIGINAL-CASING.md)。本片允许真实资源写侧的 raw 值而不默默扩大加载域、丢弃或小写化它。SHA256 Original 没有 SQL 列，不宣称持久化该字段。
+SERVER policy acceptance guarantees neither SQL encoding/column acceptance nor later loader support. The [invariant loader](IMMEDIATE-FILE-SNAPSHOT.md) retains exact-length ASCII without capital I; explicit modes add bounded Latin-1/dotted-I loading and closure, with exact-length values outside the selected domain still unsupported under the [selected rules](LOADED-ORIGINAL-CASING.md); this write side does not widen that domain, discard values or lowercase them silently. SHA256 Original has no SQL column.
 
 ## 证据与验证 / Evidence and validation
 

@@ -18,10 +18,10 @@ var ErrInvalidFileSnapshotSource = errors.New("repository: invalid file snapshot
 var ErrUnsupportedLoadedOriginal = errors.New("repository: unsupported loaded original")
 
 // LoadedOriginalCase 选择有限的 Original 加载规则；零值保留旧入口的
-// Locale 无关范围。显式规则接受 ASCII 和闭包码元 U+0131，不推断部署 Locale。
+// Locale 无关范围。显式规则使用有限 Latin-1/dotted-I 域，不推断部署 Locale。
 // LoadedOriginalCase selects bounded Original loading rules. Zero preserves
-// the legacy locale-invariant domain; explicit modes accept ASCII and U+0131
-// for read-back closure, without inferring a deployed locale.
+// the legacy locale-invariant domain; explicit modes use bounded Latin-1 and
+// dotted/dotless-I domains, without inferring a deployed locale.
 type LoadedOriginalCase uint8
 
 const (
@@ -48,11 +48,11 @@ func LoadedFileSnapshot(source FileSnapshotSource) (FileInfoSnapshot, error) {
 
 // LoadedFileSnapshotWithOriginalCase 使用调用方显式选择的有限规则组装，
 // 不读取系统 Locale。未知规则在身份/Metadata/Actual 检查后、Original 前拒绝。
-// 非恰长 Original 原样保留；显式规则的恰长支持域为 ASCII 加 U+0131。
+// 非恰长 Original 原样保留；显式恰长域与 NonTurkic CC/CD 排除见规范。
 // LoadedFileSnapshotWithOriginalCase assembles using a caller-selected bounded
 // mode, never the host locale. Reject unknown modes after identity/metadata/
 // Actual guards, before Originals. Non-exact lengths remain raw; explicit
-// exact-length support covers ASCII plus U+0131.
+// exact-length domains and NonTurkic CC/CD exclusions follow the documented contract.
 func LoadedFileSnapshotWithOriginalCase(source FileSnapshotSource, originalCase LoadedOriginalCase) (FileInfoSnapshot, error) {
 	repoKey, repoPath, name, err := LoadedFileIdentity(source.Reference.Path)
 	if err != nil {
@@ -128,16 +128,31 @@ func loadedSnapshotOriginal(units []uint16, length int, originalCase LoadedOrigi
 	if len(units) != length {
 		return units, nil
 	}
+
 	normalized := make([]uint16, len(units))
 	for i, unit := range units {
+		switch originalCase {
+		case LoadedOriginalCaseInvariant:
+			if unit > 127 || unit == 'I' {
+				return nil, ErrUnsupportedLoadedOriginal
+			}
+		case LoadedOriginalCaseNonTurkic:
+			// Lithuanian 对 CC/CD 无条件扩长，不能当作 ROOT。
+			// Lithuanian expands CC/CD unconditionally; never assume ROOT.
+			if unit == 0x00CC || unit == 0x00CD || (unit > 255 && unit != 0x0131) {
+				return nil, ErrUnsupportedLoadedOriginal
+			}
+		case LoadedOriginalCaseTurkic:
+			if unit > 255 && unit != 0x0130 && unit != 0x0131 {
+				return nil, ErrUnsupportedLoadedOriginal
+			}
+		}
 		switch {
-		case unit > 127 && unit != 0x0131:
-			return nil, ErrUnsupportedLoadedOriginal
-		case originalCase == LoadedOriginalCaseInvariant && (unit == 'I' || unit == 0x0131):
-			return nil, ErrUnsupportedLoadedOriginal
-		case unit == 'I' && originalCase == LoadedOriginalCaseTurkic:
+		case originalCase == LoadedOriginalCaseTurkic && unit == 'I':
 			unit = 0x0131
-		case unit >= 'A' && unit <= 'Z':
+		case originalCase == LoadedOriginalCaseTurkic && unit == 0x0130:
+			unit = 'i'
+		case unit >= 'A' && unit <= 'Z', unit >= 0x00C0 && unit <= 0x00D6, unit >= 0x00D8 && unit <= 0x00DE:
 			unit += 'a' - 'A'
 		}
 		normalized[i] = unit
