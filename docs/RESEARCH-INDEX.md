@@ -205,3 +205,8 @@ BIN-195 combines bounded actual fresh-value/path observations with existing node
 
 2026-10-28 BIN-196：[流式命令契约](LOCAL-STREAM-SAVE.md)复用同 WAR 静态 saveResource→addBinary→节点顺序，补核 Local 策略、BinaryHeadersUtil 与 PostProcessChecksumBinaryStream。实际私有 helper 78 组合、实际 stream 12 组合共 90 参考/523 独立断言，28 JAR/6 运行类来源核验；受控 JVM26.0.2.1/ROOT 不代表包内 JDK25/部署。精确 fresh NO_ORIG 省略与原始 header 消费分开；显式 close 验证不证明完整上传关闭所有权。未执行公有全局配置读取、完整目标保存/provider/registry/SQL/HTTP；新产品单元、真实 PostgreSQL、故障、共享检查及 CI 均 pending，原始资料私有。
 BIN-196 binds existing static save ordering to bounded actual header/stream observations and checked same-WAR provenance. Component behavior and explicit close delegation establish neither complete upload ownership nor deployment transactions. New product gates remain pending; the linked contract owns finite encoding/precheck/length boundaries and raw evidence stays private.
+
+## 普通本地文件读取 / Ordinary local-file read
+
+2026-10-28 BIN-197：[读取契约](LOCAL-FILE-READ.md)复用同 WAR 静态节点 Actual SHA1→provider 链与 REA archive 清单，补充实际 ZeroBytesBinaryElement/Null/Simple handle 有限执行；5个同 WAR JAR、8个运行类身份和81项独立断言核验。v2 实际关闭前后零长度读均为0，纠正 verifier 初始假设，v1 原始证据保留。空摘要精确小写匹配、空流独立/EOF/关闭和 handle 元数据提示为有限观察；本地原子 empty Body 与 os.ErrClosed 是明确 Go 契约，不声称完整 Java closeQuietly/异常或包内 JDK25/部署等价。未执行完整 BinaryService/provider/server/HTTP/权限/目标 SQL；产品单元/race、真实 PostgreSQL/文件系统、故障、共享检查与独立审查通过，精确 CI 另行核验；原始资料私有。
+BIN-197 binds static read selection to bounded actual empty/handle observations and checked provenance. The v2 zero-length correction, explicit Go lifecycle and metadata-versus-bytes distinction are recorded in the canonical note; component evidence does not establish full download/deployment behavior or full service compatibility. Product local gates pass; exact-commit CI is tracked separately.

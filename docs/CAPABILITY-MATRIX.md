@@ -77,3 +77,6 @@ BIN-195 is a bounded internal node-save slice under REP-001/STO-001. Its contrac
 
 BIN-196 的[普通流式本地保存](LOCAL-STREAM-SAVE.md)冻结真实 reader→binary 发布/登记→节点保存的有限契约；90 项真实组件参考/523 断言仅支持局部 header/stream 语义，本地产品单元/race、真实 PostgreSQL、故障与共享检查通过，交付独立核验精确 CI，不提升父项兼容状态。
 BIN-196 freezes the bounded real-stream publication-to-node contract. Ninety component references/523 assertions establish local header/stream semantics only; local unit/race/database/fault/shared gates passed, with exact-commit CI verified separately at delivery and parent compatibility stays unverified.
+
+BIN-197 的[普通本地文件读取](LOCAL-FILE-READ.md)冻结 REP-001/STO-001 内部已保存 Path→同次节点 Source→Actual SHA1→真实完整流的 eager 契约，含精确空摘要无物理对象分支。81项实际组件参考断言只支持有限空流/handle 规则；产品 RED/GREEN、9组单元/race、3组真实 PostgreSQL/文件系统、10项故障变异、共享检查与独立实现审查通过；精确提交 CI 另行核验，不提升 Generic/REST/权限或父项兼容状态。
+BIN-197 freezes a bounded internal eager stored-path-to-bytes contract, including exact-empty synthesis. Product unit/race, real database/filesystem, mutation/shared and independent review gates pass; exact-commit CI is verified separately; broader compatibility remains unverified.
