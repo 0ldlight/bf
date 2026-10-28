@@ -80,3 +80,6 @@ BIN-196 freezes the bounded real-stream publication-to-node contract. Ninety com
 
 BIN-197 的[普通本地文件读取](LOCAL-FILE-READ.md)冻结 REP-001/STO-001 内部已保存 Path→同次节点 Source→Actual SHA1→真实完整流的 eager 契约，含精确空摘要无物理对象分支。81项实际组件参考断言只支持有限空流/handle 规则；产品 RED/GREEN、9组单元/race、3组真实 PostgreSQL/文件系统、10项故障变异、共享检查与独立实现审查通过；精确提交 CI 另行核验，不提升 Generic/REST/权限或父项兼容状态。
 BIN-197 freezes a bounded internal eager stored-path-to-bytes contract, including exact-empty synthesis. Product unit/race, real database/filesystem, mutation/shared and independent review gates pass; exact-commit CI is verified separately; broader compatibility remains unverified.
+
+BIN-198 的[下载接入契约](GENERIC-DOWNLOAD-INTEGRATION.md)补充25组实际 GET/HEAD/路径/缺失/匿名样本及独立453断言核验，核对有限 local HEAD 无内容打开的静态分支，冻结下一普通下载适配器的支持域与验收。仅契约，尚无产品 HTTP 下载路由；PKG-007/API-001 等父项保持未验证。
+BIN-198 adds bounded download observations and acceptance for the next ordinary adapter. This is a contract, not an implemented HTTP download capability; parent parity remains unverified.

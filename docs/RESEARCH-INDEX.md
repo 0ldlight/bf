@@ -210,3 +210,8 @@ BIN-196 binds existing static save ordering to bounded actual header/stream obse
 
 2026-10-28 BIN-197：[读取契约](LOCAL-FILE-READ.md)复用同 WAR 静态节点 Actual SHA1→provider 链与 REA archive 清单，补充实际 ZeroBytesBinaryElement/Null/Simple handle 有限执行；5个同 WAR JAR、8个运行类身份和81项独立断言核验。v2 实际关闭前后零长度读均为0，纠正 verifier 初始假设，v1 原始证据保留。空摘要精确小写匹配、空流独立/EOF/关闭和 handle 元数据提示为有限观察；本地原子 empty Body 与 os.ErrClosed 是明确 Go 契约，不声称完整 Java closeQuietly/异常或包内 JDK25/部署等价。未执行完整 BinaryService/provider/server/HTTP/权限/目标 SQL；产品单元/race、真实 PostgreSQL/文件系统、故障、共享检查与独立审查通过，精确 CI 另行核验；原始资料私有。
 BIN-197 binds static read selection to bounded actual empty/handle observations and checked provenance. The v2 zero-length correction, explicit Go lifecycle and metadata-versus-bytes distinction are recorded in the canonical note; component evidence does not establish full download/deployment behavior or full service compatibility. Product local gates pass; exact-commit CI is tracked separately.
+
+## 普通下载接入 / Ordinary download integration
+
+2026-10-29 BIN-198：[下载接入契约](GENERIC-DOWNLOAD-INTEGRATION.md)补充当前7.161.26/rev86126900专用实例25组受控请求、3份合成制品与453项离线核验；HAR 摘要 `c40b7cc69f231de4564b28e186773ed1340042494c0cf9094fcf99e073be9ea2`，REA 保留记录 `ev_fa6f4aeb7c20a57d872ef55be1b65abad294ad19f3f0bd92aed1e492eea5eb8f`。固定WAR的14个独立类/15项class/JAR/javap绑定另行核实；组件版本不是产品版本。普通local HEAD无内容打开仅为静态分支证据；HTTP版本标签不证明部署包字节或分支执行。原始响应、静态资料与清理记录私有，产品适配器及故障/权限全域尚未实现或验证。
+BIN-198 separates controlled HTTP observations and independent offline checks from same-WAR static path/response evidence. Raw material stays private; neither establishes implemented adapter behavior or full deployment/auth/fault parity.
