@@ -200,3 +200,8 @@ BIN-194 corrects the Lithuanian boundary and extends the existing normalizer thr
 
 2026-10-28 BIN-195：[保存命令契约](LOCAL-FILE-SAVE-PUBLISHED.md)结合既有读取/创建/客户端策略与真实 fresh 值参考：60 输入、51 Node、9 CLIENT false、2,201 独立断言；26 依赖 JAR/18 运行类与固定 WAR 核对。另 36 路径组合参考要求 raw/forced 相等与 parent fixed-point 两个守卫；10 个身份准入样本中，8 个对齐既有 Go 创建映射，2 个由现有存储校验拒绝。真实构造器/盖章/投影组合不等于完整 saveResource、SQL 或上传；本机 JVM26 不证明包内 JDK25/部署。产品单元、真实 PostgreSQL、故障回归与最终 CI 尚待完成，原始证据私有。
 BIN-195 combines bounded actual fresh-value/path observations with existing node seams. Provenance and phase-specific observations support the finite command contract, not complete wrapper/save/upload or deployment parity. Product tests and final CI remain separate pending gates; raw evidence stays private.
+
+## 普通流式发布与保存 / Ordinary stream publication and save
+
+2026-10-28 BIN-196：[流式命令契约](LOCAL-STREAM-SAVE.md)复用同 WAR 静态 saveResource→addBinary→节点顺序，补核 Local 策略、BinaryHeadersUtil 与 PostProcessChecksumBinaryStream。实际私有 helper 78 组合、实际 stream 12 组合共 90 参考/523 独立断言，28 JAR/6 运行类来源核验；受控 JVM26.0.2.1/ROOT 不代表包内 JDK25/部署。精确 fresh NO_ORIG 省略与原始 header 消费分开；显式 close 验证不证明完整上传关闭所有权。未执行公有全局配置读取、完整目标保存/provider/registry/SQL/HTTP；新产品单元、真实 PostgreSQL、故障、共享检查及 CI 均 pending，原始资料私有。
+BIN-196 binds existing static save ordering to bounded actual header/stream observations and checked same-WAR provenance. Component behavior and explicit close delegation establish neither complete upload ownership nor deployment transactions. New product gates remain pending; the linked contract owns finite encoding/precheck/length boundaries and raw evidence stays private.
