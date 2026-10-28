@@ -34,6 +34,13 @@ var ErrClientChecksumMismatch = errors.New("repository: client checksum mismatch
 // view; this is no HTTP trust boundary. User stays raw until write projection.
 // Context must be nonnil; errors return zero. See the contract for scope.
 func UpdateLocalFileWithClientChecksums(ctx context.Context, in LocalFileWriteInput, checksums ClientFileChecksums, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error)) (FileDirtyUpdateResult, error) {
+	return updateLocalFileWithClientChecksums(ctx, in, checksums, catalog, update, func() int64 { return in.UpdatedMillis })
+}
+
+// updatedMillis 只在摘要验证和 modified 回退后采样；公开入口仍使用显式已捕获时间。
+// updatedMillis is sampled only after checksum verification and modified fallback.
+// The public entry point retains its previously captured timestamp semantics.
+func updateLocalFileWithClientChecksums(ctx context.Context, in LocalFileWriteInput, checksums ClientFileChecksums, catalog FileMimeCatalog, update func(context.Context, FileReference) (int64, error), updatedMillis func() int64) (FileDirtyUpdateResult, error) {
 	baseline, err := prepareLoadedFileUpdate(ctx, in.Source, in.CreatedPolicy, in.OriginalCase, catalog, update)
 	if err != nil {
 		return FileDirtyUpdateResult{}, err
@@ -70,7 +77,7 @@ func UpdateLocalFileWithClientChecksums(ctx context.Context, in LocalFileWriteIn
 	if fields.LastModifiedMillis <= 0 {
 		fields.LastModifiedMillis = fields.CreatedMillis
 	}
-	fields.LastUpdatedMillis = in.UpdatedMillis
+	fields.LastUpdatedMillis = updatedMillis()
 	fields.ModifiedByUTF16 = in.CurrentUserUTF16
 	desired, err := NewFileInfoSnapshot(fields)
 	if err != nil {
