@@ -37,8 +37,8 @@ Static evidence separately binds 28 class/JAR/javap records and the actual WAR w
   Ordinary generic path/read checks precede node lookup. Repository existence and local/generic type derive from configuration, not node rows.
 - 权限target、用户/组与仓库级include/exclude是不同输入。所查主授权路径委托Access缓存；本体legacy/影子匹配器不能冒充已验证的Access端完整匹配算法。全局/仓库隐藏策略还可把内部401/403映射为404，当前实验未切换这些设置。
   Permission targets, principals/groups and repository include/exclude are distinct inputs. Legacy matching code is not proof of complete Access runtime semantics; resource-hiding settings remain configuration-dependent.
-- 当前Go产品只有Actor审计纯值与DownloadAuth端口，没有真实凭据验证、principal、仓库目录或权限存储。主模块还没有PostgreSQL驱动；短读事务接线仅在集成测试中存在。
-  The product has an audit Actor and an auth port, but no credential verifier, principal/repository/grant store, production database driver or short-read wiring.
+- BIN-200 调查时，Go 产品只有 Actor 与 DownloadAuth 端口；后续 BIN-201 的真实身份、目录、授权与短读事务实现边界见[下载安全基础](DOWNLOAD-SECURITY.md)。生产命令的 PostgreSQL 驱动/配置/TLS/生命周期装配仍待后续里程碑。
+  BIN-201 addresses the identity/catalog/access and short-read foundations documented in [download security](DOWNLOAD-SECURITY.md); production command configuration, driver, TLS and lifetime wiring remain separate.
 
 ## 接线方案与先后次序 / Wiring design and order
 
