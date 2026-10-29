@@ -92,3 +92,6 @@ BIN-200 records evidence-backed production wiring prerequisites; real identity/c
 
 BIN-201 的[下载安全基础](DOWNLOAD-SECURITY.md)落地有限 Argon 真实验证、私有数据库身份、独立 local/generic 目录、当前直接/组 read 授权、进程内失败门和短读事务组合；不将其登记为生产下载、完整权限/Access、Token/FIPS 或父能力完成。命令配置、驱动装配、TLS 与生命周期继续待办。
 BIN-201 adds bounded security foundations, with production process wiring and broader compatibility still open.
+
+BIN-202 的[下载进程装配](DOWNLOAD-PROCESS.md)将真实安全与下载处理器接入显式模式：默认健康模式保留，下载模式采用受控配置、真实池/filestore、回环 origin 和原始 URI 分发。排空后才关闭共享资源，强制超时明确失败并保留在途所有权。此为受限命令入口，不等同于外部 HTTPS 部署、产品发布或完整 REST/Access/Generic 父能力。
+BIN-202 wires the bounded authenticated handler into an explicit process mode; external deployment, releases and broader parent compatibility remain separate.

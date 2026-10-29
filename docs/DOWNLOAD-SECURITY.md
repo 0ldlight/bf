@@ -1,7 +1,7 @@
 # 下载身份与授权基础 / Download security foundations
 
-本片为独立 GET/HEAD 读取器提供真实数据库身份、仓库目录与读授权。`internal/security` 组合这些依赖；`cmd/binflow` 仍只提供既有健康入口，尚未装配生产下载配置、TLS 或资源生命周期。本片不提供账户管理 API、完整上传、Token 登录或部署。
-This slice composes persisted identity, catalog and read authorization with the standalone GET/HEAD reader. Production command routing, configuration, TLS and resource lifetime remain a separate milestone.
+本片为独立 GET/HEAD 读取器提供真实数据库身份、仓库目录与读授权。`internal/security` 组合这些依赖；BIN-201 交付时命令仅提供健康入口；后续显式模式、依赖与资源生命周期接入见[下载进程装配](DOWNLOAD-PROCESS.md)，外部 TLS 与部署仍需独立验证。本片不提供账户管理 API、完整上传、Token 登录或部署。
+This slice composes persisted identity, catalog and read authorization with the standalone GET/HEAD reader. Subsequent command configuration and lifetime wiring are documented in [process composition](DOWNLOAD-PROCESS.md); external TLS and deployment remain independently verified boundaries.
 
 ## 组件与所有权 / Components and ownership
 
@@ -57,5 +57,5 @@ The process-local gate is not distributed lockout parity. Real request cancellat
 
 ## 后续边界 / Remaining boundaries
 
-下一里程碑须实现显式下载模式、受控配置与 PostgreSQL 驱动装配、可信 HTTPS/代理来源、启动失败清理及先排空 HTTP 后关闭共享资源。当前不开放账户管理，不自动迁移/创建凭据；部署仍需独立验证。完整授权匹配、Token/FIPS、持久锁定、Unicode/Locale 和其他下载协议能力继续留在能力矩阵与 Linear 中。
-The next milestone is verified process configuration and lifecycle wiring. Broader identity, policy and protocol compatibility remain open.
+进程模式、受控配置、PostgreSQL 驱动与启动/排空/关闭接入由[下载进程装配](DOWNLOAD-PROCESS.md)负责；外部 HTTPS/代理来源与部署仍须独立验证。当前不开放账户管理，不自动迁移/创建凭据；部署仍需独立验证。完整授权匹配、Token/FIPS、持久锁定、Unicode/Locale 和其他下载协议能力继续留在能力矩阵与 Linear 中。
+Process configuration and lifetime wiring are covered by the linked process contract. Broader identity, policy and protocol compatibility remain open.

@@ -113,3 +113,8 @@ The bounded Latin-1 extension reuses the existing normalizer and consumers; see 
 
 `internal/security/` 拥有有界 Argon 凭据、私有主体、显式安全 schema、SQL 身份/目录/read 授权与独立认证处理器；`internal/repository/postgres/read_pool.go` 提供查询后立即释放的只读事务。边界、依据与未接入命令的限制见[下载安全基础](DOWNLOAD-SECURITY.md)。用户使用文档仍在独立 Fern 仓库。
 `internal/security` owns the persisted security boundary and standalone authenticated handler; the PostgreSQL read pool releases transactions before streaming. See the linked contract for support limits and remaining process wiring.
+
+## 进程组合根 / Process composition root
+
+`internal/process/` 负责严格配置、真实依赖装配、原始 URI 分发与处理器排空后回收；`cmd/binflow` 只负责选择配置、信号和固定日志。支持域及强制关闭时的延后回收见[下载进程装配](DOWNLOAD-PROCESS.md)。
+`internal/process` owns the actual service composition and resource lifetime; the command keeps only configuration selection and signals. See the process contract for bounded support and forced-drain limits.

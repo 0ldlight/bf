@@ -1,71 +1,33 @@
-// Command binflow runs the BinFlow HTTP service.
-// binflow 命令启动 BinFlow 的 HTTP 服务。
-//
-// This is the P0 smoke entry point: it serves the internal /healthz
-// endpoint only and is not an Artifactory-compatible service.
+// Command binflow 运行显式健康或已认证下载服务。
+// Command binflow runs the explicit health or authenticated download service.
 package main
 
 import (
 	"context"
-	"errors"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
-	"github.com/0ldlight/bf/internal/httpserver"
+	"github.com/0ldlight/bf/internal/process"
 )
 
-const (
-	defaultListenAddr = "127.0.0.1:8080"
-	readHeaderTimeout = 5 * time.Second
-	shutdownTimeout   = 10 * time.Second
-)
-
-// listenAddr returns the listen address, honouring BINFLOW_LISTEN_ADDR.
-func listenAddr() string {
-	if addr := os.Getenv("BINFLOW_LISTEN_ADDR"); addr != "" {
-		return addr
-	}
-	return defaultListenAddr
-}
-
-func main() {
-	srv := &http.Server{
-		Addr:    listenAddr(),
-		Handler: httpserver.NewHandler(),
-		// Bound so slow or stalled clients cannot hold connections open
-		// indefinitely (Slowloris-style resource exhaustion).
-		ReadHeaderTimeout: readHeaderTimeout,
-	}
-
-	// Stop cleanly on SIGINT/SIGTERM; the shutdown below is bounded by
-	// shutdownTimeout so a stuck request cannot block exit forever.
+// run 返回状态码，确保信号与服务资源的 defer 在 os.Exit 前执行。
+// run returns an exit code so signal and service defers execute before os.Exit.
+func run() int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-
-	serveErr := make(chan error, 1)
-	go func() {
-		log.Printf("binflow: listening on %s", srv.Addr)
-		serveErr <- srv.ListenAndServe()
-	}()
-
-	select {
-	case err := <-serveErr:
-		if !errors.Is(err, http.ErrServerClosed) {
-			log.Fatalf("binflow: server error: %v", err)
-		}
-		return
-	case <-ctx.Done():
-		log.Print("binflow: shutdown signal received")
+	cfg, err := process.LoadConfig(os.Getenv)
+	if err != nil {
+		log.Print("binflow: invalid configuration")
+		return 1
 	}
-
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
-	defer cancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("binflow: graceful shutdown failed: %v", err)
+	err = process.Run(ctx, cfg, func(addr string) { log.Printf("binflow: listening on %s", addr) })
+	if err != nil {
+		log.Printf("binflow: service stopped: %v", err)
+		return 1
 	}
 	log.Print("binflow: stopped")
+	return 0
 }
+func main() { os.Exit(run()) }
