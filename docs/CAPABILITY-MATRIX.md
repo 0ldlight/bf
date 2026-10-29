@@ -83,3 +83,6 @@ BIN-197 freezes a bounded internal eager stored-path-to-bytes contract, includin
 
 BIN-198 的[下载接入契约](GENERIC-DOWNLOAD-INTEGRATION.md)补充25组实际 GET/HEAD/路径/缺失/匿名样本及独立453断言核验，核对有限 local HEAD 无内容打开的静态分支，冻结下一普通下载适配器的支持域与验收。仅契约，尚无产品 HTTP 下载路由；PKG-007/API-001 等父项保持未验证。
 BIN-198 adds bounded download observations and acceptance for the next ordinary adapter. This is a contract, not an implemented HTTP download capability; parent parity remains unverified.
+
+BIN-199 实施[有限普通下载适配器](GENERIC-DOWNLOAD-INTEGRATION.md#bin-199-适配器实施--adapter-implementation)：独立GET/HEAD、可信必需授权端口、先校验同次Source再Open、HEAD零Open、流关闭及固定诊断。24组新增单元/真实传输race、3组真实PostgreSQL/文件系统及共享检查通过；12项可编译故障变异通过，精确CI在交付时独立核验。未接生产路由或身份系统，不能将其登记为完整Generic/REST/权限兼容。
+BIN-199 implements a bounded standalone adapter with verified local gates. Production auth/routing and complete parent compatibility remain unverified; compiled mutations pass, with exact-commit delivery CI tracked separately.
