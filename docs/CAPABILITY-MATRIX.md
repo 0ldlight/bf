@@ -86,3 +86,6 @@ BIN-198 adds bounded download observations and acceptance for the next ordinary 
 
 BIN-199 实施[有限普通下载适配器](GENERIC-DOWNLOAD-INTEGRATION.md#bin-199-适配器实施--adapter-implementation)：独立GET/HEAD、可信必需授权端口、先校验同次Source再Open、HEAD零Open、流关闭及固定诊断。24组新增单元/真实传输race、3组真实PostgreSQL/文件系统及共享检查通过；12项可编译故障变异通过，精确CI在交付时独立核验。未接生产路由或身份系统，不能将其登记为完整Generic/REST/权限兼容。
 BIN-199 implements a bounded standalone adapter with verified local gates. Production auth/routing and complete parent compatibility remain unverified; compiled mutations pass, with exact-commit delivery CI tracked separately.
+
+BIN-200 的[可信下载接线契约](TRUSTED-DOWNLOAD-WIRING.md)以46个受控请求/546项离线核验及28项制品绑定划清认证、临时阻断、仓库事实、路径read与节点查询的边界，明确自有身份/配置/授权和组合根仍缺失。仅前置契约，不把生产下载或平台身份登记为完成。
+BIN-200 records evidence-backed production wiring prerequisites; real identity/catalog/access implementations and parent capabilities remain open.
