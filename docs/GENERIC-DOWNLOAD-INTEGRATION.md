@@ -102,3 +102,6 @@ A dependency timeout on an active request is a lookup/open failure, not proof of
 
 本节接口与实施已完成；24组新增单元/真实传输测试通过race，3组真实PostgreSQL/文件系统测试及共享检查通过，独立源码审查必改项已关闭。12项可编译故障变异全部被行为断言捕获，临时数据库资源已清理；精确提交/默认分支CI按交付证据独立核验。
 The adapter implementation passes 24 new unit/real-transport race groups, three real PostgreSQL/filesystem groups and shared checks; independent source-review findings are closed. Twelve compiled mutations are caught by behavioral assertions and the owned database resources are removed; exact/default CI is separately verified at delivery.
+
+普通下载挂入服务前的真实身份、仓库事实、认证入口与路径拒绝区分、配置和生命周期见[BIN-200可信接线契约](TRUSTED-DOWNLOAD-WIRING.md)。尚未实现这些前置，当前适配器仍不挂生产入口。
+See the [trusted wiring contract](TRUSTED-DOWNLOAD-WIRING.md) for the real production prerequisites; the current adapter remains unmounted.

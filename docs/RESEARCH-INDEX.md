@@ -218,3 +218,8 @@ BIN-198 separates controlled HTTP observations and independent offline checks fr
 
 2026-10-29 BIN-199：[普通下载适配器](GENERIC-DOWNLOAD-INTEGRATION.md#bin-199-适配器实施--adapter-implementation)只复用BIN-198既有原版证据，未重新执行或外推目标协议。原创实现通过校验Store复用BIN-197；同次Source投影先于Open，HEAD不Open。真实RED/GREEN与独立审查关闭405短正文、Open错误误404、多重后缀及依赖超时分类缺陷；独立测试作者修正夹具、计数、真实请求方法及取消同步后，24组新增单元/传输race、3组真实数据库/文件系统及共享检查通过。原始失败与修复证据私有，精确交付CI另行绑定；不增加目标完整兼容结论。
 BIN-199 reuses existing target evidence and records original adapter verification, including retained failed attempts and reviewed corrections. No new reference-protocol or deployment-parity claim is made.
+
+## 下载身份与仓库接线 / Download identity and repository wiring
+
+2026-10-29 BIN-200：[可信接线契约](TRUSTED-DOWNLOAD-WIRING.md)。两个独立成功矩阵31+15请求、546项离线核验；HAR SHA256分别为 `08225981a79521b8eb54899599a7bfddfa9ca9460b32e42ac0e94b055e65c5a1`、`cc56937937021d623e476391ab2724d1a88b63131f6b9f3550fdb12b4e701a7f`，REA记录 `ev_559f88b2399538e0a7e6d2f0a0a9f03504e3f14522f7dc0991dace3e979f2860`、`ev_c9cb1550a53cd81a354c596411486f72f30b54f4dc5c6d8a0350c1b56da7f6c8`。28项绑定涉及23个独立类；身份原签名输出另补8份方法体，WAR web.xml确认认证filter先于仓库filter。实际数据区分登录失败临时阻断与路径拒绝，未把403→200误称权限传播。所有创建资源已清理并另行只读核实命名资源缺席；初始默认组假设失败及verifier修正原样保留。原始响应/身份/控制/静态资料私有，不证明部署包字节、完整Access验证/模式/缓存语义；未实现产品认证或生产路由。
+BIN-200 separates live bounded observations from same-WAR bodies and deployment unknowns. Earlier assumptions and verifier corrections are retained, with no production-authentication completion claim.
