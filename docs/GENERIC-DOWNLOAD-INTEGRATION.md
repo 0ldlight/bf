@@ -79,3 +79,26 @@ The implementation must deliver these exits; this contract has not run adapter p
 
 Range/条件请求的既有18样本契约继续保留；远端/虚拟、上传 HTTP、完整权限矩阵、GC/并发写与完整 Unicode/Locale 仍是后续工作。下一切片不能缩小最终 Generic 兼容目标。
 The existing eighteen-case range/conditional contract remains intact. Remote/virtual/upload/auth/GC/concurrent-write/full-Unicode work remains open; the finite slice does not reduce the final compatibility goal.
+
+## BIN-199 适配器实施 / Adapter implementation
+
+BIN-199 提供独立 `httpserver.NewDownloadHandler(DownloadDeps) (http.Handler, error)`，不改变 `NewHandler` 或命令入口。请求画像固定为 `/artifactory/{配置仓库键}/{相对文件路径}`；raw URI 超过8192字节或包含任意 `?`（包括空 query）亦返回400。本节是明确本地策略，不能当作原版全部路由或配置规则。
+BIN-199 supplies a standalone constructor, without changing production routing. Its fixed prefix, 8192-byte raw-URI cap and rejection of every query delimiter are finite local policies, not complete target behavior.
+
+`DownloadDeps` 注入 RepoKey、必需 DownloadAuth、既有 FileReadStore/FileOpener 及可选固定类别 Report 回调；注入者持有事务/store 生命周期。nil 接口依赖或非法仓库键构造失败，typed nil 不支持。授权 `Authorize(ctx, request, path)` 显式返回三值决定与 error；零值/未知决定/error 均500，不默许。401 必须给出非空可打印 ASCII challenge；其他决定不能带 challenge，异常组合500。依赖回调须并发安全，Report 不得 panic；缺省只记录固定错误类别，不记录路径或原因原文。
+Dependencies are injector-owned. Missing interfaces/configuration fail construction; typed nils are unsupported. Authorization has explicit nonzero allow/unauthenticated/denied decisions and an error channel; invalid results fail closed. A 401 requires a trusted printable challenge. Reporting exposes fixed categories only; callbacks must be safe for concurrent requests and reporting must not panic.
+
+混合输入的顺序固定为：方法→raw 路径/query→Range 或任意 If-* 头名（即使值为空）→取消→授权→取消→同次查询与表示投影→GET Open→取消→成功响应。配置仓库以外的路径属于400画像排除；只有 sql.ErrNoRows 是404，folder/其他查询错误为500。原创错误体为固定英文文本加 LF，Content-Type 为 text/plain; charset=utf-8，GET/HEAD 均显式给出该表示的 Content-Length，HEAD 不写正文。这与原版 JSON 错误体明确不同。
+The local priority order is method, raw profile/query, unsupported header names, cancellation, authorization, cancellation, validated lookup/projection, GET open, cancellation, then success. Only sql.ErrNoRows is absence; folder/other lookup failures are 500. Fixed original text errors use explicit representation lengths, including bodyless HEAD; they differ from target JSON errors.
+
+GET 通过请求内的校验 Store 包装器复用 ReadFile：一次真实查询后先检查身份与全部表示元数据，成功才允许内容选择/Open。HEAD 直接使用同一校验查询，不进入 ReadFile。这样身份或元数据不合法时，GET 也不会打开对象；没有新增查询、registry 读取、SQL 模型或通用 Stat API。
+A per-request validating store lets GET reuse ReadFile while validating identity and representation before any open. HEAD calls that same validated lookup directly. This adds no lookup, registry read, SQL model or generic Stat API.
+
+成功 GET 取得 Body 后所有退出均关闭一次。复制错误或字节数与声明 size 不符时报告固定类别并用 http.ErrAbortHandler 中止；Close 失败也报告并中止，不写第二个状态或错误体。已经传到客户端的完整字节不能撤销，因此 Close 失败不保证客户端可见。WriteHeader 的逻辑提交与响应头真正发送到网络不同，早期中止也可能表现为未收到响应头的 EOF。
+Every acquired body closes once. Copy/count/close failures are reported and abort via http.ErrAbortHandler without a second representation. Already-delivered bytes cannot be revoked, so close failure is not guaranteed visible to clients. Logical header commitment does not imply wire delivery; early abort may produce EOF before headers.
+
+依赖自己的超时在 HTTP 请求仍有效时属于 lookup/open 失败500，不能仅凭异常类型宣称客户端取消。取消在授权前后、命中/打开后及每次流 Read/Write 前检查，关闭已取得流并中止，不返回伪造的默认200，也不发明499。不启动后台关闭 goroutine；当前正在阻塞的 provider Read 无法被这些检查强制中断，须等其返回，这仍是明确限制。适配器不预读或重新摘要修补损坏对象。
+A dependency timeout on an active request is a lookup/open failure, not proof of client cancellation. Cancellation is checked around authorization, after hits/opens and before stream operations, closing acquired bodies and aborting rather than fabricating 200/499. No background closer forcibly interrupts an already-blocked provider read. Corrupt objects are not repaired by pre-reading or rehashing.
+
+本节接口与实施已完成；24组新增单元/真实传输测试通过race，3组真实PostgreSQL/文件系统测试及共享检查通过，独立源码审查必改项已关闭。12项可编译故障变异全部被行为断言捕获，临时数据库资源已清理；精确提交/默认分支CI按交付证据独立核验。
+The adapter implementation passes 24 new unit/real-transport race groups, three real PostgreSQL/filesystem groups and shared checks; independent source-review findings are closed. Twelve compiled mutations are caught by behavioral assertions and the owned database resources are removed; exact/default CI is separately verified at delivery.

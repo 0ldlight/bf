@@ -215,3 +215,6 @@ BIN-197 binds static read selection to bounded actual empty/handle observations 
 
 2026-10-29 BIN-198：[下载接入契约](GENERIC-DOWNLOAD-INTEGRATION.md)补充当前7.161.26/rev86126900专用实例25组受控请求、3份合成制品与453项离线核验；HAR 摘要 `c40b7cc69f231de4564b28e186773ed1340042494c0cf9094fcf99e073be9ea2`，REA 保留记录 `ev_fa6f4aeb7c20a57d872ef55be1b65abad294ad19f3f0bd92aed1e492eea5eb8f`。固定WAR的14个独立类/15项class/JAR/javap绑定另行核实；组件版本不是产品版本。普通local HEAD无内容打开仅为静态分支证据；HTTP版本标签不证明部署包字节或分支执行。原始响应、静态资料与清理记录私有，产品适配器及故障/权限全域尚未实现或验证。
 BIN-198 separates controlled HTTP observations and independent offline checks from same-WAR static path/response evidence. Raw material stays private; neither establishes implemented adapter behavior or full deployment/auth/fault parity.
+
+2026-10-29 BIN-199：[普通下载适配器](GENERIC-DOWNLOAD-INTEGRATION.md#bin-199-适配器实施--adapter-implementation)只复用BIN-198既有原版证据，未重新执行或外推目标协议。原创实现通过校验Store复用BIN-197；同次Source投影先于Open，HEAD不Open。真实RED/GREEN与独立审查关闭405短正文、Open错误误404、多重后缀及依赖超时分类缺陷；独立测试作者修正夹具、计数、真实请求方法及取消同步后，24组新增单元/传输race、3组真实数据库/文件系统及共享检查通过。原始失败与修复证据私有，精确交付CI另行绑定；不增加目标完整兼容结论。
+BIN-199 reuses existing target evidence and records original adapter verification, including retained failed attempts and reviewed corrections. No new reference-protocol or deployment-parity claim is made.
