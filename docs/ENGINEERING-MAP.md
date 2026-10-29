@@ -108,3 +108,8 @@ Explicit Original casing reuses the existing loader/preparation chain; see its [
 
 BIN-194 的有限 Latin-1 扩展仍在既有 Original normalizer，具体接受域与 Lithuanian 排除见[统一规范](LOADED-ORIGINAL-CASING.md)，四消费者和数据库列不分叉。
 The bounded Latin-1 extension reuses the existing normalizer and consumers; see the [single contract](LOADED-ORIGINAL-CASING.md), with no new schema or interface branch.
+
+## 下载安全基础 / Download security foundations
+
+`internal/security/` 拥有有界 Argon 凭据、私有主体、显式安全 schema、SQL 身份/目录/read 授权与独立认证处理器；`internal/repository/postgres/read_pool.go` 提供查询后立即释放的只读事务。边界、依据与未接入命令的限制见[下载安全基础](DOWNLOAD-SECURITY.md)。用户使用文档仍在独立 Fern 仓库。
+`internal/security` owns the persisted security boundary and standalone authenticated handler; the PostgreSQL read pool releases transactions before streaming. See the linked contract for support limits and remaining process wiring.

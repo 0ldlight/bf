@@ -89,3 +89,6 @@ BIN-199 implements a bounded standalone adapter with verified local gates. Produ
 
 BIN-200 的[可信下载接线契约](TRUSTED-DOWNLOAD-WIRING.md)以46个受控请求/546项离线核验及28项制品绑定划清认证、临时阻断、仓库事实、路径read与节点查询的边界，明确自有身份/配置/授权和组合根仍缺失。仅前置契约，不把生产下载或平台身份登记为完成。
 BIN-200 records evidence-backed production wiring prerequisites; real identity/catalog/access implementations and parent capabilities remain open.
+
+BIN-201 的[下载安全基础](DOWNLOAD-SECURITY.md)落地有限 Argon 真实验证、私有数据库身份、独立 local/generic 目录、当前直接/组 read 授权、进程内失败门和短读事务组合；不将其登记为生产下载、完整权限/Access、Token/FIPS 或父能力完成。命令配置、驱动装配、TLS 与生命周期继续待办。
+BIN-201 adds bounded security foundations, with production process wiring and broader compatibility still open.

@@ -223,3 +223,8 @@ BIN-199 reuses existing target evidence and records original adapter verificatio
 
 2026-10-29 BIN-200：[可信接线契约](TRUSTED-DOWNLOAD-WIRING.md)。两个独立成功矩阵31+15请求、546项离线核验；HAR SHA256分别为 `08225981a79521b8eb54899599a7bfddfa9ca9460b32e42ac0e94b055e65c5a1`、`cc56937937021d623e476391ab2724d1a88b63131f6b9f3550fdb12b4e701a7f`，REA记录 `ev_559f88b2399538e0a7e6d2f0a0a9f03504e3f14522f7dc0991dace3e979f2860`、`ev_c9cb1550a53cd81a354c596411486f72f30b54f4dc5c6d8a0350c1b56da7f6c8`。28项绑定涉及23个独立类；身份原签名输出另补8份方法体，WAR web.xml确认认证filter先于仓库filter。实际数据区分登录失败临时阻断与路径拒绝，未把403→200误称权限传播。所有创建资源已清理并另行只读核实命名资源缺席；初始默认组假设失败及verifier修正原样保留。原始响应/身份/控制/静态资料私有，不证明部署包字节、完整Access验证/模式/缓存语义；未实现产品认证或生产路由。
 BIN-200 separates live bounded observations from same-WAR bodies and deployment unknowns. Earlier assumptions and verifier corrections are retained, with no production-authentication completion claim.
+
+## 凭据组件与安全基础 / Credential component and security foundations
+
+2026-10-29 BIN-201：[下载安全基础](DOWNLOAD-SECURITY.md)。本地 Access WAR SHA-256 `dc871abf684789cf54977ed88ded2524493390c5b35ffa05b9893c391d692ca5`、组件 7.191.16；REA 清单证据 `ev_83ab88819833c1c53b847da41eb0faa36936bfee184bbf27aed159ca7bc53aea`。独立核实30项绑定、26个独立类和6个同 WAR Argon依赖JAR，重新生成的javap输出一致；一处私有MD5 dump摘要录入错误保留修正证据。包内实际ArgonEncoder运行42项观察及9项新进程冻结重放通过；类型路由前缀来自独立字节码，未运行完整登录服务。原始资料保持私有；只支持固定Argon2id画像，不宣称在线部署字节、完整身份/FIPS或所有解析兼容。
+BIN-201 separates exact local artifact/component evidence, corrected private manifest transcription and bounded runtime vectors from unverified full authentication/deployment behavior.
