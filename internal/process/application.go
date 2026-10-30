@@ -291,7 +291,7 @@ func rejectPostgresEnvironment() error {
 // 小写 postgres/postgresql URL 形式（拒绝 keyword/value、opaque、fragment）；
 // 单主机 + 显式数字端口 1..65535；用户名与非空口令必须显式给出（避免
 // .pgpass）；数据库名 1..63 个 ASCII 字母数字/_/.- 字符；query 恰一个
-// sslmode（仅 disable/verify-full）加可选单个 search_path（ASCII 标识符
+// sslmode（仅 disable/verify-full）加可选 exec 执行画像及单个 search_path（ASCII 标识符
 // 1..63，本地选择：[A-Za-z0-9_$] 且不以数字开头），其余/重复键一律拒绝。
 // sslmode=disable 仅允许字面回环 IP 数据库主机（IPv4/IPv6，含 4-in-6 映射
 // 归一）；verify-full 使用系统 CA。随后以白名单字段重建安全 URL（显式
@@ -308,7 +308,8 @@ func rejectPostgresEnvironment() error {
 // alphanumeric/_/.- characters; the query carries exactly one sslmode
 // (disable/verify-full only) plus an optional single search_path (an ASCII
 // identifier 1..63 long; local choice: [A-Za-z0-9_$] not starting with a
-// digit) — every other or duplicated key is rejected. sslmode=disable is
+// digit), plus optional default_query_exec_mode=exec. Every other value or
+// duplicated key is rejected. sslmode=disable is
 // allowed only for a literal loopback IP database host (IPv4/IPv6 including
 // 4-in-6 unmapping); verify-full uses system CAs. A safe URL is then rebuilt
 // from whitelisted fields (explicit empty sslcert/sslkey/passfile/servicefile
@@ -366,6 +367,7 @@ func parsePostgresDSN(raw string) (*pgx.ConnConfig, error) {
 	}
 	sslmode := ""
 	searchPath := ""
+	execProfile := false
 	for key, values := range query {
 		switch key {
 		case "sslmode":
@@ -378,6 +380,11 @@ func parsePostgresDSN(raw string) (*pgx.ConnConfig, error) {
 				return nil, errInvalidPostgresDSN
 			}
 			searchPath = values[0]
+		case "default_query_exec_mode":
+			if len(values) != 1 || values[0] != "exec" {
+				return nil, errInvalidPostgresDSN
+			}
+			execProfile = true
 		default:
 			return nil, errInvalidPostgresDSN
 		}
@@ -441,6 +448,14 @@ func parsePostgresDSN(raw string) (*pgx.ConnConfig, error) {
 		return nil, errInvalidPostgresDSN
 	}
 	connConfig.ConnectTimeout = connectTimeout
+	// 显式 exec 使用单轮扩展协议，不依赖跨事务的命名语句或描述缓存。
+	// Explicit exec uses one extended-protocol round trip without relying on
+	// named statements or cached descriptions surviving between transactions.
+	if execProfile {
+		connConfig.DefaultQueryExecMode = pgx.QueryExecModeExec
+		connConfig.StatementCacheCapacity = 0
+		connConfig.DescriptionCacheCapacity = 0
+	}
 	if connConfig.RuntimeParams == nil {
 		connConfig.RuntimeParams = make(map[string]string)
 	}
