@@ -14,7 +14,7 @@ The nine required fields form a closed schema. Duplicate/unknown fields, trailin
 下载监听仅限字面量回环 IPv4/IPv6，允许端口 0 作受控临时监听；不能通过 DNS、Host 或 Forwarded 头证明传输可信。外部访问仍须由另行验证的 HTTPS 终止器承接，本次未变更部署。健康模式继续使用既有监听环境变量与默认回环地址，允许原有测试镜像的健康监听；下载模式拒绝竞争的监听环境设置。
 Downloads use a literal loopback origin; a separately verified HTTPS terminator remains responsible for external access. Header claims do not establish transport trust. Health mode retains its existing listener behavior.
 
-PostgreSQL 使用现有精确版本 pgx v5.11.0（MIT），进入产品主模块前记录依赖和模块校验。连接 URL 必须显式提供单主机、端口、用户、非空密码、数据库和 sslmode；只允许可选 search_path。`disable` 只接受字面量回环数据库，远端必须使用系统 CA 的 `verify-full`；无服务文件、密码文件、客户端证书或静默 TLS 回退支持。下载模式发现 PG 前缀环境项即拒绝，不修改进程全局环境；显式空文件参数阻止默认客户端证书与密码文件来源。其他数据库、定制 CA、mTLS 和多主机另留后续画像。
+PostgreSQL 使用现有精确版本 pgx v5.11.0（MIT），进入产品主模块前记录依赖和模块校验。连接 URL 必须显式提供单主机、端口、用户、非空密码、数据库和 sslmode；只允许可选 search_path 与显式的 default_query_exec_mode=exec。`disable` 只接受字面量回环数据库，远端必须使用系统 CA 的 `verify-full`；无服务文件、密码文件、客户端证书或静默 TLS 回退支持。下载模式发现 PG 前缀环境项即拒绝，不修改进程全局环境；显式空文件参数阻止默认客户端证书与密码文件来源。其他数据库、定制 CA、mTLS 和多主机另留后续画像。
 The pinned driver accepts an explicit bounded URL profile. Loopback-only plaintext and remote hostname-verified TLS are separate explicit cases. Ambient PG settings are rejected rather than mutated; unsupported credential/transport sources never silently fill missing configuration.
 
 ## 资源所有权与原始路由 / Ownership and raw routing
@@ -35,3 +35,14 @@ Connection closure is not a handler join. Timed-out work retains shared resource
 
 本片继续限定既有 Basic、ASCII 下载路径、local/generic 目录和全仓 read 支持域；不增加完整 Access、Token/FIPS、复杂模式或 Unicode 兼容承诺。工程证据和失败修正保持私有，能力状态以矩阵及 Linear 为准。
 The existing finite download and security support domains remain unchanged. Engineering evidence stays private and parent capability status remains open.
+
+## 无缓存执行画像 / Uncached execution profile
+
+DSN 可显式增加 `default_query_exec_mode=exec`；仅此值可接受，未知值、空值或重复参数拒绝。显式画像使用 pgx 的单轮扩展协议执行，关闭语句与描述缓存；不使用 SQL 字符串插值，也不依赖命名预处理语句跨事务保留。未提供该参数时保留原驱动默认画像。JSON 九字段、TLS 校验、有限 search_path 与原有错误隐藏不变。
+The optional DSN key accepts only `exec`, selecting single-round-trip extended execution with both caches disabled. Missing, empty and duplicate are distinct: omission preserves the existing driver default, while empty/duplicate values fail. No SQL interpolation or named-statement reuse is introduced.
+
+该画像只解决驱动执行选择，不证明任意 transaction pooler 已兼容。真实部署仍须核实目标对启动 search_path 的处理、多连接/多事务的 schema 隔离、权限、取消与回收；一次成功连接或健康响应不足以证明这些行为。
+The execution choice does not attest a transaction pooler. Deployment must verify startup parameters, schema isolation across connections/transactions, privileges and cancellation against the actual endpoint.
+
+UAT 可由服务专属运行环境提供受控 CA 集合，保持系统信任池读取与 verify-full 的证书链和主机名校验。信任文件须来自经认证的运维输入；不能从未验证握手采信证书。DSN 不接受 sslrootcert 文件参数，本片也不增加 JSON CA 字段；专属信任配置及精确制品的正反验证属于部署出口。
+A service-scoped CA bundle is an explicit deployment input, not a new DSN or JSON field. Its provenance and exact-artifact positive/negative checks remain deployment gates; chain and hostname verification stay enabled.
