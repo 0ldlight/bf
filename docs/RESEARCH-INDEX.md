@@ -228,3 +228,8 @@ BIN-200 separates live bounded observations from same-WAR bodies and deployment 
 
 2026-10-29 BIN-201：[下载安全基础](DOWNLOAD-SECURITY.md)。本地 Access WAR SHA-256 `dc871abf684789cf54977ed88ded2524493390c5b35ffa05b9893c391d692ca5`、组件 7.191.16；REA 清单证据 `ev_83ab88819833c1c53b847da41eb0faa36936bfee184bbf27aed159ca7bc53aea`。独立核实30项绑定、26个独立类和6个同 WAR Argon依赖JAR，重新生成的javap输出一致；一处私有MD5 dump摘要录入错误保留修正证据。包内实际ArgonEncoder运行42项观察及9项新进程冻结重放通过；类型路由前缀来自独立字节码，未运行完整登录服务。原始资料保持私有；只支持固定Argon2id画像，不宣称在线部署字节、完整身份/FIPS或所有解析兼容。
 BIN-201 separates exact local artifact/component evidence, corrected private manifest transcription and bounded runtime vectors from unverified full authentication/deployment behavior.
+
+## 普通 Generic PUT 接入 / Ordinary Generic PUT integration
+
+2026-10-31 BIN-204：[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)记录当前 7.161.26/rev86126900 独占夹具的 56 条请求、19 次 PUT 与逐次字节/存储元数据回读；HAR SHA-256 `b44d8c68ac689bdd795a94f2710b8690f4d2bda22be590958471c112282e5f5c`，REA 父证据 `ev_d1984d240fd56e62b242b599a05ddf2665ce59313f7f6045cea177ddf3e9d80a`。创建/覆盖 201、错误摘要 409 及旧字节保持、Original 独立字段、目录与文件分流、read-only deploy 拒绝和未知仓库 405 仅对有限样本成立。独立离线验证及独立实时资源缺席检查分开记录；静态类绑定、推断与未知项见规范。原始资料私有，不代表 PUT 已实现、写权限接线完成或父能力兼容通过。
+BIN-204 binds a bounded ordinary-upload matrix and per-PUT read-back to retained capture evidence. Offline verification and separate live cleanup checks have distinct scopes. The linked contract separates observations, artifact bindings, inference and unknowns; raw material stays private and no upload implementation or parent-parity completion is claimed.
