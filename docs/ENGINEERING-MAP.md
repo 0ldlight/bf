@@ -120,4 +120,4 @@ The bounded Latin-1 extension reuses the existing normalizer and consumers; see 
 `internal/process` owns the actual service composition and resource lifetime; the command keeps only configuration selection and signals. See the process contract for bounded support and forced-drain limits.
 
 普通 PUT 下一接入边界 / Next ordinary PUT boundary：[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)连接既有 `internal/localrepo.SaveFile` 与未来 HTTP 写边界，记录真实参考响应和待定的写授权、提交后表示、分配器及正文所有权。当前没有产品 PUT 处理器，不能把内部保存入口或下载安全直接标为可上传。
-The upload contract connects the existing save command to future HTTP wiring and records reference responses plus unresolved write authorization, committed response facts, allocator and body ownership. No product PUT handler exists yet.
+The upload contract connects the existing save command to future HTTP wiring and records reference responses plus unresolved write authorization, committed response facts, allocator and body ownership. No product PUT handler exists yet; internal saving or download security must not be presented as upload support.

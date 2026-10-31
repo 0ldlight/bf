@@ -6,7 +6,7 @@ State: bounded reference investigation and the next-slice boundary for BIN-204, 
 ## 目标与证据 / Target and evidence
 
 受控专用实例的身份接口返回 Artifactory `7.161.26`、revision `86126900`。实验使用一个随机独占 local/generic 仓库、合成小文件、无组的非管理员账户和仅有 read 的独占权限；没有修改原有仓库、全局设置或 BinFlow UAT。每次文件 PUT 后分别 GET 字节及读取存储元数据，区分响应与实际持久化结果。
-The dedicated instance reports the target version/revision. The experiment uses one uniquely owned local/generic repository, synthetic small files, a groupless nonadmin user and an owned read-only permission. Existing repositories, global settings and BinFlow UAT are untouched. File PUTs are followed by content GETs and storage-metadata reads, separating responses from persisted outcomes.
+The dedicated instance reports Artifactory 7.161.26, revision 86126900. The experiment uses one uniquely owned local/generic repository, synthetic small files, a groupless nonadmin user and an owned read-only permission. Existing repositories, global settings and BinFlow UAT are untouched. File PUTs are followed by content GETs and storage-metadata reads, separating responses from persisted outcomes.
 
 本轮共 56 条请求记录，其中 19 条 PUT；原始 HAR SHA-256 为 `b44d8c68ac689bdd795a94f2710b8690f4d2bda22be590958471c112282e5f5c`。REA 完整解码并保留 56 条，父证据为 `ev_d1984d240fd56e62b242b599a05ddf2665ce59313f7f6045cea177ddf3e9d80a`；原始 HAR、控制响应、验证与导出保持私有。REA 的离线捕获解析不证明线上部署字节、浏览器事务身份或完整协议覆盖；身份标签来自经审查的采集程序，HAR 不保存认证头。
 The capture contains 56 request records, including 19 PUTs, bound to the digest and retained REA evidence above. Raw captures, control responses, verification and exports remain private. Offline REA decoding does not attest deployed bytes, browser transaction identity or complete protocol coverage; identity labels come from the reviewed producer and HAR omits authentication headers.
@@ -32,7 +32,7 @@ The read-only user's 403 explicitly reports deploy denial, unlike earlier recurr
 ### 成功表示 / Successful representation
 
 普通文件返回 `application/vnd.org.jfrog.artifactory.storage.ItemCreated+json;charset=UTF-8` 和 Location。JSON 包含 `repo`、以 slash 开头的 `path`、`created`、`createdBy`、`mimeType`、字符串 `size`、三种 `checksums`、`originalChecksums`、`uri` 和 `downloadUri`。样本未返回独立 `updated` 字段；相同及不同字节覆盖均保留初始 created/createdBy，不能据此推断所有元数据更新规则。
-Ordinary file success includes the stated media type and Location. JSON carries repository/path, created/creator, MIME, string size, actual digests, Originals and two URIs. No separate updated field appears in these samples. Both overwrite forms retain initial created/createdBy, without establishing every metadata-update rule.
+Ordinary file success includes the stated media type and Location. JSON carries `repo`, slash-prefixed `path`, `created`, `createdBy`, `mimeType`, string `size`, three `checksums`, `originalChecksums`, `uri` and `downloadUri`. No separate `updated` field appears in these samples. Both overwrite forms retain initial `created`/`createdBy`, without establishing every metadata-update rule.
 
 无摘要头的样本也返回计算所得 SHA256 Original；SHA1-only 和 MD5-only 分别额外保留对应 Original，三头齐备返回三项。响应 Original 不可简单照抄请求头，也不可据此把三 Actual 全部当作三 Original。此观察只涵盖所列有效小写十六进制输入；空白、多值、marker、非 ASCII 和策略开关另行冻结。
 Even without checksum headers, the sample returns a computed SHA256 Original. SHA1-only and MD5-only add their corresponding Original; all three headers yield all three. Originals cannot be modeled as a verbatim header map or as all three Actuals. These observations cover only the listed valid lowercase hex values; blank/multiple values, markers, non-ASCII and configuration policies remain separate.
