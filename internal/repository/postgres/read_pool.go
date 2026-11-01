@@ -65,17 +65,20 @@ func NewReadPool(db *sql.DB, timeout time.Duration) (*ReadPool, error) {
 
 // LookupSnapshotSource 在从调用方 context 派生的有界只读事务里委托既有
 // Store.LookupSnapshotSource（含全部既有守卫与 NoRows 原因链），返回前
-// 必须回滚；回滚失败则丢弃查询结果并返回固定回滚错误。依赖自身超时（
-// 派生 context 截止）以普通错误上抛：父 HTTP 仍活跃时由上层按存储失败
-// 映射500，不与请求取消混淆。
+// 必须回滚；回滚失败则丢弃查询结果并返回固定回滚错误，但若依赖自身的
+// 截止在同一窗口触发，该截止与回滚错误经 errors.Join 同时保留（均不含
+// 查询原因）。依赖自身超时（派生 context 截止）以普通错误上抛：父 HTTP
+// 仍活跃时由上层按存储失败映射500，不与请求取消混淆。
 // LookupSnapshotSource delegates to the existing Store.LookupSnapshotSource
 // (with every existing guard and the NoRows cause chain preserved) inside a
 // bounded read-only transaction derived from the caller's context, and rolls
 // back before returning; a rollback failure discards the query result and
-// returns the fixed rollback error. A dependency's own timeout (the derived
-// context deadline) surfaces as an ordinary error: while the parent HTTP
-// request stays active the upper layer maps it to a 500 storage failure, not
-// to a request cancellation.
+// returns the fixed rollback error, but when the dependency's own deadline
+// fires in the same window it stays joined (errors.Join) with the rollback
+// error (never with the lookup cause). A dependency's own timeout (the
+// derived context deadline) surfaces as an ordinary error: while the parent
+// HTTP request stays active the upper layer maps it to a 500 storage failure,
+// not to a request cancellation.
 func (p *ReadPool) LookupSnapshotSource(ctx context.Context, path repository.Path) (repository.FileSnapshotSource, error) {
 	opCtx, cancel := context.WithTimeout(ctx, p.timeout)
 	defer cancel()
@@ -90,7 +93,13 @@ func (p *ReadPool) LookupSnapshotSource(ctx context.Context, path repository.Pat
 	}
 	source, lookupErr := store.LookupSnapshotSource(opCtx, path)
 	if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-		return repository.FileSnapshotSource{}, &opError{op: stagePoolRollback, cause: rollbackErr}
+		// 保留同窗截止，但不并入查询原因：NoRows 会被下载层当作 404，
+		// 回滚失败必须保持存储故障。公开错误文案仍固定。
+		// Preserve a concurrent deadline, but exclude the lookup cause:
+		// NoRows maps to 404 while rollback failure must remain a storage
+		// fault. Public error text stays fixed.
+		return repository.FileSnapshotSource{}, &opError{op: stagePoolRollback,
+			cause: errors.Join(rollbackErr, opCtx.Err())}
 	}
 	if err := opCtx.Err(); err != nil {
 		return repository.FileSnapshotSource{}, &opError{op: stagePoolRollback, cause: err}
