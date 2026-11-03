@@ -233,3 +233,6 @@ BIN-201 separates exact local artifact/component evidence, corrected private man
 
 2026-10-31 BIN-204：[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)记录当前 7.161.26/rev86126900 独占夹具的 56 条请求、19 次 PUT 与逐次字节/存储元数据回读；HAR SHA-256 `b44d8c68ac689bdd795a94f2710b8690f4d2bda22be590958471c112282e5f5c`，REA 父证据 `ev_d1984d240fd56e62b242b599a05ddf2665ce59313f7f6045cea177ddf3e9d80a`。创建/覆盖 201、错误摘要 409 及旧字节保持、Original 独立字段、目录与文件分流、read-only deploy 拒绝和未知仓库 405 仅对有限样本成立。独立离线验证及独立实时资源缺席检查分开记录；静态类绑定、推断与未知项见规范。原始资料私有，不代表 PUT 已实现、写权限接线完成或父能力兼容通过。
 BIN-204 binds a bounded ordinary-upload matrix and per-PUT read-back to retained capture evidence. Offline verification and separate live cleanup checks have distinct scopes. The linked contract separates observations, artifact bindings, inference and unknowns; raw material stays private and no upload implementation or parent-parity completion is claimed.
+
+2026-11-03 BIN-206：[有限 PUT 实现](GENERIC-UPLOAD-ADAPTER.md)复用 BIN-204 参考事实，区分本地有限画像、真实 PostgreSQL/文件系统验收与尚未挂接的生产写授权；没有新增原版观察或扩大参考样本结论。私有故障证据包括复合错误、尾 slash origin、空值头、运行期不可比错误和错误树原始宽度，均转为定向回归。
+BIN-206 reuses the reference contract, adds local implementation verification and retains production authorization/mounting limits; it introduces no new target observations.
