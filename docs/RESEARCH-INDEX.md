@@ -236,3 +236,6 @@ BIN-204 binds a bounded ordinary-upload matrix and per-PUT read-back to retained
 
 2026-11-03 BIN-206：[有限 PUT 实现](GENERIC-UPLOAD-ADAPTER.md)复用 BIN-204 参考事实，区分本地有限画像、真实 PostgreSQL/文件系统验收与尚未挂接的生产写授权；没有新增原版观察或扩大参考样本结论。私有故障证据包括复合错误、尾 slash origin、空值头、运行期不可比错误和错误树原始宽度，均转为定向回归。
 BIN-206 reuses the reference contract, adds local implementation verification and retains production authorization/mounting limits; it introduces no new target observations.
+
+2026-11-03 BIN-207：[普通 PUT 写授权研究](GENERIC-UPLOAD-WRITE-AUTH.md)将七个选定类绑定至既有 WAR，三份部署组件文件另行匹配；区分 deploy、delete/overwrite 和请求摘要分支，config 默认值不冒充有效配置。本轮真实采集受原版试用许可过期阻塞，57 条录制记录不能成为权限矩阵；四项独占夹具已清理并核实缺席，实际允许/拒绝仍待有效许可证恢复后重采。
+BIN-207 separates WAR-bound static branches from a license-blocked runtime attempt; no write-permission compatibility completion is claimed.
