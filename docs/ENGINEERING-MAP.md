@@ -121,3 +121,6 @@ The bounded Latin-1 extension reuses the existing normalizer and consumers; see 
 
 普通 PUT 有限适配器 / Bounded ordinary PUT adapter：[实现与验收边界](GENERIC-UPLOAD-ADAPTER.md)连接 `internal/localrepo` 纯输入/Source 画像、`internal/localrepo/postgres` 懒事务保存单元和 `internal/httpserver` 独立 PUT 处理器。HTTP 消费必需的写授权与已提交保存端口，不能借用 read 权限。既有保存核心不扩展，处理器未挂入生产组合根；原版观察仍由[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)拥有。
 The bounded adapter has separate profile, PostgreSQL and HTTP responsibilities. It requires write authorization and committed facts; production mounting remains separate. Reference observations stay in the integration contract.
+
+普通 PUT 后续写授权的静态依据、失败实验限制与未决一致性问题见[写授权契约研究](GENERIC-UPLOAD-WRITE-AUTH.md)。本轮不新增包、端口实现或数据库模式，不扩大已挂接的运行入口。
+See the write-authorization study for static evidence and unresolved runtime/consistency questions; this research adds no packages, schema or mounted entry.
