@@ -24,7 +24,7 @@ The selected initializer supplies false as the flag default. This does not prove
 
 ## 运行矩阵 / Runtime matrix
 
-2026-11-03 的独占受控实验已尝试三种身份 × 七种输入。上传铺设基线返回 503，正文明确为 `Trial license expired!`；21 个计划场景均未形成有效权限样本，不能据此判断 deploy-only 或 deploy+delete 的允许/拒绝。新建仓库、两个用户及权限项均已清理并逐项确认缺席。
+2026-11-03 的独占受控实验原计划涵盖三种身份 × 七种输入，但在文件基线步骤即受阻。上传铺设基线返回 503，正文明确为 `Trial license expired!`；21 个计划场景均未形成有效权限样本，不能据此判断 deploy-only 或 deploy+delete 的允许/拒绝。新建仓库、两个用户及权限项均已清理并逐项确认缺席。
 The controlled attempt was blocked by an expired reference trial license. All 21 planned cells lack valid permission baselines; the outcomes do not establish the permission matrix. All four owned setup resources were removed and checked absent.
 
 保留 HAR 的 SHA-256 为 `8bc4589febc4017632726d4c2c1fd58914e201a573bdcd1f8c614ed1d945e4d3`，REA 父证据 `ev_7f6a1efbf7778d68a9ff89d8c4ec0a07908ccae603cfbbebc27398a710811334` 解码覆盖全部 57 条录制记录。录制解析不建立实时执行归属；单独的本机执行、身份、版本、制品和清理记录保存在私有证据中。该记录只证明本次实验的限制，不是 57 项权限验收。
