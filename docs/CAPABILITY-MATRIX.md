@@ -95,3 +95,6 @@ BIN-201 adds bounded security foundations, with production process wiring and br
 
 BIN-202 的[下载进程装配](DOWNLOAD-PROCESS.md)将真实安全与下载处理器接入显式模式：默认健康模式保留，下载模式采用受控配置、真实池/filestore、回环 origin 和原始 URI 分发。排空后才关闭共享资源，强制超时明确失败并保留在途所有权。此为受限命令入口，不等同于外部 HTTPS 部署、产品发布或完整 REST/Access/Generic 父能力。
 BIN-202 wires the bounded authenticated handler into an explicit process mode; external deployment, releases and broader parent compatibility remain separate.
+
+BIN-206 的[普通 PUT 有限适配器](GENERIC-UPLOAD-ADAPTER.md)提供独立 HTTP 写入口组件、提交后权威表示与真实 PostgreSQL/文件系统回归；原始 URI、文件/操作者/摘要支持域与拒绝政策明确受限。组件未挂入生产组合根，测试写授权不等于生产 deploy/overwrite 完成，PKG-007 与权限父项继续保留原范围及未完成状态。
+BIN-206 adds bounded unmounted components and their regression gates, not completed Generic or production write-security parity.
