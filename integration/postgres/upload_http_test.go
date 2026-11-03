@@ -372,9 +372,14 @@ func uhpRequireCreated(t *testing.T, status int, h http.Header, body, repo, rawP
 	if len(gotKeys) != len(wantOriginalKeys) {
 		t.Fatalf("originalChecksums keys = %v, want exactly %v", gotKeys, wantOriginalKeys)
 	}
+	wantOriginalValues := map[string]string{"sha1": sha1Hex, "sha256": sha256Hex, "md5": md5Hex}
 	for key := range wantOriginalKeys {
 		if !gotKeys[key] {
 			t.Fatalf("originalChecksums misses %q: got %v", key, gotKeys)
+		}
+		var got string
+		if err := json.Unmarshal(view.Original[key], &got); err != nil || got != wantOriginalValues[key] {
+			t.Fatalf("originalChecksums.%s = %s, want the independently computed digest", key, view.Original[key])
 		}
 	}
 	if got := string(view.Original["sha256"]); got != `"`+sha256Hex+`"` {
