@@ -239,3 +239,6 @@ BIN-206 reuses the reference contract, adds local implementation verification an
 
 2026-11-03 BIN-207：[普通 PUT 写授权研究](GENERIC-UPLOAD-WRITE-AUTH.md)将七个选定类绑定至既有 WAR，三份部署组件文件另行匹配；区分 deploy、delete/overwrite 和请求摘要分支，config 默认值不冒充有效配置。本轮真实采集受原版试用许可过期阻塞，57 条录制记录不能成为权限矩阵；四项独占夹具已清理并核实缺席，实际允许/拒绝仍待有效许可证恢复后重采。
 BIN-207 separates WAR-bound static branches from a license-blocked runtime attempt; no write-permission compatibility completion is claimed.
+
+2026-11-07 BIN-208：[文件覆盖判断](FILE-OVERWRITE-DECISION.md)从已绑定 `DbStoringRepoMixin` 字节码冻结有限纯事实契约，保留缺席短路、双 nil 请求和两种独立 raw UTF-16 摘要比较。离线探针未取得成功目标类结果；Go 契约测试与故障变异不宣称原版运行差分。原版环境继续按所有者决定暂缓，在线权限矩阵仍未完成。
+BIN-208 derives a bounded pure decision from fixed bytecode; local contract checks are separate from the unavailable target replay and deferred online matrix.

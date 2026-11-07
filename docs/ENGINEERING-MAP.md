@@ -124,3 +124,6 @@ The bounded adapter has separate profile, PostgreSQL and HTTP responsibilities. 
 
 普通 PUT 后续写授权的静态依据、失败实验限制与未决一致性问题见[写授权契约研究](GENERIC-UPLOAD-WRITE-AUTH.md)。本轮不新增包、端口实现或数据库模式，不扩大已挂接的运行入口。
 See the write-authorization study for static evidence and unresolved runtime/consistency questions; this research adds no packages, schema or mounted entry.
+
+文件覆盖纯判断 / Pure file-overwrite decision：`internal/repository/file_overwrite.go` 复用已有原始码元比较，输入与边界见[覆盖判断](FILE-OVERWRITE-DECISION.md)。它读取已给定事实，不新增包或 I/O 端口；后续真实授权接线仍待独立验收。
+The decision reuses the existing repository comparison domain over supplied facts; actual authorization wiring remains separate.
