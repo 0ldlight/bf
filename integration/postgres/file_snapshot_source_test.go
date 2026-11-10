@@ -54,7 +54,8 @@ func srcSeedLegacyRow(t *testing.T, adm *sql.DB, schema string, id int64, repo, 
 // strings included), asserting every Valid bit and verbatim string, plus
 // full represented-field comparison against the old Lookup; the
 // empty-string rows discriminate a Valid bit taken from the same Scan's
-// sql.NullString.Valid from one inferred from string non-emptiness.
+// sql.NullString.Valid from one inferred from string non-emptiness. BIN-209
+// also exercises the overwrite adapter with each digest supplied separately.
 func TestSnapshotSource(t *testing.T) {
 	db, schema := nodeFixture(t)
 	adm := adminPool(t)
@@ -118,6 +119,15 @@ func TestSnapshotSource(t *testing.T) {
 			}
 			if legacy != src.Reference {
 				t.Fatalf("old Lookup reference %+v disagrees with source reference %+v", legacy, src.Reference)
+			}
+			empty := []uint16{}
+			overwriteSHA1, err := repository.DecideFileOverwriteFromSource(&src, false, empty, nil)
+			if want := !r.sha1Valid || r.wantSHA1 != ""; err != nil || overwriteSHA1 != want {
+				t.Fatalf("overwrite with empty SHA1 = (%t, %v), want (%t, nil)", overwriteSHA1, err, want)
+			}
+			overwriteSHA256, err := repository.DecideFileOverwriteFromSource(&src, false, nil, empty)
+			if want := !r.sha256Valid || r.wantSHA256 != ""; err != nil || overwriteSHA256 != want {
+				t.Fatalf("overwrite with empty SHA256 = (%t, %v), want (%t, nil)", overwriteSHA256, err, want)
 			}
 		})
 	}
