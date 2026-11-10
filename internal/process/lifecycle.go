@@ -172,6 +172,10 @@ func (t *admissionTracker) handler(next http.Handler) http.Handler {
 // actual handler return and closed by the single deferred reaper. shutdown
 // must be positive.
 func serve(ctx context.Context, ln net.Listener, handler http.Handler, shutdown time.Duration, closeOwned func() error, onReady func(string)) (err error) {
+	return serveWithReadTimeout(ctx, ln, handler, shutdown, 0, closeOwned, onReady)
+}
+
+func serveWithReadTimeout(ctx context.Context, ln net.Listener, handler http.Handler, shutdown, readTimeout time.Duration, closeOwned func() error, onReady func(string)) (err error) {
 	if ctx == nil || ln == nil || handler == nil || closeOwned == nil || shutdown <= 0 {
 		return ErrStartup
 	}
@@ -181,6 +185,7 @@ func serve(ctx context.Context, ln net.Listener, handler http.Handler, shutdown 
 	srv := &http.Server{
 		Handler:           tracker.handler(handler),
 		ReadHeaderTimeout: serveReadHeaderTimeout,
+		ReadTimeout:       readTimeout,
 		ErrorLog:          log.New(serveHTTPErrorLogWriter{}, "", 0),
 		BaseContext:       func(net.Listener) context.Context { return baseCtx },
 	}

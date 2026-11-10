@@ -244,7 +244,11 @@ func runDownload(ctx context.Context, cfg Config, onReady func(string)) error {
 		}
 		return nil
 	}
-	return serve(ctx, ln, newArtifactRouter(download, upload), drainTimeout, closeOwned, onReady)
+	var readTimeout time.Duration
+	if upload != nil {
+		readTimeout = uploadReadTimeout
+	}
+	return serveWithReadTimeout(ctx, ln, newArtifactRouter(download, upload), drainTimeout, readTimeout, closeOwned, onReady)
 }
 
 // startupError 把启动失败固定为 ErrStartup；父 ctx 已取消时仅额外汇入
