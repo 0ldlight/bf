@@ -8,8 +8,9 @@ import (
 )
 
 const (
-	ModeHealth   = "health"
-	ModeDownload = "download"
+	ModeHealth    = "health"
+	ModeDownload  = "download"
+	ModeArtifacts = "artifacts"
 )
 
 // Config 是已验证的进程配置；格式化始终隐藏私有配置。
@@ -17,7 +18,17 @@ const (
 type Config struct {
 	Mode, ListenAddr, PostgresDSN, FilestoreRoot string
 	HTTP                                         security.HTTPConfig
+	Upload                                       UploadConfig
 }
+
+// UploadConfig supplies the two additional database identities and PUT limits.
+type UploadConfig struct {
+	WriterDSN, ReservationDSN, PublicOrigin string
+	MaxBodyBytes                            int64
+}
+
+func (UploadConfig) String() string   { return "upload configuration (redacted)" }
+func (UploadConfig) GoString() string { return "upload configuration (redacted)" }
 
 func (Config) String() string   { return "process configuration (redacted)" }
 func (Config) GoString() string { return "process configuration (redacted)" }

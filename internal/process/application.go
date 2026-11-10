@@ -103,7 +103,7 @@ func Run(ctx context.Context, cfg Config, onReady func(string)) error {
 	switch cfg.Mode {
 	case ModeHealth:
 		return runHealth(ctx, cfg, onReady)
-	case ModeDownload:
+	case ModeDownload, ModeArtifacts:
 		return runDownload(ctx, cfg, onReady)
 	default:
 		return ErrConfiguration
@@ -195,19 +195,35 @@ func runDownload(ctx context.Context, cfg Config, onReady func(string)) error {
 		closeOwnedOnStartup(fs, db)
 		return ErrStartup
 	}
-	if err := startupCtx.Err(); err != nil {
+	var upload http.Handler
+	closeUpload := func() error { return nil }
+	if cfg.Mode == ModeArtifacts {
+		upload, closeUpload, err = openUpload(startupCtx, cfg, connConfig, nodes, fs)
+		if err != nil {
+			log.Print(logCategoryStartup)
+			closeOwnedOnStartup(fs, db)
+			return startupError(startupCtx)
+		}
+	}
+	closeAllOnStartup := func() {
+		if err := closeUpload(); err != nil {
+			log.Print(logCategoryStartupClose)
+		}
 		closeOwnedOnStartup(fs, db)
+	}
+	if err := startupCtx.Err(); err != nil {
+		closeAllOnStartup()
 		return startupError(startupCtx)
 	}
 	ln, err := net.Listen("tcp", cfg.ListenAddr)
 	if err != nil {
 		log.Print(logCategoryStartup)
-		closeOwnedOnStartup(fs, db)
+		closeAllOnStartup()
 		return ErrStartup
 	}
 	if err := startupCtx.Err(); err != nil {
 		ln.Close()
-		closeOwnedOnStartup(fs, db)
+		closeAllOnStartup()
 		return startupError(startupCtx)
 	}
 	// 优雅停机的资源关闭次序固定：先文件存储后数据库池；关闭错误被清洗为
@@ -216,7 +232,7 @@ func runDownload(ctx context.Context, cfg Config, onReady func(string)) error {
 	// database pool; close errors are sanitized into the public ErrResources
 	// sentinel and never leak the raw cause.
 	closeOwned := func() error {
-		var failed bool
+		failed := closeUpload() != nil
 		if err := fs.Close(); err != nil {
 			failed = true
 		}
@@ -228,7 +244,7 @@ func runDownload(ctx context.Context, cfg Config, onReady func(string)) error {
 		}
 		return nil
 	}
-	return serve(ctx, ln, newRouter(download), drainTimeout, closeOwned, onReady)
+	return serve(ctx, ln, newArtifactRouter(download, upload), drainTimeout, closeOwned, onReady)
 }
 
 // startupError 把启动失败固定为 ErrStartup；父 ctx 已取消时仅额外汇入
@@ -521,12 +537,20 @@ func validDSNSearchPath(name string) bool {
 // URL.Path alone can never select download. A nil download keeps behavior
 // identical to the existing health handler (health mode).
 func newRouter(download http.Handler) http.Handler {
+	return newArtifactRouter(download, nil)
+}
+
+func newArtifactRouter(download, upload http.Handler) http.Handler {
 	health := httpserver.NewHandler()
 	if download == nil {
 		return health
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.RequestURI, downloadRouteRoot) {
+			if r.Method == http.MethodPut && upload != nil {
+				upload.ServeHTTP(w, r)
+				return
+			}
 			download.ServeHTTP(w, r)
 			return
 		}

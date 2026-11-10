@@ -108,7 +108,7 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 			return Config{}, err
 		}
 		return cfg, nil
-	case ModeDownload:
+	case ModeDownload, ModeArtifacts:
 		if getenv(envListenAddr) != "" {
 			return Config{}, configError("download mode rejects BINFLOW_LISTEN_ADDR")
 		}
@@ -123,12 +123,13 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 		if err != nil {
 			return Config{}, err
 		}
-		doc, err := parseDownloadDocument(data)
+		doc, err := parseArtifactDocument(data, mode == ModeArtifacts)
 		if err != nil {
 			return Config{}, err
 		}
 		cfg := Config{
-			Mode:          ModeDownload,
+			Mode:          mode,
+			Upload:        doc.upload,
 			ListenAddr:    doc.listenAddr,
 			PostgresDSN:   doc.postgresDSN,
 			FilestoreRoot: doc.filestoreRoot,
@@ -156,6 +157,13 @@ func LoadConfig(getenv func(string) string) (Config, error) {
 // Run; health mode carrying any download-only field is rejected and manually
 // constructed Configs must pass the same domain checks.
 func validateConfig(cfg Config) error {
+	if cfg.Mode != ModeArtifacts && cfg.Upload != (UploadConfig{}) {
+		return configError("unexpected upload settings")
+	}
+	if cfg.Mode == ModeArtifacts && (cfg.Upload.WriterDSN == "" || cfg.Upload.ReservationDSN == "" ||
+		cfg.Upload.PublicOrigin == "" || cfg.Upload.MaxBodyBytes < 1 || cfg.Upload.MaxBodyBytes > 1<<30) {
+		return configError("invalid upload settings")
+	}
 	switch cfg.Mode {
 	case ModeHealth:
 		if cfg.PostgresDSN != "" || cfg.FilestoreRoot != "" || !zeroHTTPGate(cfg.HTTP) {
@@ -165,7 +173,7 @@ func validateConfig(cfg Config) error {
 			return err
 		}
 		return nil
-	case ModeDownload:
+	case ModeDownload, ModeArtifacts:
 		if err := validateDownloadListenAddr(cfg.ListenAddr); err != nil {
 			return err
 		}
@@ -336,6 +344,7 @@ func validChallenge(challenge string) bool {
 // downloadDocument is the strict parse result of the nine required
 // lower_snake_case fields.
 type downloadDocument struct {
+	upload                                                                UploadConfig
 	listenAddr, postgresDSN, filestoreRoot, repoKey, challenge            string
 	failureThreshold, failureWindowSeconds, blockSeconds, maxTrackedUsers int64
 }
@@ -363,6 +372,10 @@ var configFieldNames = map[string]bool{
 // fields are all rejected; every parse error is fixed ErrConfiguration text
 // that never echoes document contents.
 func parseDownloadDocument(data []byte) (downloadDocument, error) {
+	return parseArtifactDocument(data, false)
+}
+
+func parseArtifactDocument(data []byte, upload bool) (downloadDocument, error) {
 	var doc downloadDocument
 	dec := json.NewDecoder(bytes.NewReader(data))
 	tok, err := dec.Token()
@@ -385,7 +398,15 @@ func parseDownloadDocument(data []byte) (downloadDocument, error) {
 		"block_seconds":          &doc.blockSeconds,
 		"max_tracked_users":      &doc.maxTrackedUsers,
 	}
-	seen := make(map[string]bool, len(configFieldNames))
+	required := len(configFieldNames)
+	if upload {
+		stringFields["upload_writer_dsn"] = &doc.upload.WriterDSN
+		stringFields["upload_reservation_dsn"] = &doc.upload.ReservationDSN
+		stringFields["upload_public_origin"] = &doc.upload.PublicOrigin
+		intFields["upload_max_body_bytes"] = &doc.upload.MaxBodyBytes
+		required += 4
+	}
+	seen := make(map[string]bool, required)
 	for dec.More() {
 		keyTok, err := dec.Token()
 		if err != nil {
@@ -427,7 +448,7 @@ func parseDownloadDocument(data []byte) (downloadDocument, error) {
 	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return doc, configError("trailing configuration content")
 	}
-	if len(seen) != len(configFieldNames) {
+	if len(seen) != required {
 		return doc, configError("missing configuration field")
 	}
 	return doc, nil
