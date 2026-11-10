@@ -66,3 +66,13 @@ BIN-211 checks deploy for a verified principal and the supplied local Generic re
 权限依赖由调用方提供。预检结论反映这些读取时的状态；提交前撤权及同路径并发写入仍需要单独的一致性边界。
 
 The caller supplies the grant reader and node reader. The result reflects those reads. Revocation and concurrent writes to the same path still require a commit-time consistency boundary.
+
+## PostgreSQL 写权限 / PostgreSQL write grants
+
+BIN-212 提供可选的 `security.WriteGrantsSQL`。运维在现有安全 schema v1 上显式执行一次事务迁移。新表为空，下载 schema 仍为 v1。仓库级 `deploy` 和 `delete` 独立直授或组授，读权限和管理员标志均不隐式授予写权限。该规则是 BinFlow 的有限策略，原版 Access 的完整权限语义仍待验证。
+
+BIN-212 adds the optional `security.WriteGrantsSQL` extension. Operators apply it once in a transaction over security schema v1. The new table starts empty. Explicit repository-wide deploy and delete grants are independent and can target a user or group. Read grants and the admin flag carry no implicit write grants in this BinFlow policy.
+
+每次读取同时核对已启用账号、当前成员关系及传入的仓库版本。表缺失时写权限查询返回存储错误；撤权对后续查询生效，已完成的预检仍需提交时的一致性保障。
+
+Each lookup checks the enabled account, current membership and supplied repository revision. A missing extension table yields a store error. Revocation affects subsequent checks, and commit-time consistency remains a separate requirement.

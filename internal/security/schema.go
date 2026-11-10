@@ -15,3 +15,10 @@ import _ "embed"
 //
 //go:embed schema.sql
 var SchemaSQL string
+
+// WriteGrantsSQL adds the optional repository-wide write grants to schema v1.
+// Apply once in an operator-owned transaction after SchemaSQL. The table
+// starts empty and the download schema version remains 1.
+//
+//go:embed write_grants.sql
+var WriteGrantsSQL string
