@@ -35,6 +35,10 @@ BIN-215 通过 `UploadSaver.SaveAuthorized` 接入提交复查。构造时显式
 
 The authorized saver requires a separate bounded ID-reservation pool so a node lock waiter cannot consume its connections. The node transaction checks its schema and isolation, takes the locks, and reuses that transaction for the permission query and node save. Denial rolls back the node transaction. Published bytes and registry entries follow the existing retention policy.
 
+BIN-216 的独立 HTTP 处理器将本次认证身份、目录事实和已解析摘要传给预检与受保护保存。认证失败返回 401，预检或提交复查拒绝返回 403。若同时发生回滚故障，返回 500。应用进程的路由启用仍另行验收。
+
+The standalone authenticated handler uses the same parsed digests for preflight and save. A commit denial returns 403 unless a persistence or rollback error takes precedence.
+
 - [PostgreSQL 17 LOCK](https://www.postgresql.org/docs/17/sql-lock.html)
 - [PostgreSQL 17 explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
 - [PostgreSQL 17 security definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)
