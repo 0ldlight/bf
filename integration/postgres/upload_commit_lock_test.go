@@ -3,6 +3,7 @@ package postgresit
 import (
 	"database/sql"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/0ldlight/bf/internal/security"
@@ -22,12 +23,45 @@ func TestUploadCommitLockBoundary(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer upload.Rollback()
-	if _, err := upload.ExecContext(ctx, "LOCK TABLE security_users, security_repositories, security_group_members, security_write_grants IN SHARE MODE"); err != nil {
+	schema := e.f.schema
+	owner, writer, outsider := schema+"_owner", schema+"_writer", schema+"_outsider"
+	exec := func(query string) {
+		t.Helper()
+		if _, err := upload.ExecContext(ctx, query); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, role := range []string{owner, writer, outsider} {
+		exec("CREATE ROLE " + role + " NOLOGIN")
+	}
+	exec(fmt.Sprintf("GRANT USAGE, CREATE ON SCHEMA %s TO %s", schema, owner))
+	exec(fmt.Sprintf("GRANT USAGE ON SCHEMA %s TO %s, %s", schema, writer, outsider))
+	exec("GRANT MAINTAIN ON security_users, security_repositories, security_group_members, security_write_grants, nodes TO " + owner)
+	exec("GRANT SELECT ON security_users, security_repositories, security_group_members, security_write_grants, nodes TO " + writer)
+	exec("SET LOCAL ROLE " + owner)
+	if err := security.InstallUploadCommitLock(ctx, upload, schema, writer); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := upload.ExecContext(ctx, "LOCK TABLE nodes IN SHARE ROW EXCLUSIVE MODE"); err != nil {
-		t.Fatal(err)
+	exec("RESET ROLE")
+	fn := schema + ".lock_upload_commit()"
+	assertDenied := func(query string) {
+		t.Helper()
+		exec("SAVEPOINT permission_check")
+		_, err := upload.ExecContext(ctx, query)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
+			t.Fatalf("expected insufficient privilege, got %v", err)
+		}
+		exec("ROLLBACK TO SAVEPOINT permission_check")
+		exec("RELEASE SAVEPOINT permission_check")
 	}
+	exec("SET LOCAL ROLE " + outsider)
+	assertDenied("SELECT " + fn)
+	exec("RESET ROLE")
+	exec("SET LOCAL ROLE " + writer)
+	assertDenied("LOCK TABLE " + schema + ".security_write_grants IN SHARE MODE")
+	assertDenied("DELETE FROM " + schema + ".security_write_grants")
+	exec("SELECT " + fn)
 
 	tryLock := func(query string) error {
 		t.Helper()
