@@ -56,3 +56,13 @@ Overwrite authorization may require an authoritative node read. Separate such au
 
 本轮不扩展 SQL schema、可信写端口或生产组合根，不开启 UAT 写入。后续最小实现提案须先冻结判断输入、读取一致性与失败顺序，再实施并用真实 PostgreSQL 验收。
 This evidence slice does not change schema, trusted write APIs, process mounting or UAT. The next proposal must freeze decision facts, consistency and failure order before implementation.
+
+## 普通上传权限预检 / Ordinary upload permission preflight
+
+BIN-211 的 `security.CheckUploadPermissions` 接收已认证的主体、当前仓库目录、构造后的文件路径及原始请求摘要。输入与仓库绑定校验通过后，先查 deploy。deploy 拒绝直接结束；获准后读取目标并计算覆盖条件，仅在条件成立时查询 delete。取消、权限读取失败或目标读取失败都返回错误，调用方须先处理错误再使用布尔值。
+
+BIN-211 checks deploy for a verified principal and the supplied local Generic repository and file path. Only deploy admission reaches the overwrite lookup, and only an overwrite match reaches the delete check. Cancellation and lookup failures return errors. Callers handle the error before using the boolean.
+
+权限依赖由调用方提供。预检结论反映这些读取时的状态；提交前撤权及同路径并发写入仍需要单独的一致性边界。
+
+The caller supplies the grant reader and node reader. The result reflects those reads. Revocation and concurrent writes to the same path still require a commit-time consistency boundary.

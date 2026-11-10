@@ -67,9 +67,9 @@ type UploadAuthResult struct {
 	OperatorUTF16 []uint16
 }
 
-// UploadAuth 在任何 Saver/发布/节点调用之前决定一次；本层不实现认证机制。
-// UploadAuth decides once before any Saver/publication/node call; this layer
-// implements no authentication mechanism itself.
+// UploadAuth 在调用 Saver 前决定一次；授权实现可以读取目标节点。
+// UploadAuth decides once before the handler calls the Saver. The authorizer
+// may read the target node when evaluating permissions.
 type UploadAuth interface {
 	Authorize(context.Context, *http.Request, repository.Path) (UploadAuthResult, error)
 }
