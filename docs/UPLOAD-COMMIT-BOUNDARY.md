@@ -39,6 +39,12 @@ BIN-216 的独立 HTTP 处理器将本次认证身份、目录事实和已解析
 
 The standalone authenticated handler uses the same parsed digests for preflight and save. A commit denial returns 403 unless a persistence or rollback error takes precedence.
 
+## 应用进程启用 / Process opt-in
+
+BIN-217 使用 `BINFLOW_MODE=artifacts` 显式启用 PUT。私有配置文件仍通过 `BINFLOW_DOWNLOAD_CONFIG` 指定，在既有下载字段之外必须包含 `upload_writer_dsn`、`upload_reservation_dsn`、`upload_public_origin` 和 `upload_max_body_bytes`（1 至 1 GiB）。三个 DSN 使用同一主机、端口、数据库和显式可信 schema，分别使用下载、写入、号段角色。启动时以写入角色验证提交锁及表权限，以号段角色验证现有 general 号段。应用启动不创建表、函数、用户或授权。PUT 的相同摘要保护开关采用 false。
+
+The opt-in artifacts mode dispatches raw artifact PUT requests to authenticated upload and retains the existing download and health routes. It checks the writer and reservation dependencies before binding the loopback listener. Request headers retain their five-second limit and complete request reads have a one-minute limit in this mode. Install the write-grant extension and lock function separately before activation.
+
 - [PostgreSQL 17 LOCK](https://www.postgresql.org/docs/17/sql-lock.html)
 - [PostgreSQL 17 explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
 - [PostgreSQL 17 security definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)

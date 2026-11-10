@@ -178,3 +178,43 @@ func TestProcessGracefulDrainKeepsRequestContext(t *testing.T) {
 		t.Error("resources not closed after drained")
 	}
 }
+
+func TestServeReadTimeoutBoundsIncompleteBody(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	read := make(chan error, 1)
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_, err := io.Copy(io.Discard, r.Body)
+		read <- err
+	})
+	go func() {
+		done <- serveWithReadTimeout(ctx, ln, handler, time.Second, 750*time.Millisecond, func() error { return nil }, nil)
+	}()
+	defer func() {
+		cancel()
+		if err := <-done; err != nil {
+			t.Errorf("stop test server: %v", err)
+		}
+	}()
+	conn, err := net.DialTimeout("tcp", ln.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	if _, err := io.WriteString(conn, "PUT /artifactory/repo/a.bin HTTP/1.1\r\nHost: localhost\r\nContent-Length: 20\r\n\r\na"); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-read:
+		var timeout net.Error
+		if !errors.As(err, &timeout) || !timeout.Timeout() {
+			t.Fatalf("incomplete body error = %v, want read timeout", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("incomplete body stayed open")
+	}
+}
