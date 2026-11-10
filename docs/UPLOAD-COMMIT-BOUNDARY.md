@@ -21,5 +21,14 @@ SHARE blocks concurrent changes to the authorization facts. The nodes lock also 
 
 The regression covers database lock behavior. Production integration requires a separately reviewed privilege boundary and end-to-end races for revocation and same-path creation.
 
+## 锁入口的权限 / Lock entry privileges
+
+BIN-214 提供 `security.InstallUploadCommitLock`。在授权表和节点表建好后，以专用、不可登录的函数所有者，在运维事务中安装 `<schema>.lock_upload_commit()`。所有者须能在可信 schema 创建函数，并在固定五张表上取得所需锁。PostgreSQL 17 的 `MAINTAIN` 可授给所有者；上传角色只需该函数的 `EXECUTE` 和 schema 的 `USAGE` 即可经入口取锁。业务读写权限另行配置。
+
+函数无参数，使用固定 schema 限定所有表，固定 `search_path`，在同一事务撤销 `PUBLIC` 的执行权限并授给指定角色。运维须确保函数所有者没有向其他角色开放执行权的默认 ACL，且上传角色不能修改该 schema 或切换到所有者。上传事务须在重查前调用该函数，并限制事务时长。真实数据库回归验证上传角色可经入口取锁、无法直接取授权表的 SHARE 锁或修改授权，以及旁路角色无法执行。
+
+The installer uses an operator transaction and a dedicated function owner. The zero-argument function locks only the qualified relations in its target schema. Runtime callers need schema USAGE and function EXECUTE for this operation. Keep the owner and upload role separate, audit the owner's default function ACLs, and bound the transaction lifetime.
+
 - [PostgreSQL 17 LOCK](https://www.postgresql.org/docs/17/sql-lock.html)
 - [PostgreSQL 17 explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
+- [PostgreSQL 17 security definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)
