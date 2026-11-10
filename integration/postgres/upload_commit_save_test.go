@@ -2,16 +2,19 @@ package postgresit
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"io"
 	"os"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	uploadpg "github.com/0ldlight/bf/internal/localrepo/postgres"
 	"github.com/0ldlight/bf/internal/repository"
 	"github.com/0ldlight/bf/internal/security"
+	"github.com/jackc/pgx/v5/stdlib"
 )
 
 type beforeUploadRead struct {
@@ -43,6 +46,15 @@ func TestAuthorizedSaveRechecksAtCommit(t *testing.T) {
 	if _, err := tx.ExecContext(ctx, "CREATE ROLE "+role+" NOLOGIN"); err != nil {
 		t.Fatal(err)
 	}
+	for _, grant := range []string{
+		"GRANT USAGE ON SCHEMA " + e.f.schema + " TO " + role,
+		"GRANT SELECT ON security_users, security_repositories, security_group_members, security_write_grants TO " + role,
+		"GRANT SELECT, INSERT, UPDATE ON nodes TO " + role,
+	} {
+		if _, err := tx.ExecContext(ctx, grant); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := security.InstallUploadCommitLock(ctx, tx, e.f.schema, role); err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +64,7 @@ func TestAuthorizedSaveRechecksAtCommit(t *testing.T) {
 	t.Cleanup(func() {
 		cleanup, cancel := context.WithTimeout(context.Background(), dseTimeout)
 		defer cancel()
-		if _, err := e.f.adm.ExecContext(cleanup, "DROP FUNCTION "+e.f.schema+".lock_upload_commit(); DROP ROLE "+role); err != nil {
+		if _, err := e.f.adm.ExecContext(cleanup, "DROP FUNCTION "+e.f.schema+".lock_upload_commit(); DROP OWNED BY "+role+"; DROP ROLE "+role); err != nil {
 			t.Errorf("clean upload lock fixture: %v", err)
 		}
 	})
@@ -70,8 +82,21 @@ func TestAuthorizedSaveRechecksAtCommit(t *testing.T) {
 	}
 	allocator := registryPool(t, os.Getenv("BINFLOW_TEST_POSTGRES_DSN"), e.f.schema)
 	allocator.SetMaxOpenConns(1)
+	cfg, err := parseTestConfig(os.Getenv("BINFLOW_TEST_POSTGRES_DSN"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.RuntimeParams["search_path"] = e.f.schema
+	cfg.RuntimeParams["role"] = role
+	writerDB := stdlib.OpenDB(*cfg)
+	writerDB.SetMaxOpenConns(2)
+	t.Cleanup(func() { writerDB.Close() })
+	var activeRole string
+	if err := writerDB.QueryRowContext(ctx, "SELECT current_user").Scan(&activeRole); err != nil || activeRole != role {
+		t.Fatalf("restricted writer role = (%q, %v)", activeRole, err)
+	}
 	saver, err := uploadpg.NewUploadSaver(uploadpg.UploadDeps{
-		DB: e.f.db, Publisher: publisher, Clock: &usClock{millis: usMillisOne},
+		DB: writerDB, Publisher: publisher, Clock: &usClock{millis: usMillisOne},
 		NodeTimeout: dseTimeout, CommitSchema: e.f.schema, ReservationDB: allocator,
 	})
 	if err != nil {
@@ -122,9 +147,61 @@ func TestAuthorizedSaveRechecksAtCommit(t *testing.T) {
 	}
 	dghExec(t, e.f, "DELETE FROM nodes WHERE node_id=721")
 	preflight()
+	blocker, err := e.f.db.BeginTx(ctx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Rollback()
+	if _, err := blocker.ExecContext(ctx, "LOCK TABLE nodes IN ROW EXCLUSIVE MODE"); err != nil {
+		t.Fatal(err)
+	}
+	waitCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		_, err := saver.SaveAuthorized(waitCtx, strings.NewReader(payload), in, p, repo, false)
+		done <- err
+	}()
+	waitForUploadNodeLock(t, ctx, e.f.db, e.f.schema)
+	cancel()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled lock wait: %v", err)
+	}
+	if err := blocker.Rollback(); err != nil {
+		t.Fatal(err)
+	}
+	preflight()
 	got, err := saver.SaveAuthorized(ctx, strings.NewReader(payload), in, p, repo, false)
 	if err != nil || got.Reference.ID <= 0 || got.Reference.Metadata == nil ||
 		!slices.Equal(got.Reference.Metadata.CreatedBy().UTF16(), mdUnits(username)) {
 		t.Fatalf("authorized creation failed or did not bind actor: %v", err)
+	}
+}
+
+func waitForUploadNodeLock(t *testing.T, ctx context.Context, db *sql.DB, schema string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var waiting bool
+		err := db.QueryRowContext(ctx, `
+SELECT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_locks
+    WHERE relation = pg_catalog.to_regclass($1)
+      AND mode = 'ShareRowExclusiveLock' AND NOT granted
+)`, schema+".nodes").Scan(&waiting)
+		if err != nil {
+			t.Fatalf("observe upload lock wait: %v", err)
+		}
+		if waiting {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("upload did not wait for the node lock")
+		case <-ticker.C:
+		}
 	}
 }
