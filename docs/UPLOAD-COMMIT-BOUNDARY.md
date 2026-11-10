@@ -29,6 +29,12 @@ BIN-214 提供 `security.InstallUploadCommitLock`。在授权表和节点表建�
 
 The installer uses an operator transaction and a dedicated function owner. The zero-argument function locks only the qualified relations in its target schema. Runtime callers need schema USAGE and function EXECUTE for this operation. Keep the owner and upload role separate, audit the owner's default function ACLs, and bound the transaction lifetime.
 
+## 保存器接入 / Saver integration
+
+BIN-215 通过 `UploadSaver.SaveAuthorized` 接入提交复查。构造时显式设置 `CommitSchema` 并提供独立、有界的 `ReservationDB`，两条连接池及正文登记均须指向同一可信 schema。配置此模式后，普通 `Save` 入口会拒绝调用。调用方先完成预检，保存器从认证身份派生 actor，使用同一输入摘要在节点事务中复查。
+
+The authorized saver requires a separate bounded ID-reservation pool so a node lock waiter cannot consume its connections. The node transaction checks its schema and isolation, takes the locks, and reuses that transaction for the permission query and node save. Denial rolls back the node transaction. Published bytes and registry entries follow the existing retention policy.
+
 - [PostgreSQL 17 LOCK](https://www.postgresql.org/docs/17/sql-lock.html)
 - [PostgreSQL 17 explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
 - [PostgreSQL 17 security definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)

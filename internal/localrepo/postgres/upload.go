@@ -12,16 +12,19 @@ import (
 	"errors"
 	"io"
 	"time"
+	"unicode/utf16"
 
 	"github.com/0ldlight/bf/internal/binary"
 	"github.com/0ldlight/bf/internal/localrepo"
 	"github.com/0ldlight/bf/internal/repository"
 	nodepg "github.com/0ldlight/bf/internal/repository/postgres"
+	"github.com/0ldlight/bf/internal/security"
 )
 
 // 构造器固定安全错误文案；不含任何输入。
 // Fixed safe constructor texts; no input is ever echoed.
 var (
+	errUploadCommitConfig = errors.New("postgres upload: commit authorization requires an explicit schema and separate bounded reservation pool")
 	errUploadNilDB        = errors.New("postgres upload: nil database dependency")
 	errUploadNilPublisher = errors.New("postgres upload: nil publisher dependency")
 	errUploadNilClock     = errors.New("postgres upload: nil clock dependency")
@@ -63,6 +66,9 @@ type UploadDeps struct {
 	Publisher   *binary.Service
 	Clock       repository.FileSaveClock
 	NodeTimeout time.Duration
+	// CommitSchema and ReservationDB opt into the authorized save profile.
+	CommitSchema  string
+	ReservationDB *sql.DB
 }
 
 // UploadSaver 串行化有界节点阶段；正文发布从不占用节点 gate。一个写入方
@@ -72,6 +78,7 @@ type UploadDeps struct {
 // writers and HA stay out of this slice.
 type UploadSaver struct {
 	db           *sql.DB
+	commitSchema string
 	publisher    *binary.Service
 	clock        repository.FileSaveClock
 	nodeTimeout  time.Duration
@@ -108,12 +115,20 @@ func NewUploadSaver(deps UploadDeps) (*UploadSaver, error) {
 	if err != nil {
 		return nil, &uploadOpError{op: "postgres upload: fixed mime catalog invalid", cause: err}
 	}
-	reservations, err := nodepg.NewReservations(deps.DB)
+	reservationDB := deps.DB
+	if deps.CommitSchema != "" || deps.ReservationDB != nil {
+		if deps.CommitSchema == "" || deps.ReservationDB == nil || deps.ReservationDB == deps.DB ||
+			deps.ReservationDB.Stats().MaxOpenConnections < 1 {
+			return nil, errUploadCommitConfig
+		}
+		reservationDB = deps.ReservationDB
+	}
+	reservations, err := nodepg.NewReservations(reservationDB)
 	if err != nil {
 		return nil, &uploadOpError{op: "postgres upload: id reservations unavailable", cause: err}
 	}
 	return &UploadSaver{
-		db: deps.DB, publisher: deps.Publisher, clock: deps.Clock,
+		db: deps.DB, commitSchema: deps.CommitSchema, publisher: deps.Publisher, clock: deps.Clock,
 		nodeTimeout: deps.NodeTimeout, catalog: catalog,
 		reservations: reservations, gate: make(chan struct{}, 1),
 	}, nil
@@ -145,7 +160,42 @@ func copyUploadUnits(units []uint16) []uint16 {
 // live. Failures return the zero Source; an independent rollback fault makes
 // the outer error ErrUploadPersistence-first while preserving every cause;
 // the reader is never closed and nothing is compensated or retried.
-func (s *UploadSaver) Save(ctx context.Context, body io.Reader, in localrepo.UploadInput) (source repository.FileSnapshotSource, err error) {
+func (s *UploadSaver) Save(ctx context.Context, body io.Reader, in localrepo.UploadInput) (repository.FileSnapshotSource, error) {
+	if s.commitSchema != "" {
+		return repository.FileSnapshotSource{}, errUploadCommitConfig
+	}
+	return s.save(ctx, body, in, nil)
+}
+
+// ErrUploadCommitDenied means the transaction's fresh authorization denied the write.
+var ErrUploadCommitDenied = errors.New("postgres upload: commit authorization denied")
+
+// SaveAuthorized saves an upload admitted by an earlier preflight. It derives
+// the actor from the principal and repeats authorization in the node transaction.
+func (s *UploadSaver) SaveAuthorized(ctx context.Context, body io.Reader, in localrepo.UploadInput, principal security.Principal, repo security.RepositoryInfo, enforce bool) (repository.FileSnapshotSource, error) {
+	if s.commitSchema == "" {
+		return repository.FileSnapshotSource{}, errUploadCommitConfig
+	}
+	if principal.ID() <= 0 || principal.Username() == "" || repo.Key != in.Path.Repo() ||
+		repo.Kind != "local" || repo.PackageType != "generic" || repo.Revision <= 0 {
+		return repository.FileSnapshotSource{}, uploadInputErr("postgres upload: invalid commit authorization facts")
+	}
+	in.OperatorUTF16 = utf16.Encode([]rune(principal.Username()))
+	sha1 := copyUploadUnits(in.Checksums.SHA1Original)
+	sha256 := copyUploadUnits(in.Checksums.SHA256Original)
+	return s.save(ctx, body, in, func(ctx context.Context, tx *sql.Tx) error {
+		allowed, err := security.RecheckUploadCommit(ctx, tx, s.commitSchema, principal, repo, in.Path, enforce, sha1, sha256)
+		if err != nil {
+			return uploadPersistErr("postgres upload: commit authorization failed", err)
+		}
+		if !allowed {
+			return ErrUploadCommitDenied
+		}
+		return nil
+	})
+}
+
+func (s *UploadSaver) save(ctx context.Context, body io.Reader, in localrepo.UploadInput, recheck func(context.Context, *sql.Tx) error) (source repository.FileSnapshotSource, err error) {
 	if ctx == nil {
 		return repository.FileSnapshotSource{}, uploadInputErr(opUploadNilContext)
 	}
@@ -169,7 +219,7 @@ func (s *UploadSaver) Save(ctx context.Context, body io.Reader, in localrepo.Upl
 	}
 	operator := copyUploadUnits(in.OperatorUTF16)
 	declared := in.DeclaredSize
-	lazy := &lazyNodeStore{saver: s}
+	lazy := &lazyNodeStore{saver: s, recheck: recheck}
 	defer func() {
 		lazy.finish()
 		if lazy.rollbackFault != nil {

@@ -65,6 +65,7 @@ func uploadInputErr(op string) error {
 // covers the queue/SQL/allocation/commit window.
 type lazyNodeStore struct {
 	saver         *UploadSaver
+	recheck       func(context.Context, *sql.Tx) error
 	nodeCtx       context.Context
 	cancel        context.CancelFunc
 	tx            *sql.Tx
@@ -100,12 +101,19 @@ func (l *lazyNodeStore) begin(ctx context.Context) error {
 		l.finish()
 		return uploadPersistErr(opUploadNodeBegin, err)
 	}
+	l.tx = tx
+	if l.recheck != nil {
+		if err := l.recheck(l.nodeCtx, tx); err != nil {
+			l.finish()
+			return err
+		}
+	}
 	store, err := nodepg.New(tx)
 	if err != nil {
 		l.finish()
 		return uploadPersistErr(opUploadNodeStoreInit, err)
 	}
-	l.tx, l.store = tx, store
+	l.store = store
 	return nil
 }
 

@@ -2,6 +2,7 @@ package security
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/0ldlight/bf/internal/repository"
 )
@@ -34,10 +35,21 @@ func (s *Store) CanDelete(ctx context.Context, principal Principal, repo Reposit
 }
 
 func (s *Store) canWrite(ctx context.Context, principal Principal, repo RepositoryInfo, path repository.Path, action string) (bool, error) {
+	if ctx == nil {
+		return false, &storeError{sentinel: ErrConfiguration, op: "security: write grant lookup", cause: errInvalidUploadInput}
+	}
+	qctx, cancel := s.opContext(ctx)
+	defer cancel()
+	return queryWriteGrant(qctx, s.db, principal, repo, path, action)
+}
+
+type writeGrantQueryer interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}
+
+func queryWriteGrant(ctx context.Context, db writeGrantQueryer, principal Principal, repo RepositoryInfo, path repository.Path, action string) (bool, error) {
 	const stage = "security: write grant lookup"
 	switch {
-	case ctx == nil:
-		return false, &storeError{sentinel: ErrConfiguration, op: stage, cause: errInvalidUploadInput}
 	case principal.ID() <= 0 || principal.Username() == "":
 		return false, &storeError{sentinel: ErrConfiguration, op: stage, cause: errInvalidPrincipalArg}
 	case repo.Key == "" || repo.Kind != "local" || repo.PackageType != "generic" || repo.Revision <= 0:
@@ -45,14 +57,12 @@ func (s *Store) canWrite(ctx context.Context, principal Principal, repo Reposito
 	case path.Repo() != repo.Key || !path.IsFile() || path.IsRoot():
 		return false, &storeError{sentinel: ErrConfiguration, op: stage, cause: errRepoPathMismatchArg}
 	}
-	qctx, cancel := s.opContext(ctx)
-	defer cancel()
 	var allowed bool
-	err := s.db.QueryRowContext(qctx, canWriteQuery, principal.ID(), principal.Username(), repo.Key, repo.Revision, action).Scan(&allowed)
+	err := db.QueryRowContext(ctx, canWriteQuery, principal.ID(), principal.Username(), repo.Key, repo.Revision, action).Scan(&allowed)
 	if err != nil {
 		return false, newStoreError(stage, err)
 	}
-	if err := qctx.Err(); err != nil {
+	if err := ctx.Err(); err != nil {
 		return false, newStoreError(stage, err)
 	}
 	return allowed, nil
