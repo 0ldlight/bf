@@ -76,3 +76,6 @@ BIN-212 adds the optional `security.WriteGrantsSQL` extension. Operators apply i
 每次读取同时核对已启用账号、当前成员关系及传入的仓库版本。表缺失时写权限查询返回存储错误；撤权对后续查询生效，已完成的预检仍需提交时的一致性保障。
 
 Each lookup checks the enabled account, current membership and supplied repository revision. A missing extension table yields a store error. Revocation affects subsequent checks, and commit-time consistency remains a separate requirement.
+
+提交阶段的锁顺序及接入条件见[普通 PUT 提交边界](UPLOAD-COMMIT-BOUNDARY.md)。
+See the [ordinary PUT commit boundary](UPLOAD-COMMIT-BOUNDARY.md) for the proposed lock order and integration requirements.
