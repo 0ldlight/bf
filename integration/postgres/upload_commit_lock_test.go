@@ -39,6 +39,13 @@ func TestUploadCommitLockBoundary(t *testing.T) {
 	exec("GRANT MAINTAIN ON security_users, security_repositories, security_group_members, security_write_grants, nodes TO " + owner)
 	exec("GRANT SELECT ON security_users, security_repositories, security_group_members, security_write_grants, nodes TO " + writer)
 	exec("SET LOCAL ROLE " + owner)
+	exec("SAVEPOINT extra_default_execute")
+	exec("ALTER DEFAULT PRIVILEGES GRANT EXECUTE ON FUNCTIONS TO " + outsider)
+	if err := security.InstallUploadCommitLock(ctx, upload, schema, writer); !errors.Is(err, security.ErrConfiguration) {
+		t.Fatalf("unexpected default execute grant was accepted: %v", err)
+	}
+	exec("ROLLBACK TO SAVEPOINT extra_default_execute")
+	exec("RELEASE SAVEPOINT extra_default_execute")
 	if err := security.InstallUploadCommitLock(ctx, upload, schema, writer); err != nil {
 		t.Fatal(err)
 	}

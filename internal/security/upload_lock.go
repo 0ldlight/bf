@@ -3,12 +3,14 @@ package security
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
 )
 
 var uploadLockIdentifier = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
+var errUploadLockACL = errors.New("upload lock requires a distinct owner and no other direct execute grantees")
 
 // InstallUploadCommitLock installs the fixed lock function and its ACL in an
 // operator-owned transaction. Apply after creating the security and node
@@ -38,6 +40,21 @@ REVOKE ALL ON FUNCTION "%[1]s".lock_upload_commit() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION "%[1]s".lock_upload_commit() TO "%[2]s";`, schema, uploadRole)
 	if _, err := tx.ExecContext(ctx, query); err != nil {
 		return newStoreError(stage, err)
+	}
+	var restricted bool
+	err := tx.QueryRowContext(ctx, `
+SELECT p.proowner <> r.oid AND NOT EXISTS (
+    SELECT 1 FROM pg_catalog.aclexplode(p.proacl) a
+    WHERE a.privilege_type = 'EXECUTE' AND a.grantee NOT IN (p.proowner, r.oid)
+)
+FROM pg_catalog.pg_proc p
+JOIN pg_catalog.pg_roles r ON r.rolname = $2
+WHERE p.oid = pg_catalog.to_regprocedure($1)`, schema+".lock_upload_commit()", uploadRole).Scan(&restricted)
+	if err != nil {
+		return newStoreError(stage, err)
+	}
+	if !restricted {
+		return &storeError{sentinel: ErrConfiguration, op: stage, cause: errUploadLockACL}
 	}
 	return nil
 }
