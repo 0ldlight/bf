@@ -30,6 +30,10 @@ BIN-209 projects trusted lookup results into the predicate. Nil means confirmed 
 
 Callers own identity, the distinction between absence and lookup failure, and consistency between read and commit. The boolean reports only whether the overwrite predicate matched.
 
+BIN-210 的 `localrepo.LookupFileOverwrite` 对已构造的文件路径执行一次节点读取。只有未取消的缺行结果可视为缺席；非文件及其他查询错误保留原因，返回路径必须与输入完全相等。调用方须先处理错误，再使用布尔值。结果取自本次读取；提交时的授权与一致性仍由后续接入负责。
+
+BIN-210 adds one lookup by an already constructed file path. A missing row counts as absence only while the context is live. Non-file and other lookup errors retain their causes, and the returned path must exactly match the request. Callers must handle the error before using the boolean. The result describes the lookup and leaves commit-time authorization and consistency to the caller.
+
 ## 依据与验收边界 / Evidence and verification boundary
 
 判断结构来自固定 WAR SHA-256 `9c2c1883d39b9e60587c09d1f1f8cbf1215c9ed2751d0ee817f78cd3cc8c9f37` 内 `DbStoringRepoMixin` 类 SHA-256 `a72123d3917e2248dd53a270c41afaa3cb8d322f4e211f5ec925c364c147f3ea` 的字节码；既有包内 `fileSnapshotEqualUnits` 提供相同的 nil/empty 与原始码元比较域。

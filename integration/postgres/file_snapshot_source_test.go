@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/0ldlight/bf/internal/localrepo"
 	"github.com/0ldlight/bf/internal/repository"
 	refpg "github.com/0ldlight/bf/internal/repository/postgres"
 )
@@ -121,11 +122,11 @@ func TestSnapshotSource(t *testing.T) {
 				t.Fatalf("old Lookup reference %+v disagrees with source reference %+v", legacy, src.Reference)
 			}
 			empty := []uint16{}
-			overwriteSHA1, err := repository.DecideFileOverwriteFromSource(&src, false, empty, nil)
+			overwriteSHA1, err := localrepo.LookupFileOverwrite(ctx, path, st, false, empty, nil)
 			if want := !r.sha1Valid || r.wantSHA1 != ""; err != nil || overwriteSHA1 != want {
 				t.Fatalf("overwrite with empty SHA1 = (%t, %v), want (%t, nil)", overwriteSHA1, err, want)
 			}
-			overwriteSHA256, err := repository.DecideFileOverwriteFromSource(&src, false, nil, empty)
+			overwriteSHA256, err := localrepo.LookupFileOverwrite(ctx, path, st, false, nil, empty)
 			if want := !r.sha256Valid || r.wantSHA256 != ""; err != nil || overwriteSHA256 != want {
 				t.Fatalf("overwrite with empty SHA256 = (%t, %v), want (%t, nil)", overwriteSHA256, err, want)
 			}
@@ -297,6 +298,9 @@ func TestSnapshotSourceErrorProfiles(t *testing.T) {
 	_, st := nodeTx(t, db)
 
 	missing := fileRefOf(t, 0, "srcE", "d", "missing.bin", nodeMeta(binE)).Path
+	if overwrite, err := localrepo.LookupFileOverwrite(ctx, missing, st, true, nil, nil); overwrite || err != nil {
+		t.Fatalf("overwrite for missing file = (%t, %v), want (false, nil)", overwrite, err)
+	}
 	src, err := st.LookupSnapshotSource(ctx, missing)
 	if !errors.Is(err, sql.ErrNoRows) {
 		t.Fatalf("missing-row error = %v, want sql.ErrNoRows chain", err)
@@ -323,6 +327,9 @@ func TestSnapshotSourceErrorProfiles(t *testing.T) {
 		t.Fatalf("seed non-file row: %v", ferr)
 	}
 	folder := fileRefOf(t, 0, "srcE", "d", "afolder", nodeMeta(binE)).Path
+	if overwrite, err := localrepo.LookupFileOverwrite(ctx, folder, st, true, nil, nil); overwrite || !errors.Is(err, refpg.ErrNotFile) {
+		t.Fatalf("overwrite for folder = (%t, %v), want (false, ErrNotFile)", overwrite, err)
+	}
 	srcNF, errNF := st.LookupSnapshotSource(ctx, folder)
 	if !errors.Is(errNF, refpg.ErrNotFile) {
 		t.Fatalf("non-file error = %v, want ErrNotFile chain", errNF)
