@@ -17,7 +17,7 @@ SHARE 与修改权限事实的事务冲突。若撤权先提交，锁后的查�
 
 SHARE blocks concurrent changes to the authorization facts. The nodes lock also blocks inserts into a previously absent path. The first transaction to obtain the relevant locks determines the order. Ordinary reads can continue, while node writes across repositories serialize.
 
-此方案的测试范围是锁模式、获取顺序及释放后可写。产品接入须验证真实角色能够取得所需锁，且不为此给服务角色增加修改授权表的权限。若部署角色仅有 SELECT，须设计并审查最小权限的数据库入口，再决定是否采用此方案。接入验收还需覆盖撤权先提交、同路径先创建、锁等待取消、拒绝零节点修改，以及分离连接池的资源预算。
+回归验证持锁后的冲突关系和释放后可写。获取顺序由上面的事务约定和 PostgreSQL 的 LOCK TABLE 规则确定。产品接入须验证真实角色能够取得所需锁，且不为此给服务角色增加修改授权表的权限。若部署角色仅有 SELECT，须设计并审查最小权限的数据库入口，再决定是否采用此方案。接入验收还需覆盖撤权先提交、同路径先创建、锁等待取消、拒绝零节点修改，以及分离连接池的资源预算。
 
 The regression covers database lock behavior. Production integration requires a separately reviewed privilege boundary and end-to-end races for revocation and same-path creation.
 
