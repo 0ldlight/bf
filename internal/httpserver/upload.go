@@ -74,6 +74,12 @@ type UploadAuth interface {
 	Authorize(context.Context, *http.Request, repository.Path) (UploadAuthResult, error)
 }
 
+// UploadBinder authorizes parsed upload facts and returns a saver bound to that
+// request. Only an Allow decision may carry a saver.
+type UploadBinder interface {
+	BindUpload(context.Context, *http.Request, repository.Path, repository.ClientFileChecksums) (UploadAuthResult, UploadSaver, error)
+}
+
 // UploadSaver 代理真实保存语义（发布、惰性节点事务、提交）；成功契约由
 // 可信依赖保证：仅明确提交成功返回非零 Source。
 // UploadSaver proxies the real save semantics (publication, lazy node
@@ -106,6 +112,7 @@ type UploadDeps struct {
 	MaxBodyBytes int64
 	PublicOrigin string
 	Auth         UploadAuth
+	Binder       UploadBinder
 	Saver        UploadSaver
 	Report       func(UploadFailure)
 }
@@ -120,7 +127,8 @@ var ErrUploadConfiguration = errors.New("httpserver: invalid upload configuratio
 // and no default allow or anonymous fallback exists. A nil Report uses the
 // fixed category-only logger.
 func NewUploadHandler(deps UploadDeps) (http.Handler, error) {
-	if deps.Auth == nil || deps.Saver == nil {
+	if (deps.Binder == nil && (deps.Auth == nil || deps.Saver == nil)) ||
+		(deps.Binder != nil && (deps.Auth != nil || deps.Saver != nil)) {
 		return nil, ErrUploadConfiguration
 	}
 	if !validDownloadRepoKey(deps.RepoKey) {
@@ -144,6 +152,7 @@ func NewUploadHandler(deps UploadDeps) (http.Handler, error) {
 		maxBody: deps.MaxBodyBytes,
 		origin:  origin,
 		auth:    deps.Auth,
+		binder:  deps.Binder,
 		saver:   deps.Saver,
 		report:  report,
 	}, nil
@@ -190,6 +199,7 @@ type uploadHandler struct {
 	maxBody int64
 	origin  string
 	auth    UploadAuth
+	binder  UploadBinder
 	saver   UploadSaver
 	report  func(UploadFailure)
 }
@@ -238,7 +248,18 @@ func (h *uploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r.Method, http.StatusBadRequest, "")
 		return
 	}
-	authResult, err := h.auth.Authorize(r.Context(), r, path)
+	saver := h.saver
+	var authResult UploadAuthResult
+	var err error
+	if h.binder != nil {
+		authResult, saver, err = h.binder.BindUpload(r.Context(), r, path, checksums)
+		if err == nil && (authResult.Decision == UploadAllow) != (saver != nil) {
+			err = ErrUploadConfiguration
+		}
+	} else {
+		authResult, err = h.auth.Authorize(r.Context(), r, path)
+	}
+	h.checkCancel(r.Context())
 	if err != nil {
 		h.report(UploadFailureAuth)
 		h.writeError(w, r.Method, http.StatusInternalServerError, "")
@@ -260,7 +281,7 @@ func (h *uploadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		body = http.NoBody
 	}
 	reader := &uploadBodyReader{inner: body, remaining: h.maxBody}
-	source, err := h.saver.Save(r.Context(), reader, localrepo.UploadInput{
+	source, err := saver.Save(r.Context(), reader, localrepo.UploadInput{
 		Path:          path,
 		Checksums:     checksums,
 		OperatorUTF16: operator,

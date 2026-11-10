@@ -887,6 +887,8 @@ func TestUploadSaveErrorClassification(t *testing.T) {
 		{"persistence wraps mismatch", errors.Join(fmt.Errorf("node: %w", localrepo.ErrUploadPersistence), mismatch), nil, nil, 500, "save"},
 		{"persistence leaf", fmt.Errorf("commit: %w", localrepo.ErrUploadPersistence), nil, nil, 500, "save"},
 		{"persistence deep", fmt.Errorf("outer: %w", fmt.Errorf("inner: %w", localrepo.ErrUploadPersistence)), nil, nil, 500, "save"},
+		{"commit denial", fmt.Errorf("node: %w", localrepo.ErrUploadCommitDenied), nil, nil, 403, ""},
+		{"commit denial plus rollback fault", errors.Join(localrepo.ErrUploadCommitDenied, localrepo.ErrUploadPersistence), nil, nil, 500, "save"},
 		// Budget and read-error chains need a single nonnil cause path.
 		{"budget direct", nil, longBody, func(rr io.Reader) error { return upDrain(rr) }, 413, "body"},
 		{"budget wrapped", nil, longBody, func(rr io.Reader) error {
@@ -942,7 +944,7 @@ func TestUploadSaveErrorClassification(t *testing.T) {
 		if rec.Code != tc.status {
 			t.Fatalf("%s: status %d body %q", tc.name, rec.Code, rec.Body.String())
 		}
-		if !rep.has(tc.report) {
+		if (tc.report == "" && len(rep.cats) != 0) || (tc.report != "" && !rep.has(tc.report)) {
 			t.Fatalf("%s: reports %v", tc.name, rep.cats)
 		}
 	}

@@ -39,6 +39,8 @@ const (
 )
 
 var (
+	// ErrUploadCommitDenied indicates fresh authorization denied the node write.
+	ErrUploadCommitDenied = errors.New("localrepo: upload commit authorization denied")
 	// ErrInvalidUploadInput 拒绝不符合上传输入画像的请求事实，固定文案
 	// 不回显输入。ErrInvalidUploadInput rejects request facts outside the
 	// upload input profile with a fixed, echo-free text.

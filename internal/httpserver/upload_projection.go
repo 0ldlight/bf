@@ -209,6 +209,9 @@ func (h *uploadHandler) serveSaveError(w http.ResponseWriter, r *http.Request, e
 	case reader != nil && reader.readErr != nil && uploadChainTo(err, reader.readErr):
 		status = http.StatusBadRequest
 		category = UploadFailureBody
+	case len(tree.leaves) == 1 && uploadSameError(tree.leaves[0], localrepo.ErrUploadCommitDenied):
+		h.writeError(w, r.Method, http.StatusForbidden, "")
+		return
 	case tree.clientOnlyLeaves():
 		status = http.StatusConflict
 		category = UploadFailureBody

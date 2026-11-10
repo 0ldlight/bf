@@ -235,7 +235,7 @@ func (h *authenticatedDownload) ServeHTTP(w http.ResponseWriter, r *http.Request
 		h.report(httpserver.DownloadFailureCancel)
 		panic(http.ErrAbortHandler)
 	}
-	credential, key, ok := h.parseAuthorization(r)
+	credential, key, ok := parseAuthorization(r)
 	if !ok {
 		h.writeError(w, r.Method, http.StatusUnauthorized, h.challenge)
 		return
@@ -366,7 +366,7 @@ type basicCredential struct {
 // duplicated or malformed value answers 401 with the challenge. There is
 // never a fallback to cookies or user/proxy headers. The normalized username
 // key returned is for the failure gate only.
-func (h *authenticatedDownload) parseAuthorization(r *http.Request) (basicCredential, string, bool) {
+func parseAuthorization(r *http.Request) (basicCredential, string, bool) {
 	values := r.Header.Values(authHeaderName)
 	if len(values) != 1 {
 		return basicCredential{}, "", false

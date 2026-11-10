@@ -168,7 +168,7 @@ func (s *UploadSaver) Save(ctx context.Context, body io.Reader, in localrepo.Upl
 }
 
 // ErrUploadCommitDenied means the transaction's fresh authorization denied the write.
-var ErrUploadCommitDenied = errors.New("postgres upload: commit authorization denied")
+var ErrUploadCommitDenied = localrepo.ErrUploadCommitDenied
 
 // SaveAuthorized saves an upload admitted by an earlier preflight. It derives
 // the actor from the principal and repeats authorization in the node transaction.
