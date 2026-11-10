@@ -20,6 +20,16 @@ Comparison preserves exact UTF-16 units, null/empty distinctions, case, whitespa
 函数不修改或保留输入切片，无 I/O、配置读取或事务行为；零值输入返回 false。Go 的 false 零值不表示运行配置的默认值。选定制品的初始化默认 false 已单独核实，部署中的有效值仍需由调用方另行确认。
 The function neither mutates nor retains slices and performs no I/O or configuration access. Zero facts yield false; the Go zero value does not establish a deployment default or effective setting.
 
+## 读取结果接入 / Lookup result projection
+
+BIN-209 的 `DecideFileOverwriteFromSource` 接收可信调用方提供的 `FileSnapshotSource`。只有确认普通文件缺席时才传 nil。非 nil 来源须有正节点 ID 和文件路径。转换独立使用 SHA-1 与 SHA-256 Actual 的空性位，保留 SQL NULL、空串及 UTF-16 码元；矛盾空性或畸形 UTF-8 返回 `ErrInvalidFileSnapshotSource`。兼容七列元数据全为 NULL 的旧行。
+
+BIN-209 projects trusted lookup results into the predicate. Nil means confirmed absence. A non-nil source requires a positive node ID and file path. The SHA-1 and SHA-256 Actual nullability bits are handled independently. Invalid UTF-8 and inconsistent nullability return `ErrInvalidFileSnapshotSource`. Legacy rows without metadata remain supported.
+
+调用方负责目标身份、缺席与读取错误的区分，以及读取与提交之间的一致性。覆盖判断的布尔值仅用于判定覆盖保护条件。
+
+Callers own identity, the distinction between absence and lookup failure, and consistency between read and commit. The boolean reports only whether the overwrite predicate matched.
+
 ## 依据与验收边界 / Evidence and verification boundary
 
 判断结构来自固定 WAR SHA-256 `9c2c1883d39b9e60587c09d1f1f8cbf1215c9ed2751d0ee817f78cd3cc8c9f37` 内 `DbStoringRepoMixin` 类 SHA-256 `a72123d3917e2248dd53a270c41afaa3cb8d322f4e211f5ec925c364c147f3ea` 的字节码；既有包内 `fileSnapshotEqualUnits` 提供相同的 nil/empty 与原始码元比较域。
