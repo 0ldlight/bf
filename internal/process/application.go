@@ -147,7 +147,11 @@ func runDownload(ctx context.Context, cfg Config, onReady func(string)) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Join(ErrStartup, err)
 	}
-	startupCtx, startupCancel := context.WithTimeout(ctx, startupTimeout)
+	budget := startupTimeout
+	if cfg.Mode == ModeArtifacts {
+		budget = artifactsStartupTimeout
+	}
+	startupCtx, startupCancel := context.WithTimeout(ctx, budget)
 	defer startupCancel()
 	connConfig, err := parsePostgresDSN(cfg.PostgresDSN)
 	if err != nil {

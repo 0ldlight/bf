@@ -45,6 +45,10 @@ BIN-217 使用 `BINFLOW_MODE=artifacts` 显式启用 PUT。私有配置文件仍
 
 The opt-in artifacts mode dispatches raw artifact PUT requests to authenticated upload and retains the existing download and health routes. It checks the writer and reservation dependencies before binding the loopback listener. Request headers retain their five-second limit and complete request reads have a one-minute limit in this mode. Install the write-grant extension and lock function separately before activation.
 
+Artifacts 模式的总启动预算为 60 秒，覆盖三条独立连接的 TLS、目录和权限核实。运行期安全查询和节点阶段仍各自受 10 秒预算约束。已有 health/download 模式沿用原启动预算。UAT 的逐步探针完成初始化约需 16 秒；表级 GRANT 还须与运行角色的 RLS 策略同时匹配，才能读取安全版本并写入节点。
+
+Artifacts startup has a 60-second overall deadline for its three connections and initialization checks. Runtime security-query and node-stage deadlines remain ten seconds. Runtime grants and row-level policies must both admit the intended database roles.
+
 - [PostgreSQL 17 LOCK](https://www.postgresql.org/docs/17/sql-lock.html)
 - [PostgreSQL 17 explicit locking](https://www.postgresql.org/docs/17/explicit-locking.html)
 - [PostgreSQL 17 security definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html#SQL-CREATEFUNCTION-SECURITY)

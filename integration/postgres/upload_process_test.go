@@ -115,11 +115,46 @@ func TestProcessArtifactsMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runCtx, stop := context.WithCancel(ctx)
+	// 用实际受限角色验证 RLS，不让管理员绕过掩盖写入策略缺失。
+	// Exercise RLS with restricted roles so an admin bypass cannot hide missing policies.
+	for _, table := range []string{"security_schema_version", "security_users", "security_groups", "security_repositories", "security_group_members", "security_read_grants", "security_write_grants", "nodes", "binaries", "unique_ids"} {
+		role := writer
+		if table == "unique_ids" {
+			role = allocator
+		}
+		statements := []string{
+			"ALTER TABLE " + table + " ENABLE ROW LEVEL SECURITY",
+			"CREATE POLICY process_select ON " + table + " FOR SELECT TO " + role + " USING (true)",
+		}
+		if table == "nodes" || table == "binaries" {
+			statements = append(statements, "CREATE POLICY process_insert ON "+table+" FOR INSERT TO "+role+" WITH CHECK (true)")
+		}
+		if table == "nodes" || table == "binaries" || table == "unique_ids" {
+			statements = append(statements, "CREATE POLICY process_update ON "+table+" FOR UPDATE TO "+role+" USING (true) WITH CHECK (true)")
+		}
+		for _, statement := range statements {
+			if _, err := e.f.db.ExecContext(ctx, statement); err != nil {
+				t.Fatalf("prepare process RLS: %v", err)
+			}
+		}
+	}
+
+	runCtx, stop := context.WithTimeout(ctx, 75*time.Second)
+	defer stop()
+	blocker, err := e.f.db.BeginTx(runCtx, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer blocker.Rollback()
+	if _, err := blocker.ExecContext(runCtx, "LOCK TABLE nodes IN ROW EXCLUSIVE MODE"); err != nil {
+		t.Fatal(err)
+	}
 	address := make(chan string, 1)
 	done := make(chan error, 1)
+	launched := time.Now()
 	go func() { done <- process.Run(runCtx, cfg, func(addr string) { address <- addr }) }()
 	defer func() {
+		_ = blocker.Rollback()
 		stop()
 		select {
 		case err := <-done:
@@ -130,6 +165,22 @@ func TestProcessArtifactsMode(t *testing.T) {
 			t.Error("artifacts process did not stop")
 		}
 	}()
+	// 确认启动确实等待本 schema 的节点锁，然后跨过旧 10s 总预算。
+	// Observe startup waiting on this schema's node lock, then exceed the old 10s budget.
+	waitForUploadNodeLock(t, runCtx, e.f.db, schema)
+	hold := time.NewTimer(time.Until(launched.Add(12 * time.Second)))
+	defer hold.Stop()
+	select {
+	case <-hold.C:
+	case err := <-done:
+		done <- err
+		t.Fatalf("artifacts process exited while startup lock held: %v", err)
+	case <-runCtx.Done():
+		t.Fatal(runCtx.Err())
+	}
+	if err := blocker.Rollback(); err != nil {
+		t.Fatal(err)
+	}
 	var base string
 	select {
 	case addr := <-address:
@@ -137,8 +188,8 @@ func TestProcessArtifactsMode(t *testing.T) {
 	case err := <-done:
 		done <- err
 		t.Fatalf("artifacts process startup: %v", err)
-	case <-ctx.Done():
-		t.Fatal(ctx.Err())
+	case <-runCtx.Done():
+		t.Fatal(runCtx.Err())
 	}
 	client := dpClient(t)
 	dpAssertHealth(t, ctx, client, base)
