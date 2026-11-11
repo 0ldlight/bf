@@ -1,0 +1,29 @@
+# Dependency update PRs / 依赖更新 PR.
+# Weekly only, small limits: every PR still passes the shared check and the
+# owner's review before merge. Actions are pinned by SHA; Dependabot updates
+# the pin and records the new version in the comment.
+# 仅每周、低配额:每个 PR 仍需通过共享检查与所有者审查。Actions 按 SHA 锁定,
+# Dependabot 更新锁定并在注释记录新版本。
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: gomod
+    directory: /integration/postgres
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore(deps)"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(ci)"
