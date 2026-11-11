@@ -31,8 +31,13 @@ go mod verify
 echo '== go vet =='
 go vet ./...
 
-echo '== go test -race =='
-go test -race ./...
+echo '== staticcheck =='
+# Pinned as a go.mod tool dependency: version in go.mod, checksums in go.sum.
+# 以 go.mod tool 依赖固定版本，校验进入 go.sum。
+go tool staticcheck ./...
+
+echo '== go test -race (with coverage report) =='
+go test -race -cover ./...
 
 echo '== UAT artifact and recovery tests =='
 PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s deploy/uat -p 'test_*.py'
