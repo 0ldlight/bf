@@ -1,0 +1,144 @@
+# 常驻测试环境；Secret 单独创建。 / Resident test environment; provision Secret separately.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: binflow-test
+  labels:
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: binflow-test
+  labels:
+    app.kubernetes.io/name: binflow-test-postgres
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: binflow-test-postgres
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+  ports:
+  - name: postgres
+    port: 5432
+    targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: binflow-test
+  labels:
+    app.kubernetes.io/name: binflow-test-postgres
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+spec:
+  serviceName: postgres
+  replicas: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: binflow-test-postgres
+      binflow.org/environment: test
+      binflow.org/lifecycle: persistent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: binflow-test-postgres
+        binflow.org/environment: test
+        binflow.org/lifecycle: persistent
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 60
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgres
+        image: docker.m.daocloud.io/library/postgres:17.10@sha256:7958605b474b3d264a969cb3a123d6aa00ad1e1fe9da8a69984dabb704d93317
+        env:
+        - name: POSTGRES_USER
+          value: binflow
+        - name: POSTGRES_DB
+          value: binflow_test
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-auth
+              key: password
+        ports:
+        - name: postgres
+          containerPort: 5432
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: '2'
+            memory: 1Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+        startupProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - binflow
+            - -d
+            - binflow_test
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 60
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - binflow
+            - -d
+            - binflow_test
+          periodSeconds: 5
+          timeoutSeconds: 3
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - binflow
+            - -d
+            - binflow_test
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 6
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+      labels:
+        app.kubernetes.io/name: binflow-test-postgres
+        binflow.org/environment: test
+        binflow.org/lifecycle: persistent
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: longhorn
+      resources:
+        requests:
+          storage: 10Gi

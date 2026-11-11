@@ -1,0 +1,74 @@
+# 部署前替换为已发布的镜像摘要。 / Set a published image digest before applying.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: binflow
+  namespace: binflow-test
+  labels: &id001
+    app.kubernetes.io/name: binflow-test
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+spec:
+  replicas: 1
+  selector:
+    matchLabels: *id001
+  template:
+    metadata:
+      labels: *id001
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: binflow
+        image: binflow:test
+        ports:
+        - name: http
+          containerPort: 8080
+        env:
+        - name: BINFLOW_LISTEN_ADDR
+          value: 0.0.0.0:8080
+        readinessProbe:
+          httpGet: &id002
+            path: /healthz
+            port: http
+          periodSeconds: 5
+          timeoutSeconds: 2
+        livenessProbe:
+          httpGet: *id002
+          periodSeconds: 5
+          timeoutSeconds: 2
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 50m
+            memory: 32Mi
+          limits:
+            cpu: '1'
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: binflow
+  namespace: binflow-test
+  labels: &id001
+    app.kubernetes.io/name: binflow-test
+    binflow.org/environment: test
+    binflow.org/lifecycle: persistent
+spec:
+  selector: *id001
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
