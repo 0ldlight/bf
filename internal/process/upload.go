@@ -22,7 +22,10 @@ import (
 
 var commitSchemaName = regexp.MustCompile(`^[a-z_][a-z0-9_]{0,62}$`)
 
-const uploadReadTimeout = time.Minute
+const (
+	uploadReadTimeout       = time.Minute
+	artifactsStartupTimeout = time.Minute
+)
 
 type uploadClock struct{}
 
