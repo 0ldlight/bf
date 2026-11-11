@@ -97,8 +97,14 @@ for branch in $(git -C "$REPO" for-each-ref --format='%(refname:short)' refs/hea
 		continue
 	fi
 	if git -C "$REPO" merge-base --is-ancestor "refs/heads/$branch" "$DEFAULT_REF"; then
-		git -C "$REPO" branch -d "$branch"
-		deleted_local=$((deleted_local + 1))
+		# -d can still refuse (for example a diverged same-name upstream);
+		# that refusal is respected and the sweep continues.
+		# -d 仍可能拒绝(如同名远端分支已分叉);尊重拒绝并继续清扫。
+		if git -C "$REPO" branch -d "$branch"; then
+			deleted_local=$((deleted_local + 1))
+		else
+			echo "prune: SKIP local branch $branch (git branch -d refused)" >&2
+		fi
 	fi
 done
 echo "prune: deleted $deleted_local merged local branch(es)"

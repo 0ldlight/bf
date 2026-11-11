@@ -82,13 +82,13 @@ class PruneFixture:
         self.commit_file(f"{name}.txt", name, f"feat: {name}")
         self.repo_git("switch", "main")
         self.repo_git("merge", "--no-ff", "-m", f"merge {name}", name)
-        self.repo_git("push", "-q", "origin", "--all")
+        self.repo_git("push", "-q", "origin", "main", name)
 
     def unmerged_branch(self, name):
         self.repo_git("switch", "-c", name)
         self.commit_file(f"{name}.txt", name, f"feat: {name}")
         self.repo_git("switch", "main")
-        self.repo_git("push", "-q", "origin", "--all")
+        self.repo_git("push", "-q", "origin", name)
 
     def worktree(self, name, branch):
         path = self.root / f"wt-{name}"
@@ -190,6 +190,33 @@ class PruneMergedBranches(unittest.TestCase):
         self.assertNotIn("codex/merged-a", origin)
         self.assertIn("codex/open-work", origin)
         self.assertIn("main", origin)
+
+    def test_refused_deletion_does_not_abort_the_sweep(self):
+        # A branch merged into the default but whose same-name upstream no
+        # longer contains its tip makes `git branch -d` refuse; the sweep
+        # must continue with later branches instead of dying under set -e.
+        # 分支已并入默认分支但同名远端不再包含其 tip 时 `git branch -d`
+        # 会拒绝;清扫必须继续处理后续分支而不是死于 set -e。
+        self.fx.merged_branch("codex/aa-refused")
+        self.fx.repo_git("push", "-q", "-u", "origin", "codex/aa-refused")
+        # Force the upstream onto a divergent line that lacks the local tip.
+        # 把 upstream 强推到不含本地 tip 的分叉线上。
+        self.fx.repo_git("switch", "-c", "tmp-diverge", "main")
+        self.fx.repo_git("reset", "--hard", "main~1")
+        self.fx.commit_file("diverge.txt", "div", "feat: diverge")
+        self.fx.repo_git("push", "-q", "--force", "origin", "tmp-diverge:codex/aa-refused")
+        self.fx.repo_git("switch", "main")
+        self.fx.repo_git("branch", "-D", "tmp-diverge")
+        self.fx.merged_branch("codex/zz-still-swept")
+
+        proc = self.fx.prune()
+        self.assertEqual(
+            proc.returncode, 0, f"prune aborted on refusal:\n{proc.stdout}{proc.stderr}"
+        )
+        self.assertIn("SKIP local branch codex/aa-refused", proc.stderr)
+        branches = self.fx.branches()
+        self.assertIn("codex/aa-refused", branches, "refused branch was force-deleted")
+        self.assertNotIn("codex/zz-still-swept", branches)
 
     def test_not_a_repository_fails_closed(self):
         tmp = tempfile.TemporaryDirectory()
