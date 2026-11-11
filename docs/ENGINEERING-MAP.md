@@ -1,7 +1,7 @@
 # 工程地图 / Engineering map
 
-状态 / State: BIN-133 既有代码的导航地图；本页只描述**当前存在**的结构与经 import 证实的依赖方向，不是架构重设计。行为契约一律以各规范文档为准，本页不重复。
-A navigation map of the code that exists today. It records the current structure and the dependency direction confirmed by actual imports — it is not an architecture redesign. Behavioral contracts stay in their canonical documents, which this page links instead of duplicating.
+状态 / State: BIN-133 既有代码的导航地图；本页只描述**当前存在**的结构与经 import 证实的依赖方向，不是架构重设计。行为契约一律以各规范文档为准，本页不重复。依赖方向的权威由根包 `import_rules_test.go` 以可失败测试强制执行：任何内部依赖边变化必须同步更新该测试与本页。
+A navigation map of the code that exists today. It records the current structure and the dependency direction confirmed by actual imports — it is not an architecture redesign. Behavioral contracts stay in their canonical documents, which this page links instead of duplicating. The authoritative dependency direction is enforced by the failing-by-design `import_rules_test.go` in the root package: every internal import-edge change must update that test and this page together.
 
 ## 模块布局 / Module layout
 
@@ -14,7 +14,7 @@ A navigation map of the code that exists today. It records the current structure
 
 | 包 / Package | 角色 / Role | 规范文档 / Canonical doc |
 |---|---|---|
-| `cmd/binflow` | HTTP 服务入口，组装运行时（当前仅内部 `/healthz`，见 `internal/httpserver`）；运行时接线属于 cmd / HTTP service entry point; runtime wiring belongs to cmd | [PROJECT-BRIEF.md](PROJECT-BRIEF.md) |
+| `cmd/binflow` | HTTP 服务入口：选择配置、信号与固定日志；实际依赖装配在 `internal/process` / HTTP service entry point: configuration selection, signals and fixed logging; actual wiring lives in `internal/process` | [DOWNLOAD-PROCESS.md](DOWNLOAD-PROCESS.md) |
 | `cmd/binflow-contract` | 契约 CLI：只读引用探针，调用 `internal/compatprobe` / Contract CLI running the read-only reference probe | [GENERIC-DOWNLOAD-CONTRACT.md](GENERIC-DOWNLOAD-CONTRACT.md) |
 | `internal/content` | 制品字节流的内容元数据（MD5/SHA-1/SHA-256），无内部依赖 / Content metadata for artifact byte streams; no internal imports | [CONTENT-METADATA.md](CONTENT-METADATA.md) |
 | `internal/filestore` | 文件系统适配器：本地文件内容存储的布局与校验原语、临时写入后原子发布（不是纯领域模型）/ Filesystem adapter: layout and validation primitives for the local file content store, staging-then-atomic publish (not a pure domain model) | [FILESTORE-CONTRACT.md](FILESTORE-CONTRACT.md)、[LOCAL-FILESTORE.md](LOCAL-FILESTORE.md) |
@@ -24,36 +24,55 @@ A navigation map of the code that exists today. It records the current structure
 | `internal/repository`（续 / cont'd） | 普通创建核心 `CreateFile`（固定顺序编排，事务归调用方）与私有路径 helper / the ordinary create core `CreateFile` (fixed-order orchestration, caller-owned transaction) with private path helpers | [FILE-CREATE.md](FILE-CREATE.md) |
 | `internal/repository`（续 / cont'd） | 普通更新核心 `UpdateFile`（固定顺序编排、非 nil 显式快照、计数原样直通，事务归调用方）/ the ordinary update core `UpdateFile` (fixed-order orchestration, nonnil explicit snapshot, verbatim count passthrough, caller-owned transaction) | [FILE-UPDATE.md](FILE-UPDATE.md) |
 | `internal/repository/postgres` | 适配器：`Store` 在调用方事务（`*sql.Tx`）上做最小 nodes SQL 投影（不开启/提交事务、不建 DDL），含七列文件元数据投影与嵌入的受信任 v1→v2 升级/回退 SQL（仅供可信运维/测试显式执行）；同包 `Reservations` 提供显式本地号段预留原语，每次预留开启自有 READ COMMITTED 事务 / Adapter: `Store` is the minimal transaction-scoped nodes SQL projection on a caller-owned `*sql.Tx` (never begins/commits, no DDL), including the seven-column file-metadata projection and the embedded trusted v1→v2 upgrade/downgrade SQL (explicit trusted operator/test execution only); the same package's `Reservations` is the explicit local ID-range reservation primitive, which begins its own READ COMMITTED transaction per reservation | [NODE-REFERENCES.md](NODE-REFERENCES.md)、[FILE-METADATA-PERSISTENCE.md](FILE-METADATA-PERSISTENCE.md)、[ID-RESERVATIONS.md](ID-RESERVATIONS.md) |
-| `internal/httpserver` | 仅内部健康端点 `/healthz`（chi）；不导入任何领域包，不是 Artifactory 兼容面 / Health-only internal endpoint; imports no domain package, not a compatibility surface | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| `internal/httpserver` | 处理器层（chi）：内部 `/healthz`、受信下载处理器与独立 PUT 处理器；依赖 `filestore`、`localrepo`、`repository`，不持有 SQL / Handler layer (chi): internal `/healthz`, trusted download handler and the standalone PUT handler; imports `filestore`, `localrepo`, `repository`, owns no SQL | [ARCHITECTURE.md](ARCHITECTURE.md)、[DOWNLOAD-SECURITY.md](DOWNLOAD-SECURITY.md)、[GENERIC-UPLOAD-ADAPTER.md](GENERIC-UPLOAD-ADAPTER.md) |
+| `internal/localrepo` | 本地仓库编排：普通 PUT 的纯输入/Source 画像与本地文件读/流保存领域 / Local repository orchestration: the ordinary-PUT pure input/Source profile and local file/stream save domain | [GENERIC-UPLOAD-ADAPTER.md](GENERIC-UPLOAD-ADAPTER.md)、[LOCAL-FILE-READ.md](LOCAL-FILE-READ.md)、[LOCAL-STREAM-SAVE.md](LOCAL-STREAM-SAVE.md) |
+| `internal/localrepo/postgres` | 适配器：懒事务保存单元，依赖 `localrepo` 与 `repository/postgres`，SQL 属于本包 / Adapter: the lazy-transaction save unit over `localrepo` and `repository/postgres`; owns its SQL | [GENERIC-UPLOAD-ADAPTER.md](GENERIC-UPLOAD-ADAPTER.md) |
+| `internal/process` | 进程组合根：严格配置、真实依赖装配、原始 URI 分派与处理器排空后回收 / Process composition root: strict configuration, real dependency assembly, raw-URI dispatch and post-drain reclamation | [DOWNLOAD-PROCESS.md](DOWNLOAD-PROCESS.md) |
+| `internal/security` | 有界 Argon 凭据、私有主体、SQL 身份/目录/read 授权与独立认证处理器 / Bounded Argon credentials, private principals, SQL identity/directory/read authorization and the standalone auth handler | [DOWNLOAD-SECURITY.md](DOWNLOAD-SECURITY.md) |
 | `internal/compatprobe` | 冻结契约的只读黑盒探针，供 `binflow-contract` 使用 / Read-only blackbox probe for the frozen contract used by `binflow-contract` | [GENERIC-DOWNLOAD-CONTRACT.md](GENERIC-DOWNLOAD-CONTRACT.md) |
 
 ## 依赖方向（经 import 证实）/ Dependency direction (confirmed by imports)
 
 ```
-cmd/binflow ──────────► internal/httpserver
+cmd/binflow ──────────► internal/process
 cmd/binflow-contract ─► internal/compatprobe
 
 internal/content        （无内部依赖 / no internal imports）
+internal/compatprobe    （无内部依赖 / no internal imports）
 internal/filestore    ─► internal/content
 internal/binary       ─► internal/content, internal/filestore
 internal/repository   ─► internal/content
+internal/httpserver   ─► internal/filestore, internal/localrepo, internal/repository
+internal/localrepo    ─► internal/binary, internal/content, internal/filestore, internal/repository
+internal/security     ─► internal/httpserver, internal/localrepo,
+                         internal/repository, internal/repository/postgres
+internal/process      ─► internal/binary, internal/filestore, internal/httpserver,
+                         internal/localrepo/postgres, internal/registry/postgres,
+                         internal/repository/postgres, internal/security
 internal/registry/postgres     ─► internal/content          （适配器持有 SQL / adapter owns SQL）
 internal/repository/postgres   ─► internal/content,
                                    internal/repository       （适配器持有 SQL / adapter owns SQL）
+internal/localrepo/postgres    ─► internal/binary, internal/localrepo,
+                                   internal/repository,
+                                   internal/repository/postgres,
+                                   internal/security          （适配器持有 SQL / adapter owns SQL）
 integration/postgres  ─► 上述各包（仅测试，独立模块 / tests only, separate module）
 ```
 
+上图的边集与根包 `import_rules_test.go` 的白名单双向精确一致（新增或移除任一条边都会让测试失败）。
+The edge set above matches the allowlist in the root `import_rules_test.go` exactly in both directions (adding or removing any edge fails that test).
+
 规则（本页记录的是当前经 import 证实的状态）/ Rules (current state confirmed by imports at the time of this map):
 - 领域包（`content`、`binary`、`repository`）不导入任何 SQL 适配器 / Domain packages (`content`, `binary`, `repository`) import no SQL adapters.
-- 适配器包拥有自己的 SQL 并依赖领域：`registry/postgres`、`repository/postgres`；`filestore` 是文件系统适配器，只依赖 `content` / Adapter packages own their SQL and depend on the domain: `registry/postgres`, `repository/postgres`; `filestore` is the filesystem adapter, importing only `content`.
-- 运行时接线只出现在 `cmd` / Runtime wiring lives only in `cmd`.
+- 适配器包拥有自己的 SQL 并依赖领域：`registry/postgres`、`repository/postgres`、`localrepo/postgres`；`filestore` 是文件系统适配器，只依赖 `content` / Adapter packages own their SQL and depend on the domain: `registry/postgres`, `repository/postgres`, `localrepo/postgres`; `filestore` is the filesystem adapter, importing only `content`.
+- 运行时接线集中在 `internal/process`；`cmd` 只保留配置选择与信号 / Runtime wiring is centralized in `internal/process`; `cmd` keeps only configuration selection and signals.
 - 当前代码中没有通用 utils 包或占位接口脚手架（据本页撰写时的 import 扫描）；后续设计仍以[架构决定](ARCHITECTURE.md)为准 / Today's import scan shows no generic utils package or placeholder interface scaffolds; future designs still follow the recorded architecture decisions.
 
 ## 检查命令 / Check commands
 
 ```sh
-./scripts/check.sh        # 或 make check：格式、模块校验、vet、race 测试、构建、smoke、UAT
-                          # or make check: format, mod verify, vet, race tests, build, smoke, UAT
+./scripts/check.sh        # 或 make check：格式、模块校验、vet、staticcheck、race 测试（含覆盖率）、构建、smoke、UAT
+                          # or make check: format, mod verify, vet, staticcheck, race tests (with coverage), build, smoke, UAT
 ```
 
 格式门禁通过 `scripts/check-format.py` 用 Git 发现源码（已跟踪 + 未跟踪未忽略），被忽略的本地归档/研究工作树（如 `.binflow/worktrees`）不参与扫描；门禁自身的测试由共享脚本一并运行。
