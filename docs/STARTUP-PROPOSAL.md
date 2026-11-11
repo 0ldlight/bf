@@ -172,8 +172,8 @@ These are proposed roles; no persistent agent team or daemon has been started.
 | 平台与可靠性 / Platform | Helm/Compose/包安装、流水线、恢复和调度 / packaging, pipelines, recovery and scheduling |
 | 独立审查 / Independent review | 正确性、数据边界、安全与依赖审查 / correctness and security review |
 
-所有 Claude 角色轮流占用最多 3 个 GLM-5.3 执行槽；实现者不能作为同一变更唯一审查者。
-All Claude roles share three slots. The implementer is not the sole reviewer.
+所有 Claude 角色共用最多 5 个 GLM-5.3 执行槽；实现者不能作为同一变更唯一审查者。
+All Claude roles share five slots. The implementer is not the sole reviewer.
 
 每任务独立 worktree/分支，声明文件责任范围、输入证据、验收条件、上下文预算和输出报告；禁止隐式再派生 Claude 进程绕过并发。
 Each task has an isolated checkout, ownership and acceptance contract; nested processes must not bypass concurrency control.
