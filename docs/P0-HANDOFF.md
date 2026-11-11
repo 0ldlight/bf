@@ -22,6 +22,9 @@ On 2026-10-30, the owner authorized the database available through the connected
 私有资料通过制品 ID 与摘要定位，不假定另一台 Mac 使用相同绝对路径。
 Locate research by artifact ID/digest rather than assuming identical host paths.
 
+`.binflow` 是单机私有状态（任务记录、槽位、控制脚本、研究资料），Git 不覆盖；每台执行主机应定期执行 `scripts/backup-local-state.sh <私有目标目录>` 生成带校验的归档，迁移或检修前必须先备份。
+`.binflow` is single-host private state (task records, slots, control scripts, research material) that Git never covers; every execution host should run `scripts/backup-local-state.sh <private destination>` regularly and always before migration or maintenance.
+
 ## Worker 生命周期 / Worker lifecycle
 
 每条任务声明独立分支、工作目录、文件责任、输入证据、验收、上下文范围和报告位置；工作目录遵循上方主检出约定。所有 Claude 角色及重试共用最多 5 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
