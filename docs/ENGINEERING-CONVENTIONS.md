@@ -30,6 +30,9 @@ Use official dependencies with pinned versions/checksums/licenses; avoid unneces
 每任务独立分支/worktree；实现者不是唯一审查者。Codex 审查正确性、边界、安全、可读性与验证证据，所有者合并和发布。
 Use isolated branches/worktrees, independent review and owner-controlled merges/releases.
 
+主检出（以及每个任务 worktree）是单写者资源：任务默认在自己的分支与隔离 worktree 中进行；确需直接操作某个检出时，先以 `scripts/checkout-lock.sh with <label> -- <command…>` 取得互斥锁，避免与其他会话竞态写同一工作区。锁按检出生效、随进程退出回收，`status`/`release` 用于检查与显式清理。
+Each checkout (the primary checkout and every task worktree) is a single-writer resource: tasks stay on their own branch and isolated worktree by default, and any session that must operate directly inside a checkout first takes the mutual-exclusion lock via `scripts/checkout-lock.sh with <label> -- <command...>`. Locks are per checkout, reclaimed when the holding process exits; `status` and `release` inspect and clear them.
+
 PR 描述说明具体行为、验证与限制，关联 Linear 和能力 ID。制品、构建、测试与部署结果按提交摘要追踪。
 PRs link behavior, evidence, limitations, Linear and capability IDs; trace artifacts/tests/deployments to commits.
 
