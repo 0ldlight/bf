@@ -98,3 +98,12 @@ BIN-202 wires the bounded authenticated handler into an explicit process mode; e
 
 BIN-206 的[普通 PUT 有限适配器](GENERIC-UPLOAD-ADAPTER.md)提供独立 HTTP 写入口组件、提交后权威表示与真实 PostgreSQL/文件系统回归；原始 URI、文件/操作者/摘要支持域与拒绝政策明确受限。组件未挂入生产组合根，测试写授权不等于生产 deploy/overwrite 完成，PKG-007 与权限父项继续保留原范围及未完成状态。
 BIN-206 adds bounded unmounted components and their regression gates, not completed Generic or production write-security parity.
+
+BIN-211 至 BIN-217 的[上传提交边界](UPLOAD-COMMIT-BOUNDARY.md)已将当前 deploy/条件 delete 检查、独立写权限存储、受限提交锁和提交时复查接入显式 `artifacts` 进程模式。普通上传与既有认证下载共用受限 local/generic 支持域；启用、配置与数据库准备见 [UAT 普通 PUT 启用](UAT-ARTIFACTS-ACTIVATION.md)。
+BIN-211 through BIN-217 wire current deploy/conditional-delete authorization, persisted write grants, a restricted commit lock and commit-time rechecks into the explicit artifacts process mode.
+
+BIN-218 与 BIN-220 已在 UAT 验证提交 `350d69672739ee94951900dc3b36036ab1829137`：Jenkins 构建 9 与 CircleCI 部署 205 的归档、二进制及来源独立匹配；22 项公开 HTTPS 上传检查通过，覆盖新建、同摘要重传、拒绝未授权覆盖、摘要冲突、授权覆盖和撤权。进程重启后读回、回退下载模式后的 PUT 405 与既有八项下载基线、重新启用后的持久化与下载基线均通过。最终临时验收身份禁用且读写授权为零，已提交验收制品按计划保留。启动修复及限制角色回归的精确提交和默认分支 PostgreSQL CI 通过。
+BIN-218 and BIN-220 validate that exact UAT artifact with 22 HTTPS checks, restart persistence, download-mode recovery with PUT closed, reactivation and retained download behavior. Temporary acceptance access is revoked. Artifact provenance and the startup fix's PostgreSQL CI are verified.
+
+此验收仅覆盖已配置 local/generic 仓库、受限 ASCII `.bin`/`.txt` 普通 PUT 与当前授权策略；1 MiB 是该 UAT 的正文配置上限。PKG-007、完整 REST/Access/权限父项继续保持未完成，原版运行权限矩阵仍按所有者要求暂缓；正式产品发行另行交付。
+The accepted profile remains bounded. The 1 MiB body limit belongs to this UAT configuration. Complete Generic, REST, Access and permission parity remain open; reference-instance runtime work stays deferred by owner direction, and a formal product release remains separate.
