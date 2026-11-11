@@ -16,6 +16,9 @@ All product code stays in the `bf` primary checkout: one branch per task, an iso
 各主机独立配置 GitHub、K8s、Claude/GLM-5.3、原版、Jenkins、CircleCI 与 UAT 访问。仅在被忽略的本机环境记录中保存地址与凭据文件引用，凭据本身不写入文档或公开任务。
 Provision access per host. Store private endpoints and credential-file references only in ignored environment notes; never put secrets in documentation/tasks.
 
+2026-10-30 所有者确认：后续 BinFlow UAT 部署可使用已连接 Supabase 插件提供的数据库。插件已可见名为 `binflow` 的健康项目；实际部署时再核实目标项目、连接方式与迁移状态，并通过私有环境配置注入数据库凭据。此约定记录可用资源，不代表已完成数据库接入或 UAT 部署；项目标识、数据库地址及凭据继续仅保存在本机私有环境记录中。
+On 2026-10-30, the owner authorized the database available through the connected Supabase plugin for future BinFlow UAT deployments. A healthy project named `binflow` is visible through the plugin. Verify the target project, connection method and migration state at deployment time, and inject database credentials through private environment configuration. This records an available resource, not completed database integration or UAT deployment; keep project identifiers, database endpoints and credentials in private host-local notes only.
+
 私有资料通过制品 ID 与摘要定位，不假定另一台 Mac 使用相同绝对路径。
 Locate research by artifact ID/digest rather than assuming identical host paths.
 
