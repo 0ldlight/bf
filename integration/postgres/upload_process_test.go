@@ -97,6 +97,24 @@ func TestProcessArtifactsMode(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if _, err := e.f.adm.ExecContext(ctx, "ALTER ROLE "+allocator+" SET default_transaction_read_only = on"); err != nil {
+		t.Fatal(err)
+	}
+	startupCtx, cancelStartup := context.WithTimeout(ctx, 15*time.Second)
+	defer cancelStartup()
+	ready = false
+	err = process.Run(startupCtx, cfg, func(string) {
+		ready = true
+		cancelStartup()
+	})
+	cancelStartup()
+	if !errors.Is(err, process.ErrStartup) || ready {
+		t.Fatalf("read-only allocator: ready=%t err=%v", ready, err)
+	}
+	if _, err := e.f.adm.ExecContext(ctx, "ALTER ROLE "+allocator+" RESET default_transaction_read_only"); err != nil {
+		t.Fatal(err)
+	}
+
 	runCtx, stop := context.WithCancel(ctx)
 	address := make(chan string, 1)
 	done := make(chan error, 1)
