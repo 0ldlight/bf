@@ -225,9 +225,13 @@ func TestActorTruncatedOwnership(t *testing.T) {
 		t.Errorf("value copy UTF16() = %04x, want %04x", got, want)
 	}
 
-	emptyIn := []uint16{}
+	// 带剩余容量的空输入：调用方随后 append 会写入同一底层数组，
+	// 用以证明 Actor 不保留调用方存储。
+	// Empty input with spare capacity: the caller append below writes into
+	// the same backing array, proving the Actor retains no caller storage.
+	emptyIn := make([]uint16, 0, 8)
 	empty := repository.NewActor(emptyIn)
-	emptyIn = append(emptyIn, 0xffff)
+	_ = append(emptyIn, 0xffff)
 	if empty.IsNull() || len(empty.UTF16()) != 0 {
 		t.Error("empty actor changed after caller append to the original slice header storage")
 	}

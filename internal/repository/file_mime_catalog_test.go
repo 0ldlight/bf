@@ -118,7 +118,6 @@ func TestFileMimeCatalogEmptyAndDefinitionOwnership(t *testing.T) {
 	cat := mimeCatalog(t, defs, FileMimeCaseRootASCII)
 	copyCat := cat
 	defs[0] = FileMimeDefinition{Type: "changed", Extensions: "changed"}
-	defs = append(defs, FileMimeDefinition{Type: "another", Extensions: "txt"})
 	for _, c := range []FileMimeCatalog{cat, copyCat} {
 		mimeWant(t, mimeSnapshot(t, mimeUnits("a.txt"), nil), c, mimeUnits("text/plain"))
 		mimeWant(t, mimeSnapshot(t, mimeUnits("a.changed"), nil), c, mimeUnits("application/octet-stream"))

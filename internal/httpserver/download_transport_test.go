@@ -155,15 +155,6 @@ func (a *dtAuth) callCount() int {
 	return a.calls
 }
 
-func (a *dtAuth) lastPath() repository.Path {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if len(a.paths) == 0 {
-		return repository.Path{}
-	}
-	return a.paths[len(a.paths)-1]
-}
-
 // dtStoreLike 按优先级返回：注入错误、found 固定 Source、路由函数，
 // 否则 sql.ErrNoRows；始终记录查询次数与路径。
 // dtStoreLike returns by precedence: injected error, the fixed source when

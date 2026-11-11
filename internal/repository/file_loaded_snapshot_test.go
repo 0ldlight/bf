@@ -195,13 +195,11 @@ func TestLoadedFileSnapshotExactLengthUnsupportedOriginal(t *testing.T) {
 		for len(pairs) < n {
 			pairs = append(pairs, 0xd83d, 0xde00)
 		}
-		src := loadedSnapshotTestSource(t, nil, nil)
 		if slot == 0 {
-			src = loadedSnapshotTestSource(t, pairs, nil)
+			loadedSnapshotTestError(t, loadedSnapshotTestSource(t, pairs, nil), ErrUnsupportedLoadedOriginal)
 		} else {
-			src = loadedSnapshotTestSource(t, nil, pairs)
+			loadedSnapshotTestError(t, loadedSnapshotTestSource(t, nil, pairs), ErrUnsupportedLoadedOriginal)
 		}
-		loadedSnapshotTestError(t, src, ErrUnsupportedLoadedOriginal)
 	}
 }
 
