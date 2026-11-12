@@ -82,8 +82,12 @@ spec:
             steps {
                 sh label: 'install python3 (pod-local only)', script: '''#!/bin/sh
 set -eu
-apt-get update -qq
-apt-get install -y -qq --no-install-recommends python3
+# The pinned build image already provides Python on current agents.
+# Install only when absent; keep the shared check itself unconditional.
+if ! command -v python3 >/dev/null 2>&1; then
+    apt-get update -qq
+    apt-get install -y -qq --no-install-recommends python3
+fi
 '''
                 sh label: 'run shared check', script: './scripts/check.sh'
             }
