@@ -20,6 +20,22 @@ type Principal struct {
 func (p Principal) ID() int64        { return p.id }
 func (p Principal) Username() string { return p.username }
 
+// NewPrincipal 由 id 与 username 构造 Principal。正常主体只能来自数据库
+// 认证（Store.Authenticate）；本构造器是显式的可测性缝，让包外的深层复核
+// 路径（如上传提交 recheck）可以在单元测试中构造真实形状的主体。不做校验
+// 或规范化：非正 id 或空 username 保持零值语义，由既有消费方守卫拒绝。
+// NewPrincipal builds a Principal from an id and a username. Real
+// principals come from database authentication (Store.Authenticate)
+// only; this constructor is an explicit testability seam letting
+// packages outside security construct realistically shaped principals
+// for deep recheck paths (the upload commit recheck, for example) in
+// unit tests. It validates and normalizes nothing: a nonpositive id or
+// an empty username keeps the zero-value semantics that existing
+// consumers already reject.
+func NewPrincipal(id int64, username string) Principal {
+	return Principal{id: id, username: username}
+}
+
 // RepositoryInfo 是受支持 local/generic 画像的权威目录记录。
 // RepositoryInfo is an authoritative catalog record for the supported local Generic profile.
 type RepositoryInfo struct {
