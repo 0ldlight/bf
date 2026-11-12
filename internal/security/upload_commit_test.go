@@ -182,6 +182,47 @@ func TestSecurityRecheckUploadCommitLockFailures(t *testing.T) {
 	}
 }
 
+// TestSecurityRecheckUploadCommitOverwriteNeedsDelete 断言覆盖写路径：节
+// 点已存在且请求未带摘要事实时判定为覆盖，随后在同一事务上以 delete
+// 动作复核写授权；删除被拒则整体拒绝。
+// TestSecurityRecheckUploadCommitOverwriteNeedsDelete asserts the overwrite
+// path: with an existing node and no request digest facts the decision is an
+// overwrite, and the write grant is then rechecked on the same transaction
+// with the delete action; a denied delete rejects the whole commit.
+func TestSecurityRecheckUploadCommitOverwriteNeedsDelete(t *testing.T) {
+	principal, repo, path := ssRepoPath(t)
+	var actions []string
+	nodeRow := []driver.Value{
+		int64(9), int64(1), "repoA", "dir", "file.bin", int64(3),
+		nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+	}
+	deleteAllowed := false
+	tx := ssBeginTx(t, func(_ context.Context, query string, args []driver.Value) ssResult {
+		switch {
+		case strings.Contains(query, "current_schema()"):
+			return ssResult{row: []driver.Value{true}}
+		case strings.Contains(query, "SET LOCAL search_path"), strings.Contains(query, "lock_upload_commit()"):
+			return ssResult{affected: 0}
+		case strings.Contains(query, "security_write_grants"):
+			actions = append(actions, args[4].(string))
+			return ssResult{row: []driver.Value{actions[len(actions)-1] == "deploy" || deleteAllowed}}
+		case strings.Contains(query, "FROM nodes WHERE repo"):
+			return ssResult{row: nodeRow}
+		}
+		return ssResult{err: ssUnexpected(query)}
+	})
+	got, err := RecheckUploadCommit(context.Background(), tx, "binflow_sec", principal, repo, path, false, nil, nil)
+	if err != nil {
+		t.Fatalf("overwrite recheck error = %v", err)
+	}
+	if got {
+		t.Fatal("overwrite without delete grant allowed = true")
+	}
+	if len(actions) != 2 || actions[0] != "deploy" || actions[1] != "delete" {
+		t.Fatalf("grant actions = %v, want [deploy delete]", actions)
+	}
+}
+
 // TestSecurityRecheckUploadCommitDecisionChain 断言成功链路：兼容通过后
 // 依次 SET LOCAL（受信模式 + pg_temp）与调用模式限定锁；deploy 授权为否
 // 时立即 false 且不查节点；deploy 为真且节点缺席时放行。
