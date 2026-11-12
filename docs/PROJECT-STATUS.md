@@ -14,18 +14,18 @@ The research index and matrix describe evidence boundaries; Linear is the live t
   **JSON artifacts and conditional GET (PRs #88–#90)**: ordinary transfers support opaque JSON artifacts with recorded bounded UAT acceptance (#88/#89); the bounded conditional GET answers without opening matched content (#90).
 - **研发流程与工具链加固（PR #87、#97）**：staticcheck 门禁与覆盖率报告进入共享检查脚本，govulncheck 以固定版本进入模块工具依赖，清理脚本增加竞态护栏（#97）。
   **Process/tooling hardening (PRs #87, #97)**: the staticcheck gate and coverage reporting joined the shared check script, govulncheck is pinned as a module tool dependency, and the prune script gained race guards (#97).
-- **依赖更新（PR #93/#94/#99）**：actions/setup-go 7.0.0、pgx v5 5.12.0（integration 模块）、golang.org/x/crypto 0.58.0（双模块同步）。
-  **Dependency updates (PRs #93/#94/#99)**: actions/setup-go 7.0.0, pgx v5 5.12.0 (integration module) and golang.org/x/crypto 0.58.0 (both modules in sync).
-- **测试覆盖提升（PR #98）**：PostgreSQL 适配器单元覆盖提升（id 预留、快照查找、读池等）。
-  **Test coverage raises (PR #98)**: PostgreSQL adapter unit coverage raised (id reservations, snapshot lookup, read pool and peers).
+- **依赖更新（PR #93/#94/#99）**：actions/setup-go 7.0.0、pgx v5 5.12.0（两个模块同步）、golang.org/x/crypto 0.58.0（双模块同步）。
+  **Dependency updates (PRs #93/#94/#99)**: actions/setup-go 7.0.0, pgx v5 5.12.0 (both modules in sync) and golang.org/x/crypto 0.58.0 (both modules in sync).
+- **测试覆盖提升（PR #98、#100）**：PostgreSQL 适配器单元覆盖提升（registry 登记四分支语义、SHA-256 回填、上传保存事务流与提交授权配置）；security/process 单元覆盖提升（探针驱动断言认证/写授权/提交锁 SQL 形状与参数序）。
+  **Test coverage raises (PRs #98, #100)**: PostgreSQL adapter unit coverage raised (registry registration branches, SHA-256 backfill, upload save transaction flows and commit-authorization config), and security/process unit coverage raised (probe-driven assertions over authentication, write-grant and commit-lock SQL shapes and parameter order).
 
-另有进行中的交付：security/process 单元覆盖提升在 PR #100 审查中；govulncheck 专用 CI 作业等待 workflow 凭据启用。
-In flight: the security/process unit-coverage raise is under review in PR #100; the dedicated govulncheck CI job awaits workflow credentials.
+另有进行中的交付：security/process 单元覆盖提升已随 PR #100 合并（见下表）；govulncheck 专用 CI 作业等待 workflow 凭据启用。
+In flight: the security/process unit-coverage raise merged with PR #100 (see the table below); the dedicated govulncheck CI job awaits workflow credentials.
 
 ## 单元测试覆盖率 / Unit-test coverage
 
-默认分支（660edb8）`go test -cover` 实测（2026-11-13）：
-Measured with `go test -cover` on the default branch (660edb8) on 2026-11-13:
+默认分支（含 PR #100 后）`go test -cover` 实测（2026-11-13；security/process 为 #100 合并后数值）：
+Measured with `go test -cover` on the default branch on 2026-11-13 (security/process reflect the merged PR #100):
 
 | 包 / Package | 覆盖率 / Coverage |
 |---|---|
@@ -38,8 +38,8 @@ Measured with `go test -cover` on the default branch (660edb8) on 2026-11-13:
 | internal/localrepo/postgres | 85.0% |
 | internal/repository/postgres | 84.7% |
 | internal/filestore | 84.0% |
-| internal/security | 69.6%（PR #100 审查中为 98.8%）/ 69.6% (98.8% in PR #100 under review) |
-| internal/process | 68.8%（PR #100 审查中为 84.1%）/ 68.8% (84.1% in PR #100 under review) |
+| internal/security | 98.8%（PR #100） / 98.8% (PR #100) |
+| internal/process | 84.1%（PR #100） / 84.1% (PR #100) |
 | cmd/binflow | 0%（组合根，仅冒烟）/ 0% (composition root, smoke-covered only) |
 
 覆盖率只统计单元测试；真实 PostgreSQL 契约由 CI 的实库作业与 UAT 验收另行取证。
@@ -64,5 +64,3 @@ Coverage counts unit tests only; real-PostgreSQL contracts are evidenced separat
   **Every capability-matrix entry remains investigate/implement**: no product-parity item has reached the verified state (see the [capability matrix](CAPABILITY-MATRIX.md)).
 - **govulncheck CI 作业**待 workflow 凭据后启用。
   The **govulncheck CI job** awaits workflow credentials.
-- 安全/流程包的覆盖提升（PR #100）尚未合并。
-  The security/process coverage raise (PR #100) is not yet merged.
