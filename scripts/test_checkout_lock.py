@@ -173,6 +173,25 @@ class CheckoutLock(unittest.TestCase):
         self.assertIn("refusing", proc.stderr)
         self.assertTrue((foreign / "precious.txt").exists())
 
+    def test_release_refuses_a_live_foreign_holder(self):
+        # A third party must not break another live writer's exclusion
+        # (reviewer follow-up 2026-11-13: release previously trusted the
+        # marker file alone).
+        # 第三方不得破坏其他存活写者的互斥(审查后续 2026-11-13:release
+        # 此前只信任 marker 文件)。
+        holder = self._hold_in_background("live-holder")
+        proc = self.fx.run("release")
+        self.assertEqual(proc.returncode, 1, proc.stdout)
+        self.assertIn("held by live pid", proc.stderr)
+        self.assertTrue(self.fx.lock_dir.exists(), "live holder's lock was broken")
+        holder.kill()
+        holder.wait()
+        # Once the holder exits the lock turns stale and release works.
+        # 持有者退出后锁变为陈旧,release 恢复可用。
+        proc = self.fx.run("release")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertFalse(self.fx.lock_dir.exists())
+
     def test_usage_errors_fail_closed(self):
         for bad_args in ((), ("with", "label"), ("with", "label", "cmd"),
                          ("bogus",)):
