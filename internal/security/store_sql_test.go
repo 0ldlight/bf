@@ -332,6 +332,49 @@ func TestSecurityStoreAuthenticateKDFSlotsBounded(t *testing.T) {
 	}
 }
 
+// TestSecurityStoreAuthenticateCancellationAfterQuery 断言查询完成后取消
+// 的四种结局：未知用户与禁用用户的哑校验之后、真实凭据校验之后、以及成
+// 功后的最终复查都以固定取消阶段拒绝，绝不产出 Principal。
+// TestSecurityStoreAuthenticateCancellationAfterQuery asserts the four
+// post-query cancellation outcomes: after the dummy check for unknown and
+// disabled users, after the real credential check and the final recheck on
+// success — all reject with the fixed cancellation stage and never yield a
+// Principal.
+func TestSecurityStoreAuthenticateCancellationAfterQuery(t *testing.T) {
+	encoded, err := GenerateCredential(suPassword)
+	if err != nil {
+		t.Fatalf("fixture encoding failed: %v", err)
+	}
+	for _, tc := range []struct {
+		name string
+		row  []driver.Value
+	}{
+		{"unknown user dummy check", nil},
+		{"disabled user dummy check", []driver.Value{int64(7), "reader", encoded, false}},
+		{"after real credential check", []driver.Value{int64(0), "reader", encoded, true}},
+		{"final recheck", []driver.Value{int64(7), "reader", encoded, true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			store, _ := ssNewStore(t, func(_ context.Context, query string, _ []driver.Value) ssResult {
+				if strings.Contains(query, "FROM security_users WHERE username") {
+					cancel()
+					if tc.row == nil {
+						return ssResult{}
+					}
+					return ssResult{row: tc.row}
+				}
+				return ssResult{err: ssUnexpected(query)}
+			})
+			p, err := store.Authenticate(ctx, "reader", suPassword)
+			if p != (Principal{}) {
+				t.Fatalf("canceled path returned principal %v", p)
+			}
+			ssAssertStoreError(t, err, ErrSecurityStore, stageAuthenticateCtx, context.Canceled)
+		})
+	}
+}
+
 // TestSecurityStoreLookupRepositoryOutcomes 断言仓库目录查询：缺席、SQL
 // 失败、四种不支持行形状与成功回显；键参数精确传递。
 // TestSecurityStoreLookupRepositoryOutcomes asserts the repository catalog
