@@ -115,6 +115,13 @@ cmd_status() {
 cmd_release() {
 	[ -f "$LOCK_PATH/.checkout-lock" ] ||
 		fail "refusing to remove a path this script did not create: $LOCK_PATH"
+	# Only the live holder or a stale lock may be released: a third party
+	# must not break another writer's mutual exclusion.
+	# 仅存活持有者或陈旧锁可释放:第三方不得破坏其他写者的互斥。
+	_holder=$(holder_pid)
+	if owner_alive "$_holder" && [ "$_holder" != "$$" ]; then
+		fail "lock is held by live pid ${_holder}; only its holder or a stale reclaim may release"
+	fi
 	rm -rf "$LOCK_PATH"
 }
 
