@@ -113,14 +113,6 @@ func (s *ssScript) snapshotQueries() []ssQuery {
 	return append([]ssQuery(nil), s.queries...)
 }
 
-// snapshotEvents 返回已记录事件的副本。
-// snapshotEvents returns a copy of the recorded events.
-func (s *ssScript) snapshotEvents() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]string(nil), s.events...)
-}
-
 // peakInflight 返回应答函数并发峰值快照。
 // peakInflight snapshots the responder concurrency peak.
 func (s *ssScript) peakInflight() int {

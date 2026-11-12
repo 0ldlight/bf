@@ -573,6 +573,7 @@ func TestSecurityStoreWriteGrantsBehavior(t *testing.T) {
 		store, script := ssNewStore(t, func(_ context.Context, query string, _ []driver.Value) ssResult {
 			return ssResult{err: ssUnexpected(query)}
 		})
+		//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 		got, err := store.CanDeploy(nil, principal, repo, path)
 		if got {
 			t.Fatal("nil ctx allowed = true")

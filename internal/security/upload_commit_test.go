@@ -85,6 +85,7 @@ func TestSecurityRecheckUploadCommitValidation(t *testing.T) {
 		}
 		ssAssertStoreError(t, err, ErrConfiguration, ssCommitStage, errInvalidUploadInput)
 	}
+	//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 	got, err := RecheckUploadCommit(nil, tx, "binflow_sec", principal, repo, path, false, nil, nil)
 	if got {
 		t.Fatal("nil ctx allowed = true")
