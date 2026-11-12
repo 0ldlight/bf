@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/0ldlight/bf/internal/repository"
 	nodepg "github.com/0ldlight/bf/internal/repository/postgres"
@@ -24,10 +25,13 @@ func (g txUploadGrants) CanDelete(ctx context.Context, p Principal, r Repository
 // RecheckUploadCommit takes the upload locks and checks fresh permission and
 // node facts on the caller's READ COMMITTED transaction. The caller keeps
 // that transaction through the write and rolls it back on denial or error.
-// The trusted schema must be the same one used by the transaction's queries.
+// The trusted schema must be the same one used by the transaction's queries;
+// pg_-prefixed system schemas are rejected here exactly like
+// InstallUploadCommitLock rejects them (defense in depth: no reliance on the
+// caller's own rejection).
 func RecheckUploadCommit(ctx context.Context, tx *sql.Tx, schema string, principal Principal, repo RepositoryInfo, path repository.Path, enforce bool, sha1, sha256 []uint16) (bool, error) {
 	const stage = "security: upload commit lock"
-	if ctx == nil || tx == nil || !uploadLockIdentifier.MatchString(schema) {
+	if ctx == nil || tx == nil || !uploadLockIdentifier.MatchString(schema) || strings.HasPrefix(schema, "pg_") {
 		return false, &storeError{sentinel: ErrConfiguration, op: stage, cause: errInvalidUploadInput}
 	}
 	var compatible bool
