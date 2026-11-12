@@ -46,13 +46,16 @@ type uploadFakeHub struct {
 	mu                sync.Mutex
 	connects          int
 	begins            int
+	commits           int
 	rollbacks         int
 	commitErr         error
 	rollbackErr       error
 	blockBeginOrdinal int
+	onCommit          func()
 	query             func(query string, args []driver.NamedValue) ([]string, [][]driver.Value, error)
 	exec              func(query string, args []driver.NamedValue) (int64, error)
 	lastIDUpdateArgs  []driver.NamedValue
+	lastNodeExecArgs  []driver.NamedValue
 }
 
 func (h *uploadFakeHub) beginCount() int {
@@ -65,6 +68,24 @@ func (h *uploadFakeHub) snapshot() (connects, begins, rollbacks int) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return h.connects, h.begins, h.rollbacks
+}
+
+func (h *uploadFakeHub) commitCount() int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.commits
+}
+
+func (h *uploadFakeHub) nodeExecArgs() []driver.NamedValue {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastNodeExecArgs
+}
+
+func (h *uploadFakeHub) idUpdateArgs() []driver.NamedValue {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.lastIDUpdateArgs
 }
 
 type uploadFakeConnector struct{ h *uploadFakeHub }
@@ -138,7 +159,17 @@ func (c *uploadFakeConn) ExecContext(_ context.Context, query string, args []dri
 
 type uploadFakeTx struct{ h *uploadFakeHub }
 
-func (t *uploadFakeTx) Commit() error { return t.h.commitErr }
+func (t *uploadFakeTx) Commit() error {
+	t.h.mu.Lock()
+	t.h.commits++
+	hook := t.h.onCommit
+	err := t.h.commitErr
+	t.h.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	return err
+}
 
 func (t *uploadFakeTx) Rollback() error {
 	t.h.mu.Lock()
