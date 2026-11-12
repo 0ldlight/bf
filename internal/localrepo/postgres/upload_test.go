@@ -76,6 +76,15 @@ func (h *uploadFakeHub) commitCount() int {
 	return h.commits
 }
 
+// beginsRollbacks 返回 Begin/Rollback 计数（与含 connects 的 snapshot 分离）。
+// beginsRollbacks returns the Begin/Rollback counts (separate from the
+// connects-carrying snapshot).
+func (h *uploadFakeHub) beginsRollbacks() (begins, rollbacks int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.begins, h.rollbacks
+}
+
 func (h *uploadFakeHub) nodeExecArgs() []driver.NamedValue {
 	h.mu.Lock()
 	defer h.mu.Unlock()
