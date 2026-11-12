@@ -181,12 +181,12 @@ func (h *downloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // parseRawPath 只信任 raw RequestURI：拒绝超长、任何 '?'（含裸尾问号、
 // RawQuery/ForceQuery）、非 origin-form、前缀不符、空/重复/首尾斜杠、
 // 点段、非 ASCII 段字符（百分号、控制字符、Unicode、加号、冒号等）、
-// 非精确小写 .bin/.txt 后缀与空 stem。永不解码或清洗。
+// 非精确小写 .bin/.txt/.json 后缀与空 stem。永不解码或清洗。
 // parseRawPath trusts only the raw RequestURI: it rejects overlong URIs, any
 // '?' (bare trailing included, plus RawQuery/ForceQuery), non-origin forms,
 // wrong prefixes, empty/duplicate/leading/trailing slashes, dot segments,
 // non-ASCII segment bytes (percent, control, Unicode, plus, colon, ...),
-// inexact non-lower .bin/.txt suffixes and empty stems. It never decodes or
+// inexact non-lower .bin/.txt/.json suffixes and empty stems. It never decodes or
 // cleans.
 func (h *downloadHandler) parseRawPath(r *http.Request) (repository.Path, bool) {
 	raw := r.RequestURI
@@ -213,6 +213,9 @@ func (h *downloadHandler) parseRawPath(r *http.Request) (repository.Path, bool) 
 	stem, hasSuffix := strings.CutSuffix(name, ".bin")
 	if !hasSuffix {
 		stem, hasSuffix = strings.CutSuffix(name, ".txt")
+	}
+	if !hasSuffix {
+		stem, hasSuffix = strings.CutSuffix(name, ".json")
 	}
 	if !hasSuffix || stem == "" {
 		return repository.Path{}, false
@@ -594,11 +597,14 @@ func writeDownloadHeaders(w http.ResponseWriter, source repository.FileSnapshotS
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"; filename*=UTF-8''`+name)
 }
 
-// downloadMIME 固定映射 .bin→application/octet-stream、.txt→text/plain。
-// downloadMIME maps .bin→application/octet-stream and .txt→text/plain only.
+// downloadMIME 仅按最后缀映射 MIME，不检查正文。
+// downloadMIME maps the final suffix to MIME without inspecting the body.
 func downloadMIME(name string) string {
 	if strings.HasSuffix(name, ".txt") {
 		return "text/plain"
+	}
+	if strings.HasSuffix(name, ".json") {
+		return "application/json"
 	}
 	return "application/octet-stream"
 }

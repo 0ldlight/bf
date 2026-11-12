@@ -127,3 +127,5 @@ See the write-authorization study for static evidence and unresolved runtime/con
 
 文件覆盖纯判断 / Pure file-overwrite decision：`internal/repository/file_overwrite.go` 复用已有原始码元比较，输入与边界见[覆盖判断](FILE-OVERWRITE-DECISION.md)。它读取已给定事实，不新增包或 I/O 端口；后续真实授权接线仍待独立验收。
 The decision reuses the existing repository comparison domain over supplied facts; actual authorization wiring remains separate.
+
+普通 JSON 文件名画像 / Ordinary JSON filename profile: [契约 / Contract](GENERIC-JSON-PROFILE.md)，复用 localrepo 输入、保存 MIME 目录和现有 HTTP 适配器；独立回归位于各包的 JSON 测试及 `integration/postgres/json_upload_test.go`。

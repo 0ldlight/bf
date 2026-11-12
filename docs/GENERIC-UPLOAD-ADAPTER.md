@@ -1,19 +1,19 @@
 # 普通 PUT 文件适配器 / Ordinary PUT file adapter
 
-状态：BIN-206 提供独立、未挂接生产入口的有限普通文件 PUT 实现；验收范围见末节，不将父能力或生产写授权登记为兼容完成。原版观察见[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)，不在这里重复采样。
-State: BIN-206 provides a bounded, unmounted ordinary-file PUT implementation. Verification scope is listed below; parent capability and production write authorization remain incomplete. The linked integration contract owns reference observations.
+状态：BIN-206 建立有限普通文件 PUT 适配器，BIN-217 接入显式 artifacts 进程，BIN-218 完成初始受限 UAT 验收；完整父能力仍未完成。BIN-221 扩展见[JSON 制品画像](GENERIC-JSON-PROFILE.md)。原版观察继续由[上传接入契约](GENERIC-UPLOAD-INTEGRATION.md)维护。
+State: the bounded adapter is wired into the explicit artifacts process and its initial UAT profile is accepted. The linked JSON profile owns the suffix extension; complete parent parity remains open. The integration contract owns original-server observations.
 
 ## 结构与边界 / Structure and boundary
 
 `internal/localrepo` 拥有 `UploadInput`、有限文件身份和输入/Source 纯校验；它不导入 SQL 或 HTTP。`internal/localrepo/postgres` 负责真实保存工作单元；`internal/httpserver` 的独立 PUT 处理器消费必需的写授权和已提交保存端口。旧 `SaveFile` 与节点保存结果不扩展，不新增通用框架或序列化插件。
 The parent package owns input/path/source profiles without SQL or HTTP. The PostgreSQL adapter owns actual saving, while the standalone handler consumes required write-authorization and committed-save ports. Existing save APIs remain unchanged; no generic framework or serializer plugin is added.
 
-此处理器不会挂入生产组合根，现有 UAT 继续是下载预览。测试授权端口不证明生产 deploy/overwrite 已完成，read 许可不能用作 write 许可。未来可信 Allow 必须同时绑定认证操作者、正确的 ordinary local/generic 仓库及适用写操作；非管理员 deploy-only/overwrite/delete 组合仍需补证。
-The handler is not mounted in the production composition root; UAT remains a download preview. Test authorization does not establish production deploy/overwrite authorization, and read rights cannot substitute for writing. A future trusted Allow must bind principal, eligible repository and operation; deploy-only/overwrite/delete combinations remain unverified.
+显式 artifacts 组合根通过[提交边界](UPLOAD-COMMIT-BOUNDARY.md)绑定认证操作者、已配置 local/generic 仓库及当前 deploy/条件 delete 决定。测试授权端口只服务组件回归；read 许可不能替代 write，完整原版权限矩阵仍待验证。
+The artifacts composition binds principal, configured local/generic repository and current deploy/conditional-delete decisions. Fixture auth ports prove component behavior only; read rights cannot replace writing, and complete original permission parity remains unverified.
 
 ## 支持域 / Profile
 
-仓库键为长度不超过 64 的非点 ASCII 单段；文件路径按单 slash 分段，只准 `[A-Za-z0-9._-]`，排除空段、点段、前后 slash，终名有非空 stem 和精确 `.bin`/`.txt` 后缀。原始路径最多 8192 字节、parent 最多 1024、name 最多 255，深度复用 `Path.Depth`。`ValidateStoragePath` 仅提供既有字符状态机，不被误称为长度校验。不得 decode、clean 或 trim。
+仓库键为长度不超过 64 的非点 ASCII 单段；文件路径按单 slash 分段，只准 `[A-Za-z0-9._-]`，排除空段、点段、前后 slash，终名有非空 stem 和精确 `.bin`/`.txt`/`.json` 后缀。原始路径最多 8192 字节、parent 最多 1024、name 最多 255，深度复用 `Path.Depth`。`ValidateStoragePath` 仅提供既有字符状态机，不被误称为长度校验。不得 decode、clean 或 trim。
 Keys and paths follow the finite ASCII segment/suffix profile with explicit raw-path, parent and name limits. Depth reuses `Path.Depth`; the existing storage validator supplies character rules, not length checks. No decoding, cleaning or trimming is permitted.
 
 操作者为 1–64 个可打印 ASCII UTF-16 码元且非全空格。声明长度必须非负；三个专属摘要各自为 nil 或精确小写十六进制 40/64/32 码元。空但存在、marker、大写、多值与非 ASCII 均为域外。这些是本地支持政策，不代表原版拒绝。
@@ -24,8 +24,8 @@ Source validation checks identity, nullability, metadata, bounded timestamps/act
 
 ## 保存生命周期 / Save lifetime
 
-构造必须显式提供真实 DB、初始化的 binary service、并发安全 Clock 和大于零且不超过一分钟的节点预算；DB 连接上限必须显式至少为 2。不执行 DDL、Ping、自动引导或配置修复，不 Close 调用方 DB。固定 ROOT ASCII MIME 目录只涵盖两种后缀。
-Construction requires real dependencies, an explicit bounded node budget and at least two configured connections. There is no DDL, ping, bootstrap, repair or ownership transfer of the DB. The fixed MIME catalog covers only the two suffixes.
+构造必须显式提供真实 DB、初始化的 binary service、并发安全 Clock 和大于零且不超过一分钟的节点预算；DB 连接上限必须显式至少为 2。不执行 DDL、Ping、自动引导或配置修复，不 Close 调用方 DB。固定 ROOT ASCII MIME 目录涵盖三种已接受后缀。
+Construction requires real dependencies, an explicit bounded node budget and at least two configured connections. There is no DDL, ping, bootstrap, repair or ownership transfer of the DB. The fixed MIME catalog covers the three admitted suffixes.
 
 1. 校验输入，在读取正文前采一次服务器墙钟作为请求 Created/Modified。这是明确的本地采时点，不是原版慢上传顺序观察。
    Validate input and sample request Created/Modified before body reading, an explicit local timing choice.
