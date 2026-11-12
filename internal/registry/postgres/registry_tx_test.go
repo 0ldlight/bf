@@ -292,3 +292,190 @@ func containsAll(s string, subs ...string) bool {
 	}
 	return true
 }
+
+// txBackfillHub 配置“命中行 sha256 缺失 + UPDATE 成功 + 回读返回回填后行”。
+// txBackfillHub wires a found row with a missing sha256, a successful
+// UPDATE and a reload returning the backfilled row.
+func txBackfillHub(h *txHub, in content.Metadata, missing any, storedMD5 string, storedSize int64) {
+	calls := 0
+	h.query = func(query string, _ []driver.NamedValue) ([]string, [][]driver.Value, error) {
+		calls++
+		if calls == 1 {
+			return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, storedSize, missing)}, nil
+		}
+		return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, storedSize, in.SHA256)}, nil
+	}
+	h.exec = func(string, []driver.NamedValue) (int64, error) { return 1, nil }
+}
+
+func TestRegisterBackfillsMissingSHA256AndReloads(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		missing any
+	}{
+		{"null sha256", nil},
+		{"java blank sha256", strings.Repeat(" ", 64)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			reg, h := newTxRegistry(t)
+			in := validMeta()
+			storedMD5 := strings.Repeat("f", 32)
+			txBackfillHub(h, in, tc.missing, storedMD5, int64(11))
+
+			got, err := reg.Register(context.Background(), in)
+			if err != nil {
+				t.Fatalf("Register backfill: %v", err)
+			}
+			// 仅回填 SHA-256：MD5/长度保持存量，结果来自回读行。
+			// Only SHA-256 is backfilled: MD5/length stay stored and
+			// the result comes from the reloaded row.
+			want := content.Metadata{SHA1: in.SHA1, SHA256: in.SHA256, MD5: storedMD5, Size: 11}
+			if got != want {
+				t.Fatalf("Register backfill = %+v, want reloaded %+v", got, want)
+			}
+			if s := h.lastExecSQL; s == "" || !containsAll(s, "UPDATE binaries", "SET sha256 = $1", "WHERE sha1 = $2") {
+				t.Fatalf("backfill SQL = %q, want UPDATE binaries SET sha256", s)
+			}
+			if _, args := h.execCalls(); len(args) != 2 || args[0].Value != in.SHA256 || args[1].Value != in.SHA1 {
+				t.Fatalf("backfill args = %+v, want [incoming sha256, stored sha1]", args)
+			}
+			if begins, commits, rollbacks := h.snapshot(); begins != 1 || commits != 1 || rollbacks != 0 {
+				t.Fatalf("tx begins/commits/rollbacks = %d/%d/%d, want 1/1/0", begins, commits, rollbacks)
+			}
+		})
+	}
+}
+
+func TestRegisterFailureStagesRollBackAndPreserveCauses(t *testing.T) {
+	errInsert := errors.New("postgres registry test: insert fault")
+	errUpdate := errors.New("postgres registry test: update fault")
+	errCommit := errors.New("postgres registry test: commit fault")
+	in := validMeta()
+	storedMD5 := strings.Repeat("f", 32)
+	cases := []struct {
+		name      string
+		prepare   func(h *txHub)
+		wantText  string
+		wantCause error
+		rollback  int
+	}{
+		{
+			name: "query scan fault",
+			prepare: func(h *txHub) {
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					return nil, nil, errTxFakeScan
+				}
+			},
+			wantText: "postgres registry: query existing record", wantCause: errTxFakeScan, rollback: 1,
+		},
+		{
+			name: "insert fault",
+			prepare: func(h *txHub) {
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					return txBinCols, nil, nil
+				}
+				h.exec = func(string, []driver.NamedValue) (int64, error) { return 0, errInsert }
+			},
+			wantText: "postgres registry: insert new record", wantCause: errInsert, rollback: 1,
+		},
+		{
+			name: "backfill update fault",
+			prepare: func(h *txHub) {
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, int64(5), nil)}, nil
+				}
+				h.exec = func(string, []driver.NamedValue) (int64, error) { return 0, errUpdate }
+			},
+			wantText: "postgres registry: backfill sha256", wantCause: errUpdate, rollback: 1,
+		},
+		{
+			name: "reload fault",
+			prepare: func(h *txHub) {
+				calls := 0
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					calls++
+					if calls == 1 {
+						return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, int64(5), nil)}, nil
+					}
+					return nil, nil, errTxFakeScan
+				}
+				h.exec = func(string, []driver.NamedValue) (int64, error) { return 1, nil }
+			},
+			wantText: "postgres registry: reload after backfill", wantCause: errTxFakeScan, rollback: 1,
+		},
+		{
+			name: "reload missing row",
+			prepare: func(h *txHub) {
+				calls := 0
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					calls++
+					if calls == 1 {
+						return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, int64(5), nil)}, nil
+					}
+					return txBinCols, nil, nil
+				}
+				h.exec = func(string, []driver.NamedValue) (int64, error) { return 1, nil }
+			},
+			wantText: "postgres registry: reload after backfill", wantCause: sql.ErrNoRows, rollback: 1,
+		},
+		{
+			name: "commit fault on stored reuse",
+			prepare: func(h *txHub) {
+				h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+					return txBinCols, [][]driver.Value{txStoredRow(in.SHA1, storedMD5, int64(5), in.SHA256)}, nil
+				}
+				h.commitErr = errCommit
+			},
+			// Commit 失败后事务结局不确定：不做回滚保证。
+			// After a commit fault the outcome is uncertain: no
+			// rollback guarantee is made.
+			wantText: "postgres registry: commit", wantCause: errCommit, rollback: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			reg, h := newTxRegistry(t)
+			tc.prepare(h)
+			got, err := reg.Register(context.Background(), in)
+			if err == nil {
+				t.Fatal("Register must fail on the injected fault")
+			}
+			if got != (content.Metadata{}) {
+				t.Fatalf("failed Register returned %+v, want zero Metadata", got)
+			}
+			if err.Error() != tc.wantText {
+				t.Fatalf("Error() = %q, want fixed stage %q", err.Error(), tc.wantText)
+			}
+			if !errors.Is(err, tc.wantCause) {
+				t.Fatalf("cause %v not reachable under Unwrap: %v", tc.wantCause, err)
+			}
+			if _, _, rollbacks := h.snapshot(); rollbacks != tc.rollback {
+				t.Fatalf("rollbacks = %d, want %d", rollbacks, tc.rollback)
+			}
+		})
+	}
+}
+
+func TestRegisterPreservesRollbackFaultAlongsideCause(t *testing.T) {
+	reg, h := newTxRegistry(t)
+	h.rollbackErr = errTxFakeRollback
+	h.query = func(string, []driver.NamedValue) ([]string, [][]driver.Value, error) {
+		return nil, nil, errTxFakeScan
+	}
+	got, err := reg.Register(context.Background(), validMeta())
+	if err == nil {
+		t.Fatal("Register must fail on the query fault")
+	}
+	if got != (content.Metadata{}) {
+		t.Fatalf("failed Register returned %+v, want zero Metadata", got)
+	}
+	if !errors.Is(err, errTxFakeScan) || !errors.Is(err, errTxFakeRollback) {
+		t.Fatalf("both causes must survive under Unwrap: %v", err)
+	}
+	if err.Error() != "postgres registry: query existing record" {
+		t.Fatalf("Error() = %q, want the fixed stage text only", err.Error())
+	}
+	if _, _, rollbacks := h.snapshot(); rollbacks != 1 {
+		t.Fatalf("rollbacks = %d, want 1", rollbacks)
+	}
+}
