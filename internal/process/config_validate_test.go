@@ -3,13 +3,13 @@ package process
 // 本文件直接覆盖 validateConfig 的全部分支（健康模式携带下载/上传设置、
 // artifacts 上传字段域、空 DSN、相对 filestore 根、健康/下载监听地址边
 // 界）、LoadConfig 健康路径的监听地址校验、严格文档解码的剩余分支（字符
-// 串/整数类型与域、截断、数组文档）与 parseDownloadDocument 包装。
+// 串/整数类型与域、截断、数组文档）与 download（false）解析形态。
 // This file covers every validateConfig branch directly (health mode
 // carrying download/upload settings, the artifacts upload field domain, an
 // empty DSN, a relative filestore root, the health/download listen-address
 // bounds), the LoadConfig health listen-address validation, the remaining
 // strict-document decoding branches (string/int types and domains,
-// truncation, an array document) and the parseDownloadDocument wrapper.
+// truncation, an array document) and the download (false) parse profile.
 
 import (
 	"errors"
@@ -251,13 +251,17 @@ func TestParseArtifactDocumentDecodingBounds(t *testing.T) {
 			t.Fatalf("negative int32 = %d, want -2147483648", parsed.failureThreshold)
 		}
 	})
-	t.Run("download wrapper delegates", func(t *testing.T) {
-		parsed, err := parseDownloadDocument([]byte(cfgBaseDocument))
+	t.Run("download profile parses and rejects", func(t *testing.T) {
+		// The parseDownloadDocument wrapper was removed as dead production
+		// code (PR #87); the download profile is parseArtifactDocument(…, false).
+		// parseDownloadDocument 包装已作为死代码移除（PR #87）；download
+		// 形态即 parseArtifactDocument(…, false)。
+		parsed, err := parseArtifactDocument([]byte(cfgBaseDocument), false)
 		if err != nil || parsed.repoKey != "r" || parsed.maxTrackedUsers != 4 {
 			t.Fatalf("download parse = (%+v,%v)", parsed, err)
 		}
-		if _, err := parseDownloadDocument([]byte(`{"listen_addr":1}`)); !errors.Is(err, ErrConfiguration) {
-			t.Fatalf("invalid wrapper parse = %v, want ErrConfiguration", err)
+		if _, err := parseArtifactDocument([]byte(`{"listen_addr":1}`), false); !errors.Is(err, ErrConfiguration) {
+			t.Fatalf("invalid download parse = %v, want ErrConfiguration", err)
 		}
 	})
 }
