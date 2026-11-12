@@ -57,6 +57,7 @@ archive="$dest/binflow-state-$stamp-$$.tar.gz"
 # 任意深度生效。
 tar -czf "$archive" -C "$(dirname -- "$STATE_DIR")" \
 	--exclude 'worktrees' \
+	--exclude 'locks' \
 	--exclude '__pycache__' \
 	--exclude '*.lock' \
 	"$(basename -- "$STATE_DIR")" || {

@@ -102,6 +102,10 @@ class BackupLocalState(unittest.TestCase):
         self.fx.write("worktrees/bf-old/cmd/main.go", "package main")
         self.fx.write("__pycache__/junk.pyc", "junk")
         self.fx.write("worker-slots.lock", "0")
+        # Lock DIRECTORIES (checkout-lock state) are excluded as a whole,
+        # not only *.lock files (reviewer-verified 2026-11-13 gap).
+        # 锁目录(checkout-lock 状态)整体排除,而不仅是 *.lock 文件。
+        self.fx.write("locks/checkout/owner", "label=x\npid=1\n")
         proc = self.fx.run(str(self.fx.dest))
         self.assertEqual(proc.returncode, 0, proc.stderr)
         names = {m.name for m in tarfile.open(self.fx.archives()[0])}
@@ -110,8 +114,8 @@ class BackupLocalState(unittest.TestCase):
             f"worktree content leaked into backup: {sorted(names)}",
         )
         self.assertFalse(
-            any("__pycache__" in n or n.endswith(".lock") for n in names),
-            f"cache or lock file leaked into backup: {sorted(names)}",
+            any("__pycache__" in n or "locks" in n or n.endswith(".lock") for n in names),
+            f"cache, lock directory or lock file leaked into backup: {sorted(names)}",
         )
 
     def test_missing_state_directory_fails_closed(self):
