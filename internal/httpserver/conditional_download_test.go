@@ -90,10 +90,12 @@ func TestConditionalDownloadMalformedHeadersRejectBeforeIO(t *testing.T) {
 		{"empty ETag values", http.Header{"If-None-Match": {}}},
 		{"duplicate ETags", http.Header{"If-None-Match": {etag, etag}}},
 		{"duplicate ETag aliases", http.Header{"If-None-Match": {etag}, "if-none-match": {etag}}},
+		{"nil ETag alias beside valid alias", http.Header{"If-None-Match": nil, "if-none-match": {etag}}},
 		{"nil date values", http.Header{"If-Modified-Since": nil}},
 		{"empty date values", http.Header{"If-Modified-Since": {}}},
 		{"duplicate dates", http.Header{"If-Modified-Since": {conditionalDate, conditionalDate}}},
 		{"duplicate date aliases", http.Header{"If-Modified-Since": {conditionalDate}, "if-modified-since": {conditionalDate}}},
+		{"empty date alias beside valid alias", http.Header{"If-Modified-Since": {}, "if-modified-since": {conditionalDate}}},
 		{"valid ETag cannot hide invalid date", http.Header{"If-None-Match": {etag}, "If-Modified-Since": {"invalid"}}},
 		{"valid ETag cannot hide empty date", http.Header{"If-None-Match": {etag}, "If-Modified-Since": nil}},
 		{"valid date cannot hide invalid ETag", http.Header{"If-None-Match": {"a,b"}, "If-Modified-Since": {conditionalDate}}},
@@ -171,13 +173,20 @@ func TestConditionalDownloadAuthorizationBeforeLookup(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
 		result httpserver.DownloadAuthResult
+		err    error
 		status int
 	}{
-		{"unauthenticated", httpserver.DownloadAuthResult{Decision: httpserver.DownloadUnauthenticated, Challenge: `Basic realm="conditional"`}, 401},
-		{"denied", httpserver.DownloadAuthResult{Decision: httpserver.DownloadDenied}, 403},
+		{"unauthenticated", httpserver.DownloadAuthResult{Decision: httpserver.DownloadUnauthenticated, Challenge: `Basic realm="conditional"`}, nil, 401},
+		{"denied", httpserver.DownloadAuthResult{Decision: httpserver.DownloadDenied}, nil, 403},
+		{"zero auth decision", httpserver.DownloadAuthResult{}, nil, 500},
+		{"allow with challenge", httpserver.DownloadAuthResult{Decision: httpserver.DownloadAllow, Challenge: "unexpected"}, nil, 500},
+		{"denied with challenge", httpserver.DownloadAuthResult{Decision: httpserver.DownloadDenied, Challenge: "unexpected"}, nil, 500},
+		{"missing challenge", httpserver.DownloadAuthResult{Decision: httpserver.DownloadUnauthenticated}, nil, 500},
+		{"auth backend failure", httpserver.DownloadAuthResult{Decision: httpserver.DownloadAllow}, errors.New("controlled auth failure"), 500},
+		{"auth backend deadline with live request", httpserver.DownloadAuthResult{}, context.DeadlineExceeded, 500},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			auth := &duAuth{result: tc.result}
+			auth := &duAuth{result: tc.result, err: tc.err}
 			store, opener := &duStore{source: source}, &duOpener{}
 			rec := httptest.NewRecorder()
 			duHandler(t, auth, store, opener, nil).ServeHTTP(rec, conditionalRequest(http.MethodGet, http.Header{"If-None-Match": {source.Reference.Content.SHA1}}))
@@ -185,6 +194,37 @@ func TestConditionalDownloadAuthorizationBeforeLookup(t *testing.T) {
 			if auth.calls != 1 || store.calls != 0 || opener.opens != 0 || rec.Header().Get("ETag") != "" {
 				t.Fatalf("denial auth=%d lookup=%d open=%d ETag=%q", auth.calls, store.calls, opener.opens, rec.Header().Get("ETag"))
 			}
+			wantChallenge := ""
+			if tc.status == http.StatusUnauthorized {
+				wantChallenge = tc.result.Challenge
+			}
+			if got := rec.Header().Get("WWW-Authenticate"); got != wantChallenge {
+				t.Fatalf("WWW-Authenticate=%q, want %q", got, wantChallenge)
+			}
+		})
+	}
+}
+
+// Unix epoch is a real validator value; subsecond metadata compares by seconds.
+// Unix epoch 是有效验证器；亚秒元数据必须按秒比较。
+func TestConditionalDownloadModifiedTimeBoundaries(t *testing.T) {
+	body := []byte("timestamp boundary payload")
+	for _, tc := range []struct {
+		name        string
+		modified    int64
+		requestDate string
+		status      int
+	}{
+		{"epoch equality", 0, "Thu, 01 Jan 1970 00:00:00 GMT", 304},
+		{"epoch subsecond equality", 999, "Thu, 01 Jan 1970 00:00:00 GMT", 304},
+		{"first second is newer", 1000, "Thu, 01 Jan 1970 00:00:00 GMT", 200},
+		{"maximum stored year equality", 253402300799999, "Fri, 31 Dec 9999 23:59:59 GMT", 304},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := conditionalSource(t, body)
+			metadata := repository.NewFileMetadata(repository.FileMetadataInput{ModifiedMillis: tc.modified})
+			source.Reference.Metadata = &metadata
+			conditionalAssertRequest(t, source, body, http.Header{"If-Modified-Since": {tc.requestDate}}, tc.status)
 		})
 	}
 }
