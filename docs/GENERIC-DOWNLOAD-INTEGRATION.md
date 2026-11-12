@@ -1,7 +1,7 @@
 # 普通 Generic 下载接入契约 / Ordinary Generic download integration
 
-BIN-198 承接 [BIN-128 下载观察](GENERIC-DOWNLOAD-CONTRACT.md)与 [BIN-197 内部读取](LOCAL-FILE-READ.md)，冻结下一条完整 GET/HEAD 业务切片的证据、接口边界和验收。本文交付契约，不新增 HTTP 路由；当前服务仍只有健康入口。父项 PKG-007/API-001/REP-001/STO-001 保持未完成。
-BIN-198 defines the evidence, integration boundaries and acceptance for the next complete ordinary GET/HEAD slice. This contract adds no HTTP route; the current service still exposes health only. Parent capabilities remain incomplete.
+BIN-198 承接 [BIN-128 下载观察](GENERIC-DOWNLOAD-CONTRACT.md)与 [BIN-197 内部读取](LOCAL-FILE-READ.md)，冻结下一条完整 GET/HEAD 业务切片的证据、接口边界和验收。本文保留初始契约及 BIN-199 实施记录；当前进程装配见[下载进程](DOWNLOAD-PROCESS.md)，新增后缀见[JSON 制品画像](GENERIC-JSON-PROFILE.md)。父项 PKG-007/API-001/REP-001/STO-001 保持未完成。
+BIN-198 defines the evidence, integration boundaries and acceptance for the next complete ordinary GET/HEAD slice. This page retains the initial contract and adapter implementation; current process wiring and the JSON extension are linked separately. Parent capabilities remain incomplete.
 
 ## 受控观察 / Controlled observations
 
@@ -103,5 +103,5 @@ A dependency timeout on an active request is a lookup/open failure, not proof of
 本节接口与实施已完成；24组新增单元/真实传输测试通过race，3组真实PostgreSQL/文件系统测试及共享检查通过，独立源码审查必改项已关闭。12项可编译故障变异全部被行为断言捕获，临时数据库资源已清理；精确提交/默认分支CI按交付证据独立核验。
 The adapter implementation passes 24 new unit/real-transport race groups, three real PostgreSQL/filesystem groups and shared checks; independent source-review findings are closed. Twelve compiled mutations are caught by behavioral assertions and the owned database resources are removed; exact/default CI is separately verified at delivery.
 
-普通下载挂入服务前的真实身份、仓库事实、认证入口与路径拒绝区分、配置和生命周期见[BIN-200可信接线契约](TRUSTED-DOWNLOAD-WIRING.md)。尚未实现这些前置，当前适配器仍不挂生产入口。
-See the [trusted wiring contract](TRUSTED-DOWNLOAD-WIRING.md) for the real production prerequisites; the current adapter remains unmounted.
+普通下载挂入服务前的真实身份、仓库事实、认证入口与路径拒绝区分、配置和生命周期见[BIN-200可信接线契约](TRUSTED-DOWNLOAD-WIRING.md)。后续装配已在[下载进程](DOWNLOAD-PROCESS.md)接入显式模式；完整父项仍未完成。
+See the [trusted wiring contract](TRUSTED-DOWNLOAD-WIRING.md) for the real production prerequisites; the later process assembly is recorded in the download-process contract; complete parent parity remains open.

@@ -86,13 +86,16 @@ func uploadProfileSegment(segment string) bool {
 	return true
 }
 
-// uploadFileName 判定最终名：非空 stem 加精确小写 .bin/.txt 后缀。
+// uploadFileName 判定最终名：非空 stem 加精确小写 .bin/.txt/.json 后缀。
 // uploadFileName admits a final name: nonempty stem plus the exact
-// lowercase .bin/.txt suffix.
+// lowercase .bin/.txt/.json suffix.
 func uploadFileName(name string) bool {
 	stem, ok := strings.CutSuffix(name, ".bin")
 	if !ok {
 		stem, ok = strings.CutSuffix(name, ".txt")
+	}
+	if !ok {
+		stem, ok = strings.CutSuffix(name, ".json")
 	}
 	return ok && stem != ""
 }

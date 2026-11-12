@@ -111,6 +111,7 @@ func NewUploadSaver(deps UploadDeps) (*UploadSaver, error) {
 	catalog, err := repository.NewFileMimeCatalog([]repository.FileMimeDefinition{
 		{Type: "application/octet-stream", Extensions: "bin"},
 		{Type: "text/plain", Extensions: "txt"},
+		{Type: "application/json", Extensions: "json"},
 	}, repository.FileMimeCaseRootASCII)
 	if err != nil {
 		return nil, &uploadOpError{op: "postgres upload: fixed mime catalog invalid", cause: err}
