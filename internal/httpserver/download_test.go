@@ -457,10 +457,9 @@ func TestDownloadQueryGate400(t *testing.T) {
 	})
 }
 
-// TestDownloadConditionalHeaderGate501: any Range or if- header key in any
-// spelling or value state returns 501 before auth and lookup, revealing no
-// existence information.
-// 任意拼写的 Range 或 if- 头一律 501，先于授权与查询，不暴露存在性。
+// TestDownloadConditionalHeaderGate501 covers unsupported Range/conditions
+// and out-of-profile validator values before auth and lookup.
+// 不支持的 Range/条件与域外验证器先于授权及查询返回 501。
 func TestDownloadConditionalHeaderGate501(t *testing.T) {
 	cases := []struct {
 		name string
@@ -471,12 +470,12 @@ func TestDownloadConditionalHeaderGate501(t *testing.T) {
 		{"lowercase Range", "range", "bytes=0-1"},
 		{"mixed-case Range", "rAnGe", "bytes=0-1"},
 		{"empty Range", "Range", ""},
-		{"If-None-Match", "If-None-Match", "\"x\""},
+		{"If-None-Match list", "If-None-Match", "x,y"},
 		{"If-Match", "If-Match", "*"},
-		{"If-Modified-Since", "If-Modified-Since", "Mon, 02 Jan 2006 15:04:05 GMT"},
+		{"If-Modified-Since noncanonical", "If-Modified-Since", "Mon, 02 Jan 2006 15:04:05 UTC"},
 		{"If-Unmodified-Since", "If-Unmodified-Since", "Mon, 02 Jan 2006 15:04:05 GMT"},
 		{"If-Range", "If-Range", "\"x\""},
-		{"lowercase if-none-match", "if-none-match", "x"},
+		{"lowercase if-none-match empty", "if-none-match", ""},
 		{"uppercase IF-MATCH", "IF-MATCH", "y"},
 		{"bare if- key", "if-", ""},
 		{"bare If- canonical shape", "If-", ""},
