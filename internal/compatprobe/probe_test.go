@@ -380,6 +380,7 @@ func TestValidateTable(t *testing.T) {
 }
 
 func TestRunNilContextRefusedGracefully(t *testing.T) {
+	//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 	rep, err := compatprobe.Run(nil, compatprobe.Options{URL: "http://example.test/a.bin", Fixture: syntheticFixture(16)})
 	if err == nil {
 		t.Fatal("expected error for nil context")

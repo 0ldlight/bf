@@ -787,12 +787,12 @@ func TestLoadConfigRedactionNeverLeaksSecrets(t *testing.T) {
 		cfg.HTTP.Challenge,
 	}
 	formats := []string{
-		fmt.Sprintf("%s", cfg),
+		cfg.String(),
 		fmt.Sprintf("%v", cfg),
 		fmt.Sprintf("%+v", cfg),
 		fmt.Sprintf("%#v", cfg),
 		fmt.Sprintf("%s %v %+v %#v", cfg, cfg, cfg, cfg),
-		fmt.Sprintf("%s", &cfg),
+		(&cfg).String(),
 		fmt.Sprintf("%v", &cfg),
 		fmt.Sprintf("%#v", &cfg),
 	}
@@ -1835,6 +1835,7 @@ func TestRunNilContextRejected(t *testing.T) {
 	cfg.HTTP = security.HTTPConfig{}
 	cfg.ListenAddr = "127.0.0.1:18081"
 
+	//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 	err := ppBoundedRun(t, func() error { return Run(nil, cfg, nil) })
 	if err == nil {
 		t.Fatal("Run accepted a nil context")

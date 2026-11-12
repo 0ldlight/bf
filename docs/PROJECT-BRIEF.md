@@ -83,8 +83,8 @@ On 2026-10-20 the owner limited Fern to BinFlow usage documentation, superseding
   Sole human: project owner; owner approves architecture, main merges and releases.
 - Codex 为主 agent，负责规划、派单、审查、验证与集成；Claude Code 执行子任务，模型 GLM-5.3。
   Codex orchestrates and reviews; Claude Code runs implementation tasks with GLM-5.3.
-- 智谱 Coding Plan Pro；所有执行主机合计最多 3 个 Claude Worker。
-  Zhipu Coding Plan Pro; maximum three concurrent Claude Workers across execution hosts.
+- 智谱 Coding Plan Pro；所有执行主机合计最多 5 个 Claude Worker。
+  Zhipu Coding Plan Pro; maximum five concurrent Claude Workers across execution hosts.
 - 当前 Mac 用于初期；后续全部工作迁移到另一台 Intel/AMD64 Mac，该机器已配置 Claude Code 与 K8s 访问。
   Start on the current Mac, then move all work to the prepared Intel/AMD64 Mac.
 - 最终需后台调度、失败重试、阻塞等待人工处理；恢复依据为持久任务、代码提交和交接记录。

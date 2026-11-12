@@ -129,7 +129,9 @@ func TestFileMetadataOriginalNullEmptyFidelity(t *testing.T) {
 		t.Errorf("MD5OriginalUTF16() = %v, want nil", got)
 	}
 
-	largeCapEmpty = append(largeCapEmpty, 0xffff)
+	// 写入共享底层数组，证明元数据不保留调用方存储。
+	// Write into the shared backing array: the metadata retains no caller storage.
+	_ = append(largeCapEmpty, 0xffff)
 	if got := m.SHA1OriginalUTF16(); got == nil || len(got) != 0 {
 		t.Errorf("after caller append SHA1OriginalUTF16() = %v, want nonnil empty", got)
 	}
@@ -160,7 +162,9 @@ func TestFileMetadataOriginalNullEmptyReversedAndBoth(t *testing.T) {
 	} else if len(got) != 0 {
 		t.Errorf("MD5OriginalUTF16() length = %d, want 0", len(got))
 	}
-	largeCapEmpty = append(largeCapEmpty, 0xffff)
+	// 写入共享底层数组，证明元数据不保留调用方存储。
+	// Write into the shared backing array: the metadata retains no caller storage.
+	_ = append(largeCapEmpty, 0xffff)
 	if got := m.MD5OriginalUTF16(); got == nil || len(got) != 0 {
 		t.Errorf("after caller append MD5OriginalUTF16() = %v, want nonnil empty", got)
 	}

@@ -384,6 +384,7 @@ func TestSaveRejectsCallerFaultsWithoutDatabaseAccess(t *testing.T) {
 		t.Fatalf("nil body error = %v, want ErrInvalidUploadInput", err)
 	}
 
+	//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 	if _, err := saver.Save(nil, strings.NewReader(body), input); !errors.Is(err, localrepo.ErrInvalidUploadInput) {
 		t.Fatalf("nil context error = %v, want ErrInvalidUploadInput", err)
 	}

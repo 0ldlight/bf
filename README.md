@@ -12,6 +12,7 @@ Fern holds usage documentation only; engineering documents live in this reposito
 - [接续研发 / Continuation](docs/P0-HANDOFF.md)
 - [能力矩阵 / Matrix](docs/CAPABILITY-MATRIX.md)
 - [文档维护范围 / Documentation scope](docs/DOCUMENTATION.md)
+- [助手入口 / Agent entry](AGENTS.md)
 - [Linear 项目 / Tasks and approvals](https://linear.app/binfloow/project/binflow-2ad2bc04f63e)
 
 全部产品代码维护在 `bf` 主检出：每任务一条分支，仅在确有必要时在 `bf` 内创建隔离 worktree（如 `.binflow/worktrees/`），不使用兄弟代码目录。公开文档使用可移植路径（`bf/`、`.binflow/`），不写机器特定绝对路径。

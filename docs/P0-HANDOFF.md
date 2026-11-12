@@ -16,13 +16,19 @@ All product code stays in the `bf` primary checkout: one branch per task, an iso
 各主机独立配置 GitHub、K8s、Claude/GLM-5.3、原版、Jenkins、CircleCI 与 UAT 访问。仅在被忽略的本机环境记录中保存地址与凭据文件引用，凭据本身不写入文档或公开任务。
 Provision access per host. Store private endpoints and credential-file references only in ignored environment notes; never put secrets in documentation/tasks.
 
+2026-10-30 所有者确认：后续 BinFlow UAT 部署可使用已连接 Supabase 插件提供的数据库。插件已可见名为 `binflow` 的健康项目；实际部署时再核实目标项目、连接方式与迁移状态，并通过私有环境配置注入数据库凭据。此约定记录可用资源，不代表已完成数据库接入或 UAT 部署；项目标识、数据库地址及凭据继续仅保存在本机私有环境记录中。
+On 2026-10-30, the owner authorized the database available through the connected Supabase plugin for future BinFlow UAT deployments. A healthy project named `binflow` is visible through the plugin. Verify the target project, connection method and migration state at deployment time, and inject database credentials through private environment configuration. This records an available resource, not completed database integration or UAT deployment; keep project identifiers, database endpoints and credentials in private host-local notes only.
+
 私有资料通过制品 ID 与摘要定位，不假定另一台 Mac 使用相同绝对路径。
 Locate research by artifact ID/digest rather than assuming identical host paths.
 
+`.binflow` 是单机私有状态（任务记录、槽位、控制脚本、研究资料），Git 不覆盖；每台执行主机应定期执行 `scripts/backup-local-state.sh <私有目标目录>` 生成带校验的归档，迁移或检修前必须先备份。
+`.binflow` is single-host private state (task records, slots, control scripts, research material) that Git never covers; every execution host should run `scripts/backup-local-state.sh <private destination>` regularly and always before migration or maintenance.
+
 ## Worker 生命周期 / Worker lifecycle
 
-每条任务声明独立分支、工作目录、文件责任、输入证据、验收、上下文范围和报告位置；工作目录遵循上方主检出约定。所有 Claude 角色及重试共用最多 3 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
-Each task declares its branch, working directory, ownership, evidence, acceptance and report contract; its working directory follows the primary-checkout policy above. All roles/retries share three slots; no hidden workers.
+每条任务声明独立分支、工作目录、文件责任、输入证据、验收、上下文范围和报告位置；工作目录遵循上方主检出约定。所有 Claude 角色及重试共用最多 5 个 GLM-5.3 执行槽，禁止隐式派生 Worker。
+Each task declares its branch, working directory, ownership, evidence, acceptance and report contract; its working directory follows the primary-checkout policy above. All roles/retries share five slots; no hidden workers.
 
 2026-10-19 所有者确认其他主机均已停止，当前 Mac 接管。之后每次迁移都应重新核对真实进程、任务状态和未完成请求；租约超时不代表进程或服务端请求已终止。
 The owner confirmed handover on 2026-10-19. Future migrations must verify actual processes and outstanding requests; lease expiry does not establish termination.

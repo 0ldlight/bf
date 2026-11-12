@@ -44,7 +44,7 @@ Linear is the task/approval authority; this page records sequence and risks rath
 
 - 试用授权于 2026-11-03 到期；优先采集目标版本证据。 Baseline trial expires on 2026-11-03; prioritize reproducible evidence.
 - 旧反编译资料声明为 7.161.24，多层版本标记待核实归属；只作线索，不能代替 7.161.26。 Older recovered material is a lead, not target evidence.
-- 其他主机已由所有者确认停止；当前 Mac 接管，所有 GLM-5.3 角色/重试最多共用三个槽位。 Owner confirmed host handover; all roles/retries share three slots.
+- 其他主机已由所有者确认停止；当前 Mac 接管，所有 GLM-5.3 角色/重试最多共用五个槽位。 Owner confirmed host handover; all roles/retries share five slots.
 - 失联或租约超时不等于进程结束；恢复前核对实际进程。 A timeout does not establish process termination.
 - 原版资料、环境配置与凭据保持私有；公开文档只引用制品标识与摘要。 Preserve private research/credentials and publish only portable references.
 - Jenkins 构建制品、CircleCI 仅部署 UAT（所有者 2026-10-19 确认）；UAT runtime、Jenkins Agent 和自定义域名仍需实际验证。 Jenkins builds; CircleCI only deploys UAT. Runtime/agent/domain acceptance requires observed evidence.

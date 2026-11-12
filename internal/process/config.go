@@ -363,18 +363,14 @@ var configFieldNames = map[string]bool{
 	"max_tracked_users":      true,
 }
 
-// parseDownloadDocument 以 token 流严格解析单个 JSON 对象：拒绝非对象/
+// parseArtifactDocument 以 token 流严格解析单个 JSON 对象：拒绝非对象/
 // null、未知键、重复键、尾随第二份 JSON、浮点/溢出数字、缺失或空字段；
 // 任何解析错误均为固定 ErrConfiguration 文案，不回显文档内容。
-// parseDownloadDocument strictly parses exactly one JSON object from a token
+// parseArtifactDocument strictly parses exactly one JSON object from a token
 // stream: non-objects/null, unknown keys, duplicate keys, a trailing second
 // JSON document, floating-point/overflowing numbers and missing or empty
 // fields are all rejected; every parse error is fixed ErrConfiguration text
 // that never echoes document contents.
-func parseDownloadDocument(data []byte) (downloadDocument, error) {
-	return parseArtifactDocument(data, false)
-}
-
 func parseArtifactDocument(data []byte, upload bool) (downloadDocument, error) {
 	var doc downloadDocument
 	dec := json.NewDecoder(bytes.NewReader(data))
