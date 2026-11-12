@@ -107,3 +107,9 @@ BIN-218 and BIN-220 validate that exact UAT artifact with 22 HTTPS checks, resta
 
 此验收仅覆盖已配置 local/generic 仓库、受限 ASCII `.bin`/`.txt` 普通 PUT 与当前授权策略；1 MiB 是该 UAT 的正文配置上限。PKG-007、完整 REST/Access/权限父项继续保持未完成，原版运行权限矩阵仍按所有者要求暂缓；正式产品发行另行交付。
 The accepted profile remains bounded. The 1 MiB body limit belongs to this UAT configuration. Complete Generic, REST, Access and permission parity remain open; reference-instance runtime work stays deferred by owner direction, and a formal product release remains separate.
+
+BIN-221 的[受限 JSON 制品契约](GENERIC-JSON-PROFILE.md)在提交 `21704b61860da918b4fb1e6952f0eb8440cab8f7` 将受限 ASCII 路径的普通 GET/HEAD/PUT 支持域扩展为 `.bin`、`.txt` 与精确小写 `.json`。JSON 制品使用精确 `application/json`，合法 JSON、空内容及非 JSON 字节均原样保存；最终扩展名决定 MIME，`.json.txt` 保持 `text/plain`，`.txt.json` 使用 `application/json`。精确提交与默认分支的共享检查及真实 PostgreSQL CI 均通过。
+BIN-221 extends the bounded ASCII-path transfer profile to exact lowercase `.json` alongside `.bin` and `.txt`. JSON artifacts use exact `application/json` and preserve valid, empty and opaque non-JSON bytes. The final suffix determines MIME: `.json.txt` remains `text/plain`, while `.txt.json` uses `application/json`. Exact-commit and default-branch shared and real-PostgreSQL CI pass.
+
+本次 UAT 的 37 项 HTTPS 检查、重启后的四项持久化/撤权检查及既有八项下载基线通过，临时验收授权已撤销。该结果仅验收上述受限扩展；PKG-007、完整 REST/Access/权限父项及原版运行时兼容仍未验证，原版实例与目标 JVM 执行继续暂缓，正式发行另行交付。
+The UAT extension passes 37 HTTPS cases, four post-restart persistence/revocation checks and the existing eight download-baseline checks; temporary acceptance access is revoked. Parent parity and reference-runtime compatibility remain unverified, reference-instance and target-JVM execution stay deferred, and a formal release remains separate.
