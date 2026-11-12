@@ -129,3 +129,5 @@ See the write-authorization study for static evidence and unresolved runtime/con
 The decision reuses the existing repository comparison domain over supplied facts; actual authorization wiring remains separate.
 
 普通 JSON 文件名画像 / Ordinary JSON filename profile: [契约 / Contract](GENERIC-JSON-PROFILE.md)，复用 localrepo 输入、保存 MIME 目录和现有 HTTP 适配器；独立回归位于各包的 JSON 测试及 `integration/postgres/json_upload_test.go`。
+
+受限条件 GET / Bounded conditional GET：[输入、优先级及零内容打开的 304 契约](CONDITIONAL-GET.md)，HTTP 处理器内保持单次已授权 Source 与既有流所有权；不扩展 Range 或 HEAD 条件画像。

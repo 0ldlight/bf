@@ -137,13 +137,13 @@ type downloadHandler struct {
 }
 
 // ServeHTTP 按固定全序执行：方法(405) → raw URI 画像/query(400) →
-// Range/任一 If-* 头(501) → 取消检查 → 授权(401/403/500) → 取消检查 →
-// 校验查询/投影(404/500) → GET Open → 取消检查 → 表示头。未授权、域外
+// 头画像(域外501) → 取消检查 → 授权(401/403/500) → 取消检查 →
+// 校验查询/投影(404/500) → 条件304或GET Open → 取消检查 → 表示头。未授权、域外
 // 与未支持请求都不查询节点，不暴露存在性。
 // ServeHTTP enforces the fixed total order: method(405) → raw URI profile/
-// query(400) → Range/any If-* header(501) → cancellation check →
+// query(400) → bounded header profile(unsupported501) → cancellation check →
 // authorization(401/403/500) → cancellation check → validated lookup/
-// projection(404/500) → GET Open → cancellation check → representation
+// projection(404/500) → conditional304 or GET Open → cancellation check → representation
 // headers. Unauthorized, out-of-profile and unsupported requests never query
 // the store and disclose no existence.
 func (h *downloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -156,7 +156,8 @@ func (h *downloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.writeError(w, r.Method, http.StatusBadRequest, "")
 		return
 	}
-	if downloadUnsupportedHeader(r.Header) {
+	condition, ok := parseDownloadCondition(r.Method, r.Header)
+	if !ok {
 		h.writeError(w, r.Method, http.StatusNotImplemented, "")
 		return
 	}
@@ -173,6 +174,10 @@ func (h *downloadHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == http.MethodHead {
 		h.serveHead(w, r, path)
+		return
+	}
+	if condition.present {
+		h.serveConditionalGet(w, r, path, condition)
 		return
 	}
 	h.serveGet(w, r, path)
@@ -251,23 +256,6 @@ func downloadProfileSegment(segment string) bool {
 // validDownloadRepoKey reuses the file-segment rule: one segment, no dot names.
 func validDownloadRepoKey(repoKey string) bool {
 	return downloadProfileSegment(repoKey)
-}
-
-// downloadUnsupportedHeader 拒绝任何拼写的 Range 与小写 if- 前缀键，
-// 含空值键。net/http 送达的键已规范化，EqualFold/前缀判断仍覆盖任意拼写。
-// downloadUnsupportedHeader rejects any spelling of Range and lowercased
-// if- prefixed keys, including empty values. net/http canonicalizes keys on
-// arrival; EqualFold/prefix matching still covers arbitrary spellings.
-func downloadUnsupportedHeader(header http.Header) bool {
-	for key := range header {
-		if strings.EqualFold(key, "Range") {
-			return true
-		}
-		if strings.HasPrefix(strings.ToLower(key), "if-") {
-			return true
-		}
-	}
-	return false
 }
 
 // authorize 应用三值决定；字段不合法按 auth 失败500，不默认放行。
@@ -438,6 +426,13 @@ func (h *downloadHandler) serveHead(w http.ResponseWriter, r *http.Request, path
 // representation after a successful open.
 func (h *downloadHandler) serveGet(w http.ResponseWriter, r *http.Request, path repository.Path) {
 	store := &validatedDownloadStore{inner: h.store, want: path}
+	h.serveGetFrom(w, r, path, store)
+}
+
+// serveGetFrom 保留同次已验证 Source 的内容选择、错误分类及流所有权。
+// serveGetFrom retains content selection, error classification and stream
+// ownership for an already validating source provider.
+func (h *downloadHandler) serveGetFrom(w http.ResponseWriter, r *http.Request, path repository.Path, store localrepo.FileReadStore) {
 	opener := &recordingDownloadOpener{inner: h.content}
 	result, err := localrepo.ReadFile(r.Context(), path, localrepo.FileReadDependencies{
 		Store:   store,

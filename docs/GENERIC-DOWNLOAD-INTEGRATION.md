@@ -1,5 +1,8 @@
 # 普通 Generic 下载接入契约 / Ordinary Generic download integration
 
+本文记录最初的普通下载接入画像与历史验收。当前 GET 条件头扩展以[受限条件 GET](CONDITIONAL-GET.md)为准；JSON 后缀扩展见[JSON 制品画像](GENERIC-JSON-PROFILE.md)。下文原始的全部 If-* 501 规则保留为历史起点，不替代新画像。
+This document retains the original integration profile; current conditional GET and JSON extensions have their own contracts.
+
 BIN-198 承接 [BIN-128 下载观察](GENERIC-DOWNLOAD-CONTRACT.md)与 [BIN-197 内部读取](LOCAL-FILE-READ.md)，冻结下一条完整 GET/HEAD 业务切片的证据、接口边界和验收。本文保留初始契约及 BIN-199 实施记录；当前进程装配见[下载进程](DOWNLOAD-PROCESS.md)，新增后缀见[JSON 制品画像](GENERIC-JSON-PROFILE.md)。父项 PKG-007/API-001/REP-001/STO-001 保持未完成。
 BIN-198 defines the evidence, integration boundaries and acceptance for the next complete ordinary GET/HEAD slice. This page retains the initial contract and adapter implementation; current process wiring and the JSON extension are linked separately. Parent capabilities remain incomplete.
 
