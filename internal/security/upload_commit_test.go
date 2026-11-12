@@ -59,15 +59,22 @@ func ssCommitResponder(grantAllowed bool) func(context.Context, string, []driver
 }
 
 // TestSecurityRecheckUploadCommitValidation 断言输入守卫：nil ctx、nil 事务
-// 与一切非法模式名（大小写、前导数字、超长、空白、连字符）都拒绝为固定
-// ErrConfiguration 文案，且绝不触库。注意：本守卫只做标识符正则，pg_ 前缀
-// 由调用方（进程装配）拒绝，不属于本函数契约。
+// 与一切非法模式名（大小写、前导数字、超长、空白、连字符、pg_ 系统前缀）
+// 都拒绝为固定 ErrConfiguration 文案，且绝不触库。pg_ 前缀与
+// InstallUploadCommitLock 的模式拒绝清单保持一致（纵深防御：不依赖调用
+// 方拒绝）。"public" 不在本层拒绝清单内：与 InstallUploadCommitLock 的
+// 既有模式策略一致（该处仅拒绝 public 作为上传角色），是否拒绝 public
+// 模式属所有者策略决定，随本变更提交标注审阅。
 // TestSecurityRecheckUploadCommitValidation asserts the input guards: nil
 // ctx, a nil transaction and every illegal schema name (case, leading digit,
-// overlong, whitespace, hyphen) reject with the fixed ErrConfiguration text
-// without touching the database. Note: this guard is the identifier regex
-// only; the pg_ prefix is rejected by the caller (process assembly), not by
-// this function's contract.
+// overlong, whitespace, hyphen and the pg_ system prefix) reject with the
+// fixed ErrConfiguration text without touching the database. The pg_
+// prefix mirrors InstallUploadCommitLock's schema rejection list
+// (defense in depth: no reliance on the caller). "public" is NOT in this
+// layer's rejection list: consistent with InstallUploadCommitLock's
+// existing schema policy (which rejects public only as the upload role);
+// whether to reject the public schema is an owner policy decision flagged
+// for review with this change.
 func TestSecurityRecheckUploadCommitValidation(t *testing.T) {
 	principal, repo, path := ssRepoPath(t)
 	db, script := ssOpenDB(t, func(_ context.Context, query string, _ []driver.Value) ssResult {
@@ -78,12 +85,18 @@ func TestSecurityRecheckUploadCommitValidation(t *testing.T) {
 		t.Fatalf("BeginTx: %v", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-	for _, schema := range []string{"", "Binflow", "1abc", "has space", strings.Repeat("a", 64), "a-b"} {
+	for _, schema := range []string{"", "Binflow", "1abc", "has space", strings.Repeat("a", 64), "a-b",
+		"pg_catalog", "pg_temp", "pg_binflow"} {
 		got, err := RecheckUploadCommit(context.Background(), tx, schema, principal, repo, path, false, nil, nil)
 		if got {
 			t.Fatalf("schema %q allowed = true", schema)
 		}
 		ssAssertStoreError(t, err, ErrConfiguration, ssCommitStage, errInvalidUploadInput)
+		if schema != "" {
+			if text := err.Error(); strings.Contains(text, schema) {
+				t.Fatalf("error text echoes schema %q: %q", schema, text)
+			}
+		}
 	}
 	//lint:ignore SA1012 deliberately passing nil to verify the graceful refusal contract
 	got, err := RecheckUploadCommit(nil, tx, "binflow_sec", principal, repo, path, false, nil, nil)

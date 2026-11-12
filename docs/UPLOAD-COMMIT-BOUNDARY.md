@@ -31,9 +31,9 @@ The installer uses an operator transaction and a dedicated function owner. The z
 
 ## 保存器接入 / Saver integration
 
-BIN-215 通过 `UploadSaver.SaveAuthorized` 接入提交复查。构造时显式设置 `CommitSchema` 并提供独立、有界的 `ReservationDB`，两条连接池及正文登记均须指向同一可信 schema。配置此模式后，普通 `Save` 入口会拒绝调用。调用方先完成预检，保存器从认证身份派生 actor，使用同一输入摘要在节点事务中复查。
+BIN-215 通过 `UploadSaver.SaveAuthorized` 接入提交复查。构造时显式设置 `CommitSchema` 并提供独立、有界的 `ReservationDB`，两条连接池及正文登记均须指向同一可信 schema。配置此模式后，普通 `Save` 入口会拒绝调用。调用方先完成预检，保存器从认证身份派生 actor，使用同一输入摘要在节点事务中复查。节点事务在自身入口直接拒绝 `pg_` 前缀系统模式名（与安装器 `InstallUploadCommitLock` 的模式拒绝清单一致，纵深防御、不依赖调用方拒绝）；是否同样拒绝 `public` 模式属所有者策略决定，暂与安装器保持一致（不拒绝）。
 
-The authorized saver requires a separate bounded ID-reservation pool so a node lock waiter cannot consume its connections. The node transaction checks its schema and isolation, takes the locks, and reuses that transaction for the permission query and node save. Denial rolls back the node transaction. Published bytes and registry entries follow the existing retention policy.
+The authorized saver requires a separate bounded ID-reservation pool so a node lock waiter cannot consume its connections. The node transaction checks its schema and isolation, takes the locks, and reuses that transaction for the permission query and node save; it also rejects `pg_`-prefixed system schema names at its own entry, mirroring the installer's (`InstallUploadCommitLock`) schema rejection list as defense in depth rather than relying on the caller. Whether to reject the `public` schema as well is an owner policy decision; for now it stays consistent with the installer (not rejected). Denial rolls back the node transaction. Published bytes and registry entries follow the existing retention policy.
 
 BIN-216 的独立 HTTP 处理器将本次认证身份、目录事实和已解析摘要传给预检与受保护保存。认证失败返回 401，预检或提交复查拒绝返回 403。若同时发生回滚故障，返回 500。应用进程的路由启用仍另行验收。
 
