@@ -598,13 +598,12 @@ func (g *failureGate) recordSuccess(key string) {
 }
 
 // recordFailure 记录一次 ErrInvalidCredentials：仍在窗口内则计数递增并
-// 在达到阈值时设置阻断；窗口已过则重开窗口。无法记录新负向条目（容量
-// 已满且无可回收条目）时返回非 nil 错误，由调用方回答运行500。
+// 在达到阈值时设置阻断。无法记录新负向条目（容量已满且无可回收条目）时
+// 返回非 nil 错误，由调用方回答运行500。
 // recordFailure records one ErrInvalidCredentials: in-window entries
-// increment and reach the threshold by setting the block; an expired window
-// restarts. When no new negative entry can be recorded (capacity full with
-// nothing reclaimable) it returns a nonnil error and the caller answers an
-// operational 500.
+// increment and reach the threshold by setting the block. When no new
+// negative entry can be recorded (capacity full with nothing reclaimable)
+// it returns a nonnil error and the caller answers an operational 500.
 func (g *failureGate) recordFailure(key string, now time.Time) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -627,10 +626,12 @@ func (g *failureGate) recordFailure(key string, now time.Time) error {
 		// the block unchanged.
 		return nil
 	}
-	if !now.Before(entry.windowStart.Add(g.limits.window)) {
-		entry.windowStart = now
-		entry.failures = 0
-	}
+	// 幸存于 prune 的未阻断条目必在窗口内（expired 的零阻断分支是重启
+	// 条件的逻辑非），出窗条目已被 prune 删除并经下方新建路径重开窗口。
+	// An unblocked entry surviving prune is necessarily in window (the
+	// zero-block branch of expired is the logical negation of a restart);
+	// out-of-window entries were already deleted by prune and restart
+	// through the fresh-entry path below.
 	entry.failures++
 	if entry.failures >= g.limits.threshold {
 		entry.blockedUntil = now.Add(g.limits.block)

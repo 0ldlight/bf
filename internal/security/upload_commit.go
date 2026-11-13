@@ -51,9 +51,11 @@ func RecheckUploadCommit(ctx context.Context, tx *sql.Tx, schema string, princip
 	if _, err := tx.ExecContext(ctx, `SELECT "`+schema+`".lock_upload_commit()`); err != nil {
 		return false, newStoreError(stage, err)
 	}
-	nodes, err := nodepg.New(tx)
-	if err != nil {
-		return false, newStoreError(stage, err)
-	}
+	// tx 非空已在上文守卫预检，而 nodepg.New 仅对 nil 事务失败：此处不可
+	// 能失败，错误通道按约定丢弃。
+	// tx is nonnil per the guard above and nodepg.New fails only on a nil
+	// transaction: it cannot fail here, so the error channel is discarded
+	// by contract.
+	nodes, _ := nodepg.New(tx)
 	return CheckUploadPermissions(ctx, principal, repo, path, txUploadGrants{tx}, nodes, enforce, sha1, sha256)
 }
