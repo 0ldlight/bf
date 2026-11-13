@@ -25,6 +25,9 @@ go mod verify
 echo '== go vet =='
 go vet ./...
 
+echo '== staticcheck =='
+go tool staticcheck ./...
+
 echo '== go test -race =='
 go test -race -timeout 5m ./...
 

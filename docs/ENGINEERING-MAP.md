@@ -78,8 +78,8 @@ The edge set above matches the allowlist in the root `import_rules_test.go` exac
 格式门禁通过 `scripts/check-format.py` 用 Git 发现源码（已跟踪 + 未跟踪未忽略），被忽略的本地归档/研究工作树（如 `.binflow/worktrees`）不参与扫描；门禁自身的测试由共享脚本一并运行。
 The format gate uses `scripts/check-format.py` to discover sources through Git (tracked plus untracked non-ignored); ignored local archive/research worktrees (for example `.binflow/worktrees`) are never scanned; the gate's own tests run from the shared script.
 
-真实 PostgreSQL 集成门禁（需要一次性测试库，DSN 只经环境变量提供，不记录值）：
-The real-PostgreSQL integration gate (disposable test database required; DSN via environment only, never logged):
+真实 PostgreSQL 集成门禁（需要一次性测试库，DSN 只经环境变量提供，不记录值；嵌套 integration 模块在同一脚本内运行模块校验、vet、staticcheck 与 race 测试，staticcheck 以根模块同版本 v0.8.2 固定在该模块 go.mod 工具依赖中）：
+The real-PostgreSQL integration gate (disposable test database required; DSN via environment only, never logged; the nested integration module runs mod verify, vet, staticcheck and race tests from the same script, with staticcheck pinned in that module's go.mod tool dependencies at the same v0.8.2 as the root module):
 
 ```sh
 BINFLOW_TEST_POSTGRES_DSN='<一次性测试库 DSN>' \
